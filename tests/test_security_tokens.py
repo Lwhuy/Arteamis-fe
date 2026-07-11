@@ -66,11 +66,22 @@ def test_refresh_token_roundtrip_and_type_guard():
         decode_refresh_token(it)
 
 
-def test_create_access_token_is_p2_stub():
-    from api.security import create_access_token
+def test_create_access_token_mints_workspace_scoped_token():
+    # P1 stub raised NotImplementedError; P2 (Task 4) implements it for real.
+    from api.security import AuthContext, create_access_token, decode_access_token
 
-    with pytest.raises(NotImplementedError):
-        create_access_token("user:abc", "workspace:1", "owner")
+    token = create_access_token("user:abc", "workspace:1", "owner")
+    claims = jwt.decode(token, "unit-test-secret", algorithms=["HS256"])
+    assert claims["type"] == "access"
+    assert claims["sub"] == "user:abc"
+    assert claims["workspace_id"] == "workspace:1"
+    assert claims["role"] == "owner"
+
+    ctx = decode_access_token(token)
+    assert isinstance(ctx, AuthContext)
+    assert ctx.user_id == "user:abc"
+    assert ctx.workspace_id == "workspace:1"
+    assert ctx.role == "owner"
 
 
 def test_decode_access_token_returns_context_with_none_workspace_in_p1():
