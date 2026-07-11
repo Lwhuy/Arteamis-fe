@@ -205,3 +205,35 @@ def test_status_reports_enabled(client):
     resp = client.get("/api/auth/status")
     assert resp.status_code == 200
     assert resp.json()["auth_enabled"] is True
+
+
+def test_register_without_jwt_secret_is_503_not_opaque_jwt_error(client, monkeypatch):
+    """Bug: register signs a refresh cookie via jwt unconditionally, so when
+    JWT_SECRET is unset (auth is 'open') it 500s on cookie signing with an
+    opaque jose error instead of a clear, actionable message."""
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+
+    async def fake_register(email, password, display_name):
+        raise AssertionError("must not reach auth_service.register without JWT_SECRET")
+
+    with patch("api.routers.auth.auth_service.register", new=fake_register):
+        resp = client.post(
+            "/api/auth/register",
+            json={"email": "a@b.com", "password": "password123"},
+        )
+    assert resp.status_code == 503
+    assert "JWT_SECRET" in resp.json()["detail"]
+
+
+def test_login_without_jwt_secret_is_503_not_opaque_jwt_error(client, monkeypatch):
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+
+    async def fake_login(email, password):
+        raise AssertionError("must not reach auth_service.login without JWT_SECRET")
+
+    with patch("api.routers.auth.auth_service.login", new=fake_login):
+        resp = client.post(
+            "/api/auth/login", json={"email": "a@b.com", "password": "password123"}
+        )
+    assert resp.status_code == 503
+    assert "JWT_SECRET" in resp.json()["detail"]

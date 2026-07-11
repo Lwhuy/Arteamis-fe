@@ -36,6 +36,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _STATE_COOKIE = "arteamis_oauth_state"
 
 
+def _require_jwt_configured() -> None:
+    """Register/login sign a refresh cookie via jwt unconditionally, so an
+    unset JWT_SECRET would otherwise 500 with an opaque jose signing error
+    even though JWTAuthMiddleware treats "no secret" as auth-disabled/open.
+    Fail loudly and clearly instead, before any side effects (user creation).
+    """
+    if not get_auth_config().jwt_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication is not configured (set JWT_SECRET)",
+        )
+
+
 def _set_refresh_cookie(response: Response, user_id: str) -> None:
     cfg = get_auth_config()
     response.set_cookie(
@@ -63,6 +76,7 @@ async def get_auth_status():
 
 @router.post("/register", response_model=SessionPayload, status_code=201)
 async def register(body: RegisterRequest, response: Response):
+    _require_jwt_configured()
     user = await auth_service.register(
         body.email, body.password, body.display_name
     )
@@ -72,6 +86,7 @@ async def register(body: RegisterRequest, response: Response):
 
 @router.post("/login", response_model=SessionPayload)
 async def login(body: LoginRequest, response: Response):
+    _require_jwt_configured()
     user = await auth_service.login(body.email, body.password)
     _set_refresh_cookie(response, user.id or "")
     return await auth_service.build_session_payload(user)
