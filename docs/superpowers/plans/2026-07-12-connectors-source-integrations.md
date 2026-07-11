@@ -1359,7 +1359,9 @@ async def _ingest_doc(doc, notebooks: Optional[List[str]]) -> str:
         command_input = SourceProcessingInput(
             source_id=str(source.id),
             content_state=content_state,
-            notebook_ids=notebooks,
+            # notebook_ids is a non-optional List[str]; normalize None->[] (the
+            # router does this via a model_validator) so a no-notebook import works.
+            notebook_ids=notebooks or [],
             transformations=[],
             embed=True,
         )
