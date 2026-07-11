@@ -22,6 +22,7 @@ interface BeliefLineage {
   provenance: LineageProvenanceRow[];
   derived_work: unknown[];
   contradictions: unknown[];
+  updated_from: { belief: string; trace: string } | null;
 }
 
 export function LineagePanel({ id }: { id: string }) {
@@ -29,11 +30,18 @@ export function LineagePanel({ id }: { id: string }) {
   const { data, isLoading } = useBelief(id) as unknown as { data: BeliefLineage | undefined; isLoading: boolean };
   const { openArtifact } = useArtifact();
   if (isLoading || !data) return <div className="p-4 text-sm text-muted-foreground">{t('common.loading')}</div>;
-  const { belief, sources, provenance } = data;
+  const { belief, sources, provenance, updated_from } = data;
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
       <div className="text-[11px] font-bold uppercase tracking-wide text-primary">{t('controlPlane.lineage.belief')}</div>
       <h2 className="mb-3 font-serif text-lg text-foreground">{belief.title}</h2>
+
+      {updated_from ? (
+        <div className="mb-4 rounded-lg bg-primary/10 p-3">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-primary">{t('controlPlane.lineage.updatedFromOutcome')}</div>
+          <div className="text-sm text-foreground">{t('controlPlane.lineage.updatedFromOutcomeDetail')}</div>
+        </div>
+      ) : null}
 
       <div className="mb-4">
         <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t('controlPlane.lineage.sources')}</div>

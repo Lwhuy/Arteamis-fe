@@ -15,7 +15,14 @@ export function ReviewInbox() {
     <div className="flex flex-col gap-2">
       {items.map((p) => (
         <div key={p.id} className="rounded-xl border border-border bg-card p-3">
-          <div className="text-xs font-bold text-foreground">{p.title}</div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-foreground">{p.title}</span>
+            {p.kind === 'learning' ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                {t('controlPlane.review.learningBadge')}
+              </span>
+            ) : null}
+          </div>
           <div className="mt-2 flex gap-2">
             <button type="button" onClick={() => accept.mutate(p.id)} disabled={accept.isPending}
               className="rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
