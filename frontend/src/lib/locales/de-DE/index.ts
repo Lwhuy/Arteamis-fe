@@ -107,9 +107,7 @@ export const deDE = {
     resetToDefault: "Auf Standard zurücksetzen",
     reasoning: "Denkprozess",
     searchTerms: "Suchbegriffe",
-    strategy: "Strategie",
     individualAnswers: "Einzelantworten ({count})",
-    finalAnswer: "Endgültige Antwort",
     notebookLabel: "Notebook: {name}",
     itemNotFound: "{type} konnte nicht gefunden werden",
     accessibility: {

@@ -104,9 +104,7 @@ export const esES = {
     resetToDefault: "Restablecer valores predeterminados",
     reasoning: "Razonamiento",
     searchTerms: "Términos de búsqueda",
-    strategy: "Estrategia",
     individualAnswers: "Respuestas individuales ({count})",
-    finalAnswer: "Respuesta final",
     notebookLabel: "Cuaderno: {name}",
     itemNotFound: "No se pudo encontrar este {type}",
     accessibility: {

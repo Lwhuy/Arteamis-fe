@@ -104,9 +104,7 @@ export const zhCN = {
     resetToDefault: "重置为默认",
     reasoning: "推理过程",
     searchTerms: "搜索词",
-    strategy: "策略",
     individualAnswers: "独立回答 ({count})",
-    finalAnswer: "最终回答",
     notebookLabel: "笔记本: {name}",
     itemNotFound: "未找到该 {type}",
     accessibility: {

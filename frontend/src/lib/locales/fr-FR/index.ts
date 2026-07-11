@@ -104,9 +104,7 @@ export const frFR = {
     resetToDefault: "Réinitialiser",
     reasoning: "Raisonnement",
     searchTerms: "Termes de recherche",
-    strategy: "Stratégie",
     individualAnswers: "Réponses individuelles ({count})",
-    finalAnswer: "Réponse finale",
     notebookLabel: "Carnet : {name}",
     itemNotFound: "Ce {type} est introuvable",
     accessibility: {

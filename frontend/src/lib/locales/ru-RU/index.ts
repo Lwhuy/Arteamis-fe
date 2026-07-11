@@ -104,9 +104,7 @@ export const ruRU = {
     resetToDefault: "Сбросить по умолчанию",
     reasoning: "Рассуждение",
     searchTerms: "Поисковые запросы",
-    strategy: "Стратегия",
     individualAnswers: "Отдельные ответы ({count})",
-    finalAnswer: "Итоговый ответ",
     notebookLabel: "Блокнот: {name}",
     itemNotFound: "Этот {type} не найден",
     accessibility: {

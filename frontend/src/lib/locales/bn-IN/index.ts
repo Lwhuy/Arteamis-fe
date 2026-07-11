@@ -104,9 +104,7 @@ export const bnIN = {
     resetToDefault: "ডিফল্টে রিসেট",
     reasoning: "যুক্তি",
     searchTerms: "অনুসন্ধান শব্দ",
-    strategy: "কৌশল",
     individualAnswers: "ব্যক্তিগত উত্তর ({count})",
-    finalAnswer: "চূড়ান্ত উত্তর",
     notebookLabel: "নোটবুক: {name}",
     itemNotFound: "এই {type} খুঁজে পাওয়া যায়নি",
     accessibility: {

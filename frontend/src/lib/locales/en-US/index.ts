@@ -104,9 +104,7 @@ export const enUS = {
     resetToDefault: "Reset to Default",
     reasoning: "Reasoning",
     searchTerms: "Search Terms",
-    strategy: "Strategy",
     individualAnswers: "Individual Answers ({count})",
-    finalAnswer: "Final Answer",
     notebookLabel: "Notebook: {name}",
     itemNotFound: "This {type} could not be found",
     accessibility: {

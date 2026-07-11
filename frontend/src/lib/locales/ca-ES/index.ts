@@ -104,9 +104,7 @@ export const caES = {
     resetToDefault: "Restableix els valors per defecte",
     reasoning: "Raonament",
     searchTerms: "Termes de cerca",
-    strategy: "Estratègia",
     individualAnswers: "Respostes individuals ({count})",
-    finalAnswer: "Resposta final",
     notebookLabel: "Quadern: {name}",
     itemNotFound: "No s'ha pogut trobar aquest {type}",
     accessibility: {

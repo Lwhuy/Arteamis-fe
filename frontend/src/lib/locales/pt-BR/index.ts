@@ -104,9 +104,7 @@ export const ptBR = {
     resetToDefault: "Restaurar Padrão",
     reasoning: "Raciocínio",
     searchTerms: "Termos de Busca",
-    strategy: "Estratégia",
     individualAnswers: "Respostas Individuais ({count})",
-    finalAnswer: "Resposta Final",
     notebookLabel: "Caderno: {name}",
     itemNotFound: "Este {type} não foi encontrado",
     accessibility: {

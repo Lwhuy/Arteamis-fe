@@ -104,9 +104,7 @@ export const itIT = {
     resetToDefault: "Ripristina predefinito",
     reasoning: "Ragionamento",
     searchTerms: "Termini di ricerca",
-    strategy: "Strategia",
     individualAnswers: "Risposte individuali ({count})",
-    finalAnswer: "Risposta finale",
     notebookLabel: "Quaderno: {name}",
     itemNotFound: "Questo {type} non è stato trovato",
     accessibility: {

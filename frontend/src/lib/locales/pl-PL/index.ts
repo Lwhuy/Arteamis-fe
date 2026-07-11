@@ -104,9 +104,7 @@ export const plPL = {
     resetToDefault: "Przywróć domyślne",
     reasoning: "Rozumowanie",
     searchTerms: "Hasła wyszukiwania",
-    strategy: "Strategia",
     individualAnswers: "Pojedyncze odpowiedzi ({count})",
-    finalAnswer: "Ostateczna odpowiedź",
     notebookLabel: "Notatnik: {name}",
     itemNotFound: "Nie udało się odnaleźć elementu ({type})",
     accessibility: {

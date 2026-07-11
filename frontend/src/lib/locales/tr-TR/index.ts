@@ -104,9 +104,7 @@ export const trTR = {
     resetToDefault: "Varsayılana Sıfırla",
     reasoning: "Akıl Yürütme",
     searchTerms: "Arama Terimleri",
-    strategy: "Strateji",
     individualAnswers: "Bireysel Yanıtlar ({count})",
-    finalAnswer: "Son Yanıt",
     notebookLabel: "Defter: {name}",
     itemNotFound: "Bu {type} bulunamadı",
     accessibility: {

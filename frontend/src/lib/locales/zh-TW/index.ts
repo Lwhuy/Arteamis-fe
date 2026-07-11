@@ -104,9 +104,7 @@ export const zhTW = {
     resetToDefault: "重置為預設",
     reasoning: "推理過程",
     searchTerms: "搜尋詞",
-    strategy: "策略",
     individualAnswers: "獨立回答 ({count})",
-    finalAnswer: "最終回答",
     notebookLabel: "筆記本: {name}",
     itemNotFound: "未找到該 {type}",
     accessibility: {

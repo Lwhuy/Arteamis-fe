@@ -104,9 +104,7 @@ export const jaJP = {
     resetToDefault: "デフォルトに戻す",
     reasoning: "推論",
     searchTerms: "検索ワード",
-    strategy: "戦略",
     individualAnswers: "個別回答（{count}件）",
-    finalAnswer: "最終回答",
     notebookLabel: "ノートブック: {name}",
     itemNotFound: "この{type}は見つかりませんでした",
     accessibility: {
