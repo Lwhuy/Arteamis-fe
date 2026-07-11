@@ -6,7 +6,7 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 import { cn } from '@/lib/utils';
 
 const primary = [
-  { href: '/', labelKey: 'controlPlane.rail.chat', icon: MessageSquare },
+  { href: '/control-plane', labelKey: 'controlPlane.rail.chat', icon: MessageSquare },
   { href: '/search', labelKey: 'controlPlane.rail.brain', icon: Network },
 ];
 const legacy = [
@@ -18,7 +18,7 @@ const legacy = [
 function RailLink({ href, labelKey, icon: Icon }: { href: string; labelKey: string; icon: typeof MessageSquare }) {
   const { t } = useTranslation();
   const pathname = usePathname();
-  const active = href === '/' ? pathname === '/' : pathname?.startsWith(href);
+  const active = href === '/control-plane' ? pathname === '/control-plane' : pathname?.startsWith(href);
   return (
     <Link
       href={href}
