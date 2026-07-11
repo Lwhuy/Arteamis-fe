@@ -9,7 +9,7 @@ vi.mock('@/lib/hooks/use-sources', () => ({
 }))
 vi.mock('@/lib/hooks/use-settings', () => ({ useSettings: () => ({ data: { default_embedding_option: 'ask' } }) }))
 vi.mock('@/lib/hooks/use-transformations', () => ({ useTransformations: () => ({ data: [] }) }))
-vi.mock('@/lib/hooks/use-notebooks', () => ({ useNotebooks: () => ({ data: [], isLoading: false }) }))
+vi.mock('@/lib/hooks/use-projects', () => ({ useProjects: () => ({ data: [], isLoading: false }) }))
 
 // jsdom has no ResizeObserver; the Radix Checkbox rendered in the Settings
 // section (embed toggle) needs one to mount. Stub it so the wizard can be
