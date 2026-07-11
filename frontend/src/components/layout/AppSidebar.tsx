@@ -41,6 +41,7 @@ import {
   Plus,
   Wrench,
   Command,
+  Plug,
 } from 'lucide-react'
 
 const getNavigation = (t: TFunction) => [
@@ -48,6 +49,7 @@ const getNavigation = (t: TFunction) => [
     title: t('navigation.collect'),
     items: [
       { name: t('navigation.sources'), href: '/sources', icon: FileText },
+      { name: t('navigation.connections'), href: '/connections', icon: Plug },
     ],
   },
   {
