@@ -330,3 +330,52 @@ export interface Membership {
   kind: 'personal' | 'company'
   role: string
 }
+
+// --- Invitations (P4) ---
+export interface InvitationResponse {
+  id: string
+  email: string
+  role: 'admin' | 'member'
+  project_id: string | null
+  project_name: string | null
+  status: 'pending' | 'accepted' | 'revoked' | 'expired'
+  invited_by: string
+  expires_at: string
+  created: string
+}
+
+export interface CreateInvitationRequest {
+  email: string
+  role: 'admin' | 'member'
+  project_id?: string | null
+}
+
+export interface InvitationCreateResponse {
+  invitation: InvitationResponse
+  email_sent: boolean
+  share_url: string | null
+}
+
+export interface InvitationPreviewResponse {
+  workspace_name: string
+  role: 'admin' | 'member'
+  email: string
+  project_name: string | null
+  status: string
+  expired: boolean
+}
+
+export interface AcceptInvitationResponse {
+  workspace_id: string
+  role: string
+  project_id: string | null
+  membership_status: string
+}
+
+export interface MemberResponse {
+  user_id: string
+  email: string
+  display_name: string | null
+  role: 'owner' | 'admin' | 'member'
+  status: string
+}
