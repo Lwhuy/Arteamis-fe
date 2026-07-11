@@ -456,11 +456,29 @@ class Source(ObjectModel):
     command: Optional[Union[str, RecordID]] = Field(
         default=None, description="Link to surreal-commands processing job"
     )
+    owner: Optional[Union[str, RecordID]] = Field(
+        default=None, description="Uploader user; NONE for legacy pre-auth sources"
+    )
+    scope: Literal["personal", "project", "company"] = "project"
+    promoted_from: Optional[Union[str, RecordID]] = Field(
+        default=None,
+        description="Schema hook only (P5 does not implement promotion): the "
+        "source this row was promoted from",
+    )
 
     @field_validator("command", mode="before")
     @classmethod
     def parse_command(cls, value):
         """Parse command field to ensure RecordID format"""
+        if isinstance(value, str) and value:
+            return ensure_record_id(value)
+        return value
+
+    @field_validator("owner", "promoted_from", mode="before")
+    @classmethod
+    def parse_record_link(cls, value):
+        """Coerce a str record id (owner or promoted_from) to RecordID; pass
+        through None."""
         if isinstance(value, str) and value:
             return ensure_record_id(value)
         return value
@@ -567,6 +585,15 @@ class Source(ObjectModel):
             logger.error(f"Error fetching insights for source {self.id}: {str(e)}")
             logger.exception(e)
             raise DatabaseOperationError("Failed to fetch insights for source")
+
+    async def get_project_ids(self) -> List[str]:
+        """Project (notebook) ids this source is referenced by, via the reference edge.
+        `reference` is RELATE source->reference->notebook (in=source, out=notebook)."""
+        result = await repo_query(
+            "SELECT VALUE out FROM reference WHERE in = $id",
+            {"id": ensure_record_id(self.id)},
+        )
+        return [str(pid) for pid in result] if result else []
 
     async def add_to_notebook(self, notebook_id: str) -> Any:
         if not notebook_id:
@@ -675,12 +702,17 @@ class Source(ObjectModel):
             raise DatabaseOperationError(e)
 
     def _prepare_save_data(self) -> dict:
-        """Override to ensure command field is always RecordID format for database"""
+        """Override to ensure command/owner/promoted_from fields are RecordID
+        format for the DB."""
         data = super()._prepare_save_data()
 
         # Ensure command field is RecordID format if not None
         if data.get("command") is not None:
             data["command"] = ensure_record_id(data["command"])
+        if data.get("owner") is not None:
+            data["owner"] = ensure_record_id(data["owner"])
+        if data.get("promoted_from") is not None:
+            data["promoted_from"] = ensure_record_id(data["promoted_from"])
 
         return data
 
