@@ -225,6 +225,7 @@ export const bnIN = {
     process: "প্রক্রিয়া",
     create: "তৈরি",
     manage: "ব্যবস্থাপনা",
+    manageMembers: "সদস্য পরিচালনা করুন",
     sources: "উৎসগুলি",
     notebooks: "নোটবুকগুলি",
     projects: "প্রকল্প",
@@ -1052,5 +1053,14 @@ export const bnIN = {
     personalLabel: "ব্যক্তিগত",
     addCompanyCta: "কোম্পানি তৈরি করুন",
     createCompanyBanner: "আপনি এখনও কোনো কোম্পানি তৈরি করেননি।",
+    manageMembers: "সদস্য পরিচালনা করুন",
+  },
+  roles: {
+    owner: "মালিক",
+    admin: "অ্যাডমিন",
+    member: "সদস্য",
+    adminOnly: "শুধুমাত্র অ্যাডমিনরা এটি করতে পারেন",
+    noWorkspace: "চালিয়ে যেতে একটি ওয়ার্কস্পেস নির্বাচন করুন",
+    accessDenied: "আপনার এই পৃষ্ঠায় প্রবেশাধিকার নেই",
   },
 }

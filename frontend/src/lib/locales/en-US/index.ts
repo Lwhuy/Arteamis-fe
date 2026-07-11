@@ -225,6 +225,7 @@ export const enUS = {
     process: "Process",
     create: "Create",
     manage: "Manage",
+    manageMembers: "Manage members",
     sources: "Sources",
     notebooks: "Notebooks",
     projects: "Projects",
@@ -1052,5 +1053,14 @@ export const enUS = {
     personalLabel: "Personal",
     addCompanyCta: "Create a company",
     createCompanyBanner: "You haven't created a company yet.",
+    manageMembers: "Manage members",
+  },
+  roles: {
+    owner: "Owner",
+    admin: "Admin",
+    member: "Member",
+    adminOnly: "Only admins can do this",
+    noWorkspace: "Select a workspace to continue",
+    accessDenied: "You do not have access to this page",
   },
 }

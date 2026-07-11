@@ -225,6 +225,7 @@ export const itIT = {
     process: "Elabora",
     create: "Crea",
     manage: "Gestisci",
+    manageMembers: "Manage members",
     sources: "Fonti",
     notebooks: "Quaderni",
     projects: "Projects",
@@ -1051,5 +1052,14 @@ export const itIT = {
     personalLabel: "Personal",
     addCompanyCta: "Create a company",
     createCompanyBanner: "You haven't created a company yet.",
+    manageMembers: "Manage members",
+  },
+  roles: {
+    owner: "Owner",
+    admin: "Admin",
+    member: "Member",
+    adminOnly: "Only admins can do this",
+    noWorkspace: "Select a workspace to continue",
+    accessDenied: "You do not have access to this page",
   },
 }

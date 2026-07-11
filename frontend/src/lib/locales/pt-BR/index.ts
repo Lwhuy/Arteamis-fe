@@ -225,6 +225,7 @@ export const ptBR = {
     process: "Processar",
     create: "Criar",
     manage: "Gerenciar",
+    manageMembers: "Gerenciar membros",
     sources: "Fontes",
     notebooks: "Cadernos",
     projects: "Projetos",
@@ -1051,5 +1052,14 @@ export const ptBR = {
     personalLabel: "Pessoal",
     addCompanyCta: "Criar uma empresa",
     createCompanyBanner: "Você ainda não criou uma empresa.",
+    manageMembers: "Gerenciar membros",
+  },
+  roles: {
+    owner: "Proprietário",
+    admin: "Administrador",
+    member: "Membro",
+    adminOnly: "Somente administradores podem fazer isso",
+    noWorkspace: "Selecione um espaço de trabalho para continuar",
+    accessDenied: "Você não tem acesso a esta página",
   },
 }

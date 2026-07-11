@@ -225,6 +225,7 @@ export const ruRU = {
     process: "Обработать",
     create: "Создать",
     manage: "Управление",
+    manageMembers: "Управление участниками",
     sources: "Источники",
     notebooks: "Блокноты",
     projects: "Проекты",
@@ -1051,5 +1052,14 @@ export const ruRU = {
     personalLabel: "Личное",
     addCompanyCta: "Создать компанию",
     createCompanyBanner: "Вы ещё не создали компанию.",
+    manageMembers: "Управление участниками",
+  },
+  roles: {
+    owner: "Владелец",
+    admin: "Администратор",
+    member: "Участник",
+    adminOnly: "Только администраторы могут это делать",
+    noWorkspace: "Выберите рабочее пространство, чтобы продолжить",
+    accessDenied: "У вас нет доступа к этой странице",
   },
 }

@@ -225,6 +225,7 @@ export const zhTW = {
     process: "處理",
     create: "創作",
     manage: "管理",
+    manageMembers: "管理成員",
     sources: "來源",
     notebooks: "筆記本",
     projects: "專案",
@@ -1051,5 +1052,14 @@ export const zhTW = {
     personalLabel: "個人",
     addCompanyCta: "建立公司",
     createCompanyBanner: "您尚未建立公司。",
+    manageMembers: "管理成員",
+  },
+  roles: {
+    owner: "擁有者",
+    admin: "管理員",
+    member: "成員",
+    adminOnly: "只有管理員可以執行此操作",
+    noWorkspace: "請選擇一個工作區以繼續",
+    accessDenied: "您無權存取此頁面",
   },
 }

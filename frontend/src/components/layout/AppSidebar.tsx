@@ -9,6 +9,7 @@ import { Logo } from '@/components/common/Logo'
 import { Button } from '@/components/ui/button'
 import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher'
 import { RoleGate } from '@/components/common/RoleGate'
+import { useRole } from '@/lib/hooks/use-role'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useSidebarStore } from '@/lib/stores/sidebar-store'
 import { useCreateDialogs } from '@/lib/hooks/use-create-dialogs'
@@ -85,7 +86,15 @@ export function AppSidebar() {
   const navigation = getNavigation(t)
   const pathname = usePathname()
   const { logout } = useAuth()
+  const { role } = useRole()
   const { isCollapsed, toggleCollapse } = useSidebarStore()
+
+  // Literal keys (not a template string) so the i18n usage test can find them.
+  const currentRoleLabels: Record<string, string> = {
+    owner: t('roles.owner'),
+    admin: t('roles.admin'),
+    member: t('roles.member'),
+  }
   const { openSourceDialog, openNotebookDialog, openPodcastDialog } = useCreateDialogs()
 
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
@@ -167,6 +176,11 @@ export function AppSidebar() {
           {!isCollapsed && (
             <div className="mb-4 px-3">
               <WorkspaceSwitcher />
+              {role && (
+                <p className="mt-1 px-3 text-[10px] uppercase tracking-wide text-sidebar-foreground/50">
+                  {currentRoleLabels[role] ?? role}
+                </p>
+              )}
             </div>
           )}
 
