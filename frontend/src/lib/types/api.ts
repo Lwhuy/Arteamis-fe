@@ -9,6 +9,57 @@ export interface NotebookResponse {
   note_count: number
 }
 
+export interface ProjectResponse {
+  id: string
+  name: string
+  description: string
+  archived: boolean
+  created: string
+  updated: string
+  source_count: number
+  note_count: number
+  workspace: string | null
+  owner: string | null
+  default_source_scope: 'personal' | 'project' | 'company'
+  promoted_from: string | null
+}
+
+export interface CreateProjectRequest {
+  name: string
+  description?: string
+  default_source_scope?: 'personal' | 'project' | 'company'
+}
+
+export interface UpdateProjectRequest {
+  name?: string
+  description?: string
+  archived?: boolean
+  default_source_scope?: 'personal' | 'project' | 'company'
+}
+
+export interface ProjectDeletePreview {
+  project_id: string
+  project_name: string
+  note_count: number
+  exclusive_source_count: number
+  shared_source_count: number
+}
+
+export interface ProjectDeleteResponse {
+  message: string
+  deleted_notes: number
+  deleted_sources: number
+  unlinked_sources: number
+}
+
+export interface ProjectMemberResponse {
+  id: string
+  project: string
+  user: string
+  role: 'admin' | 'member'
+  status: 'active' | 'invited' | 'revoked'
+}
+
 export interface NoteResponse {
   id: string
   title: string | null
