@@ -86,17 +86,23 @@ async def get_notes(
 
 @router.post("/notes", response_model=NoteResponse)
 async def create_note(note_data: NoteCreate, repo: CtxDep):
-    """Create a new note. If `notebook_id` is given it's workspace-checked
-    first (404 on cross-workspace/missing) before the note is attached to it —
-    a caller cannot "adopt" a note into another workspace's notebook by
-    guessing its id. A note created with no `notebook_id` is an orphan (not
-    attached to any notebook) and, since `note` has no native `workspace`
-    column, will not appear in any workspace-scoped list/get afterward — this
-    mirrors the pre-existing optional `notebook_id` semantics, just now made
-    workspace-safe."""
+    """Create a new note. `notebook_id` is REQUIRED (422 if missing, enforced
+    by `NoteCreate`) and is workspace-checked first (404 on cross-workspace/
+    missing) before the note is attached to it — a caller cannot "adopt" a
+    note into another workspace's notebook by guessing its id.
+
+    `note` has no native `workspace` column (see
+    open_notebook/database/scoping.py's INHERITED_WORKSPACE_TABLES) — it only
+    belongs to a workspace transitively via the `artifact` edge to a notebook.
+    A note created with no `notebook_id` would therefore have no such edge and
+    would be permanently unreachable through any workspace-scoped read,
+    including by its own creator (fail-closed, not fail-safe). The frontend
+    never creates a note without a notebookId (NoteEditorDialog,
+    MessageActions, SaveToNotebooksDialog all guard on it before calling this
+    endpoint), so requiring it here closes off a dead-end state rather than
+    removing a used capability."""
     try:
-        if note_data.notebook_id:
-            await repo.get(note_data.notebook_id)  # workspace-checked; 404 on miss/cross-workspace
+        await repo.get(note_data.notebook_id)  # workspace-checked; 404 on miss/cross-workspace
 
         # Auto-generate title if not provided and it's an AI note
         title = note_data.title
@@ -128,9 +134,8 @@ async def create_note(note_data: NoteCreate, repo: CtxDep):
         )
         command_id = await new_note.save()
 
-        # Add to notebook if specified (already workspace-verified above)
-        if note_data.notebook_id:
-            await new_note.add_to_notebook(note_data.notebook_id)
+        # notebook_id is required and already workspace-verified above
+        await new_note.add_to_notebook(note_data.notebook_id)
 
         return NoteResponse(
             id=new_note.id or "",

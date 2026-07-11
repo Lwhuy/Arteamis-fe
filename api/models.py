@@ -191,9 +191,14 @@ class NoteCreate(BaseModel):
     title: Optional[str] = Field(None, description="Note title")
     content: str = Field(..., description="Note content")
     note_type: Optional[str] = Field("human", description="Type of note (human, ai)")
-    notebook_id: Optional[str] = Field(
-        None, description="Notebook ID to add the note to"
-    )
+    # Required: `note` has no native `workspace` column (it inherits workspace
+    # only via the `artifact` edge to a notebook -- see
+    # open_notebook/database/scoping.py's INHERITED_WORKSPACE_TABLES). A note
+    # created with no notebook_id would have no such edge and would therefore
+    # be permanently unreachable via every workspace-scoped read, including by
+    # its own creator. The frontend never creates a note without a notebookId,
+    # so this closes off an orphan state that had no legitimate use.
+    notebook_id: str = Field(..., description="Notebook ID to add the note to (required)")
 
 
 class NoteUpdate(BaseModel):

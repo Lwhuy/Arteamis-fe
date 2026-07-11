@@ -113,6 +113,22 @@ class TestNotesGet:
 
 
 class TestNotesCreate:
+    def test_create_without_notebook_id_is_rejected(self, client):
+        """A note with no notebook_id has no `artifact` edge to any notebook,
+        and `note` has no native `workspace` column (INHERITED_WORKSPACE_TABLES
+        in open_notebook/database/scoping.py) -- so an orphan note would be
+        permanently unreachable via every workspace-scoped read, including by
+        its own creator (fail-closed, not just fail-safe). The frontend never
+        creates a note without a notebookId (NoteEditorDialog, MessageActions,
+        SaveToNotebooksDialog all guard on it), so notebook_id is required at
+        creation to make that orphan state unreachable rather than silently
+        producing unrecoverable data."""
+        from api.main import app
+
+        _override(app, _ctx())
+        resp = client.post("/api/notes", json={"content": "hi"})
+        assert resp.status_code == 422, resp.text
+
     @patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
     @patch("open_notebook.domain.notebook.submit_command", return_value=None)
     @patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
