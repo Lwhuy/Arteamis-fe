@@ -13,21 +13,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useUpdateNotebook } from '@/lib/hooks/use-notebooks'
-import { NotebookDeleteDialog } from './NotebookDeleteDialog'
+import { useUpdateProject } from '@/lib/hooks/use-projects'
+import { ProjectDeleteDialog } from './ProjectDeleteDialog'
 import { useState } from 'react'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { getDateLocale } from '@/lib/utils/date-locale'
 
-interface NotebookRowProps {
+interface ProjectRowProps {
   notebook: NotebookResponse
 }
 
-export function NotebookRow({ notebook }: NotebookRowProps) {
+export function ProjectRow({ notebook }: ProjectRowProps) {
   const { t, language } = useTranslation()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const router = useRouter()
-  const updateNotebook = useUpdateNotebook()
+  const updateNotebook = useUpdateProject()
 
   const handleArchiveToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -38,7 +38,7 @@ export function NotebookRow({ notebook }: NotebookRowProps) {
   }
 
   const handleRowClick = () => {
-    router.push(`/notebooks/${encodeURIComponent(notebook.id)}`)
+    router.push(`/projects/${encodeURIComponent(notebook.id)}`)
   }
 
   return (
@@ -54,7 +54,7 @@ export function NotebookRow({ notebook }: NotebookRowProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <Link
-              href={`/notebooks/${encodeURIComponent(notebook.id)}`}
+              href={`/projects/${encodeURIComponent(notebook.id)}`}
               onClick={(e) => e.stopPropagation()}
               className="font-medium truncate rounded-sm outline-none group-hover:text-primary transition-colors focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -131,7 +131,7 @@ export function NotebookRow({ notebook }: NotebookRowProps) {
         </DropdownMenu>
       </div>
 
-      <NotebookDeleteDialog
+      <ProjectDeleteDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         notebookId={notebook.id}

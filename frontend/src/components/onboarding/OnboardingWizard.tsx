@@ -31,7 +31,7 @@ export function OnboardingWizard() {
         {step === 'welcome' && (
           <WelcomeStep
             onCreateCompany={() => setStep('company')}
-            onSkip={() => router.push('/notebooks')}
+            onSkip={() => router.push('/projects')}
           />
         )}
         {step === 'company' && (
@@ -46,7 +46,7 @@ export function OnboardingWizard() {
         {step === 'project' && (
           // P3 fills in the first-project step here. Until then, hand off to
           // the dashboard now that the company + owner token exist.
-          <ProjectHandoff onDone={() => router.push('/notebooks')} />
+          <ProjectHandoff onDone={() => router.push('/projects')} />
         )}
       </div>
     </div>

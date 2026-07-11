@@ -15,10 +15,10 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
-import { useNotebookDeletePreview, useDeleteNotebook } from '@/lib/hooks/use-notebooks'
+import { useProjectDeletePreview, useDeleteProject } from '@/lib/hooks/use-projects'
 import { useRouter } from 'next/navigation'
 
-interface NotebookDeleteDialogProps {
+interface ProjectDeleteDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   notebookId: string
@@ -26,13 +26,13 @@ interface NotebookDeleteDialogProps {
   redirectAfterDelete?: boolean
 }
 
-export function NotebookDeleteDialog({
+export function ProjectDeleteDialog({
   open,
   onOpenChange,
   notebookId,
   notebookName,
   redirectAfterDelete = false,
-}: NotebookDeleteDialogProps) {
+}: ProjectDeleteDialogProps) {
   const { t } = useTranslation()
   const router = useRouter()
   const [sourceAction, setSourceAction] = useState<'keep' | 'delete'>('keep')
@@ -45,12 +45,12 @@ export function NotebookDeleteDialog({
   }, [open, notebookId])
 
   // Fetch delete preview when dialog is open
-  const { data: preview, isLoading: isLoadingPreview, error: previewError } = useNotebookDeletePreview(
+  const { data: preview, isLoading: isLoadingPreview, error: previewError } = useProjectDeletePreview(
     notebookId,
     open
   )
 
-  const deleteNotebook = useDeleteNotebook()
+  const deleteNotebook = useDeleteProject()
 
   const handleConfirm = async () => {
     await deleteNotebook.mutateAsync({
@@ -59,7 +59,7 @@ export function NotebookDeleteDialog({
     })
     onOpenChange(false)
     if (redirectAfterDelete) {
-      router.push('/notebooks')
+      router.push('/projects')
     }
   }
 

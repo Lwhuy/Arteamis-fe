@@ -6,7 +6,7 @@ export function proxy(request: NextRequest) {
 
   // Redirect root to notebooks
   if (pathname === '/') {
-    return NextResponse.redirect(new URL('/notebooks', request.url))
+    return NextResponse.redirect(new URL('/projects', request.url))
   }
 
   return NextResponse.next()

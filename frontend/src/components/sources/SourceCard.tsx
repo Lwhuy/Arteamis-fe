@@ -30,7 +30,7 @@ import { useTranslation } from '@/lib/hooks/use-translation'
 import type { TFunction } from 'i18next'
 import { cn } from '@/lib/utils'
 import { ContextToggle } from '@/components/common/ContextToggle'
-import { ContextMode } from '@/app/(dashboard)/notebooks/[id]/page'
+import { ContextMode } from '@/app/(dashboard)/projects/[id]/page'
 
 interface SourceCardProps {
   source: SourceListResponse

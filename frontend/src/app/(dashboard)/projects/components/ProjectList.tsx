@@ -1,9 +1,9 @@
 'use client'
 
 import { NotebookResponse } from '@/lib/types/api'
-import { NotebookCard } from './NotebookCard'
-import { NotebookRow } from './NotebookRow'
-import { useNotebookViewStore } from '@/lib/stores/notebook-view-store'
+import { ProjectCard } from './ProjectCard'
+import { ProjectRow } from './ProjectRow'
+import { useProjectViewStore } from '@/lib/stores/project-view-store'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Book, ChevronDown, ChevronRight, Plus } from 'lucide-react'
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 import { useTranslation } from '@/lib/hooks/use-translation'
 
-interface NotebookListProps {
+interface ProjectListProps {
   notebooks?: NotebookResponse[]
   isLoading: boolean
   title: string
@@ -22,7 +22,7 @@ interface NotebookListProps {
   actionLabel?: string
 }
 
-export function NotebookList({ 
+export function ProjectList({ 
   notebooks, 
   isLoading, 
   title, 
@@ -31,9 +31,9 @@ export function NotebookList({
   emptyDescription,
   onAction,
   actionLabel,
-}: NotebookListProps) {
+}: ProjectListProps) {
   const { t } = useTranslation()
-  const viewMode = useNotebookViewStore((state) => state.viewMode)
+  const viewMode = useProjectViewStore((state) => state.viewMode)
   const [isExpanded, setIsExpanded] = useState(!collapsible)
 
   if (isLoading) {
@@ -48,7 +48,7 @@ export function NotebookList({
     return (
       <EmptyState
         icon={Book}
-        title={emptyTitle ?? t('common.noResults')}
+        title={emptyTitle ?? t('projects.empty')}
         description={emptyDescription ?? t('chat.startByCreating')}
         action={onAction && actionLabel ? (
           <Button onClick={onAction} variant="outline" className="mt-4">
@@ -84,13 +84,13 @@ export function NotebookList({
         viewMode === 'list' ? (
           <div className="flex flex-col gap-2">
             {notebooks.map((notebook) => (
-              <NotebookRow key={notebook.id} notebook={notebook} />
+              <ProjectRow key={notebook.id} notebook={notebook} />
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {notebooks.map((notebook) => (
-              <NotebookCard key={notebook.id} notebook={notebook} />
+              <ProjectCard key={notebook.id} notebook={notebook} />
             ))}
           </div>
         )
