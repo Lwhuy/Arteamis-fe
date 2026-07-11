@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ControlPlane } from './ControlPlane';
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/', useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/', useRouter: () => ({ push: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/lib/hooks/use-ask', () => ({
   useAsk: () => ({ isStreaming: false, strategy: null, answers: [], finalAnswer: '', error: null, sendAsk: vi.fn(), reset: vi.fn() }),
 }));

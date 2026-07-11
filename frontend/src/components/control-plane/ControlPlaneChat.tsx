@@ -35,7 +35,7 @@ export function ControlPlaneChat() {
       </div>
       <div className="flex-1 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-2xl">
-          {finalAnswer ? <AnswerBody finalAnswer={finalAnswer} isStreaming={isStreaming} /> : null}
+          <AnswerBody finalAnswer={finalAnswer} isStreaming={isStreaming} />
         </div>
       </div>
       <div className="border-t border-border p-4">
