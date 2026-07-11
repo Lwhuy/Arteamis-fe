@@ -480,6 +480,12 @@ export const jaJP = {
     composerPlaceholder: "Ask the brain, or give a command…",
     addSource: "Add source",
     send: "Send",
+    artifact: {
+      title: "Source",
+      locator: "Page {loc}",
+      notFound: "Source not found",
+      lineageComingSoon: "Belief lineage coming soon",
+    },
     rail: {
       chat: "Chat",
       brain: "Brain",
