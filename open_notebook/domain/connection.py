@@ -7,7 +7,6 @@ multitenancy work sets it later.
 from datetime import datetime
 from typing import ClassVar, List, Optional
 
-from loguru import logger
 from pydantic import SecretStr
 
 from open_notebook.database.repository import ensure_record_id, repo_query
@@ -75,27 +74,6 @@ class Connection(ObjectModel):
                 raw = val.get_secret_value() if isinstance(val, SecretStr) else val
                 object.__setattr__(instance, field, SecretStr(decrypt_value(raw)))
         return instance
-
-    @classmethod
-    async def get_all_connected(cls) -> List["Connection"]:
-        results = await repo_query(
-            "SELECT * FROM connection ORDER BY created ASC", {}
-        )
-        out: List["Connection"] = []
-        for row in results:
-            try:
-                out.append(cls._from_db_row(row))
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"Skipping undecryptable connection {row.get('id')}: {e}")
-        return out
-
-    @classmethod
-    async def get_by_provider(cls, provider: str) -> List["Connection"]:
-        results = await repo_query(
-            "SELECT * FROM connection WHERE provider = $provider ORDER BY created ASC",
-            {"provider": provider},
-        )
-        return [cls._from_db_row(r) for r in results]
 
     @classmethod
     async def get_by_provider_and_workspace(

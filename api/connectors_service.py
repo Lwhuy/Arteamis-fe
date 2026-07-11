@@ -15,7 +15,7 @@ from open_notebook.domain.connectors import (
     get_connector,
     oauth_state,
 )
-from open_notebook.domain.notebook import Asset, Source
+from open_notebook.domain.notebook import Asset, Project, Source
 
 # IMPORTANT: create sources via the DOMAIN layer (Source + CommandService),
 # exactly like api/routers/sources.py does — NOT via api.sources_service.SourceService,
@@ -119,8 +119,11 @@ async def handle_callback(provider: str, code: str, state: str) -> Connection:
 
 
 def _check_connection_workspace(conn: Connection, ctx: PermissionContext) -> None:
-    if str(conn.workspace) != ctx.workspace_id:
-        raise ValueError("Connection does not belong to the active workspace")
+    # Fail-closed: a connection with no workspace (not yet migrated / corrupt
+    # row) must never be treated as belonging to the caller's workspace, no
+    # matter what ctx.workspace_id happens to be.
+    if conn.workspace is None or str(conn.workspace) != ctx.workspace_id:
+        raise ValueError("Connection not found in this workspace")
 
 
 async def list_items(
@@ -200,6 +203,33 @@ async def import_items(
     adapter = get_connector(provider)
     conn = await Connection.get(connection_id)
     _check_connection_workspace(conn, ctx)
+
+    # P5 visibility: a source is only visible via a `reference` edge to a
+    # notebook in the workspace. An import with no target notebook would
+    # create an invisible, workspace-unbound source -- reject it outright
+    # rather than silently importing something nobody can ever see.
+    if not notebooks:
+        raise ValueError("At least one target notebook is required")
+
+    # CRITICAL: validate every target notebook belongs to the caller's active
+    # workspace AND the caller is at least a member of it, mirroring the
+    # canonical check in api/routers/sources.py (create_source). Without this,
+    # a user in workspace A could inject a source into workspace B's notebook
+    # merely by knowing/guessing its id. The notebooks list is the same for
+    # every item in this batch, so validate it once, up front, instead of
+    # per-item -- and resolve the effective scope from the FIRST target
+    # notebook's default_source_scope, matching the router's behavior.
+    resolved_scope = None
+    for i, notebook_id in enumerate(notebooks):
+        project = await Project.get(notebook_id)
+        if not project or str(getattr(project, "workspace", None)) != ctx.workspace_id:
+            raise ValueError(f"Notebook {notebook_id} not found")
+        if await ctx.project_role(notebook_id) not in ("admin", "member"):
+            raise ValueError("You are not a member of this project")
+        if i == 0:
+            resolved_scope = getattr(project, "default_source_scope", None)
+    resolved_scope = resolved_scope or "project"
+
     all_items = {i.id: i for i in await adapter.list_items(conn)}
     accepted, failed = [], []
     for item_id in item_ids:
@@ -209,10 +239,10 @@ async def import_items(
             continue
         try:
             doc = await adapter.fetch_content(conn, item)
-            # Connector imports are private-by-default: owned by the importing
-            # user, scope="personal" (not visible workspace/project-wide until
-            # the user explicitly re-scopes the resulting source).
-            await _ingest_doc(doc, notebooks, owner=ctx.user_id, scope="personal")
+            # Connector imports are owned by the importing user; scope is
+            # resolved from the target notebook above (not hard-coded), same
+            # as a normal source creation via the sources router.
+            await _ingest_doc(doc, notebooks, owner=ctx.user_id, scope=resolved_scope)
             accepted.append(item_id)
         except Exception as e:  # noqa: BLE001
             logger.warning(f"connector import failed for {provider}/{item_id}: {e}")

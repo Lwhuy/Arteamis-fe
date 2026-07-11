@@ -126,11 +126,23 @@ async def test_ingest_doc_sets_owner_and_scope(monkeypatch):
     assert captured["scope"] == "personal"
 
 
+class FakeProject:
+    """Stand-in for open_notebook.domain.notebook.Project, matching the
+    fields the Fix-1 validation in import_items reads: workspace and
+    default_source_scope."""
+
+    def __init__(self, workspace="workspace:1", default_source_scope="project"):
+        self.workspace = workspace
+        self.default_source_scope = default_source_scope
+
+
 @pytest.mark.asyncio
 async def test_import_items_rolls_back_source_when_add_to_notebook_fails(monkeypatch):
-    """Regression: if source.add_to_notebook() fails (e.g. bad notebook id), the
-    half-created Source must be rolled back (deleted), not left orphaned, and
-    the item must be reported in failed[] rather than raising out of import_items."""
+    """Regression: if source.add_to_notebook() fails for a notebook that DID
+    pass the upfront workspace/role validation (e.g. a transient relate()
+    failure), the half-created Source must be rolled back (deleted), not left
+    orphaned, and the item must be reported in failed[] rather than raising
+    out of import_items."""
     from open_notebook.domain.connectors.base import ConnectorItem, ImportedDoc
 
     delete_calls = {"count": 0}
@@ -144,7 +156,7 @@ async def test_import_items_rolls_back_source_when_add_to_notebook_fails(monkeyp
             return None
 
         async def add_to_notebook(self, notebook_id):
-            raise ValueError(f"notebook not found: {notebook_id}")
+            raise ValueError(f"failed to relate notebook: {notebook_id}")
 
         async def delete(self):
             delete_calls["count"] += 1
@@ -162,20 +174,237 @@ async def test_import_items_rolls_back_source_when_add_to_notebook_fails(monkeyp
     async def fake_connection_get(connection_id):
         return FakeConnection()
 
+    async def fake_project_get(notebook_id):
+        return FakeProject(workspace="workspace:1")
+
     monkeypatch.setattr(svc, "Source", FakeSource)
     monkeypatch.setattr(svc, "Asset", lambda **kw: None)
     monkeypatch.setattr(svc, "get_connector", lambda provider: FakeAdapter())
     monkeypatch.setattr(svc.Connection, "get", staticmethod(fake_connection_get))
+    monkeypatch.setattr(svc, "Project", type("P", (), {"get": staticmethod(fake_project_get)}))
 
-    ctx = _ctx(workspace_id="workspace:1")
+    ctx = _ctx(workspace_id="workspace:1", workspace_role="owner")
     result = await svc.import_items(
-        "gdrive", "connection:1", ["item1"], ["notebook:bad"], ctx
+        "gdrive", "connection:1", ["item1"], ["notebook:good"], ctx
     )
 
     assert result["accepted"] == []
     assert len(result["failed"]) == 1
     assert result["failed"][0]["item_id"] == "item1"
     assert delete_calls["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_import_items_requires_at_least_one_notebook(monkeypatch):
+    """Fix 2: under P5 a source is only visible via a reference edge to a
+    notebook in the workspace. An import with no target notebook would create
+    an invisible, workspace-unbound source -- reject it up front."""
+    class FakeConnection:
+        workspace = "workspace:1"
+
+    async def fake_connection_get(connection_id):
+        return FakeConnection()
+
+    ingest_calls = {"count": 0}
+
+    async def fake_ingest_doc(*args, **kwargs):
+        ingest_calls["count"] += 1
+        return "command:123"
+
+    monkeypatch.setattr(svc.Connection, "get", staticmethod(fake_connection_get))
+    monkeypatch.setattr(svc, "_ingest_doc", fake_ingest_doc)
+
+    ctx = _ctx(workspace_id="workspace:1")
+
+    with pytest.raises(ValueError):
+        await svc.import_items("gdrive", "connection:1", ["item1"], [], ctx)
+    assert ingest_calls["count"] == 0
+
+    with pytest.raises(ValueError):
+        await svc.import_items("gdrive", "connection:1", ["item1"], None, ctx)
+    assert ingest_calls["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_import_items_raises_when_notebook_in_other_workspace(monkeypatch):
+    """Fix 1 (CRITICAL): a notebook belonging to a different workspace than the
+    caller's must never be usable as an import target, even if the connection
+    itself is in the caller's workspace."""
+    from open_notebook.domain.connectors.base import ConnectorItem, ImportedDoc
+
+    class FakeConnection:
+        workspace = "workspace:1"
+
+    async def fake_connection_get(connection_id):
+        return FakeConnection()
+
+    async def fake_project_get(notebook_id):
+        return FakeProject(workspace="workspace:other")
+
+    class FakeAdapter:
+        async def list_items(self, conn):
+            return [ConnectorItem(id="item1", kind="file", title="t")]
+
+        async def fetch_content(self, conn, item):
+            return ImportedDoc(title="t", content="c")
+
+    ingest_calls = {"count": 0}
+
+    async def fake_ingest_doc(*args, **kwargs):
+        ingest_calls["count"] += 1
+        return "command:123"
+
+    monkeypatch.setattr(svc, "get_connector", lambda provider: FakeAdapter())
+    monkeypatch.setattr(svc.Connection, "get", staticmethod(fake_connection_get))
+    monkeypatch.setattr(svc, "Project", type("P", (), {"get": staticmethod(fake_project_get)}))
+    monkeypatch.setattr(svc, "_ingest_doc", fake_ingest_doc)
+
+    ctx = _ctx(workspace_id="workspace:1")
+
+    with pytest.raises(ValueError):
+        await svc.import_items(
+            "gdrive", "connection:1", ["item1"], ["notebook:foreign"], ctx
+        )
+    assert ingest_calls["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_import_items_raises_when_notebook_missing(monkeypatch):
+    """Project.get returning None (deleted/never-existed notebook) must raise,
+    not silently skip."""
+    class FakeConnection:
+        workspace = "workspace:1"
+
+    async def fake_connection_get(connection_id):
+        return FakeConnection()
+
+    async def fake_project_get(notebook_id):
+        return None
+
+    monkeypatch.setattr(svc.Connection, "get", staticmethod(fake_connection_get))
+    monkeypatch.setattr(svc, "Project", type("P", (), {"get": staticmethod(fake_project_get)}))
+
+    ctx = _ctx(workspace_id="workspace:1")
+
+    with pytest.raises(ValueError):
+        await svc.import_items(
+            "gdrive", "connection:1", ["item1"], ["notebook:missing"], ctx
+        )
+
+
+@pytest.mark.asyncio
+async def test_import_items_raises_when_caller_not_a_project_member(monkeypatch):
+    """Fix 1: a notebook in the caller's own workspace but a project they are
+    not admin/member of must still be rejected (mirrors the sources router)."""
+    from open_notebook.domain.connectors.base import ConnectorItem, ImportedDoc
+
+    class FakeConnection:
+        workspace = "workspace:1"
+
+    async def fake_connection_get(connection_id):
+        return FakeConnection()
+
+    async def fake_project_get(notebook_id):
+        return FakeProject(workspace="workspace:1")
+
+    class FakeAdapter:
+        async def list_items(self, conn):
+            return [ConnectorItem(id="item1", kind="file", title="t")]
+
+        async def fetch_content(self, conn, item):
+            return ImportedDoc(title="t", content="c")
+
+    monkeypatch.setattr(svc, "get_connector", lambda provider: FakeAdapter())
+    monkeypatch.setattr(svc.Connection, "get", staticmethod(fake_connection_get))
+    monkeypatch.setattr(svc, "Project", type("P", (), {"get": staticmethod(fake_project_get)}))
+
+    # workspace_role "member" (not owner/admin) forces the real project_role()
+    # DB lookup path in PermissionContext; patch it to simulate no membership row.
+    ctx = _ctx(workspace_id="workspace:1", workspace_role="member")
+
+    async def fake_project_role(self, project_id):
+        return None
+
+    monkeypatch.setattr(PermissionContext, "project_role", fake_project_role)
+
+    with pytest.raises(ValueError):
+        await svc.import_items(
+            "gdrive", "connection:1", ["item1"], ["notebook:proj"], ctx
+        )
+
+
+@pytest.mark.asyncio
+async def test_import_items_ingests_with_resolved_scope_and_owner(monkeypatch):
+    """Fix 1: a valid in-workspace notebook with the caller as a member results
+    in the source being ingested with owner=ctx.user_id and scope resolved
+    from the project's default_source_scope (not hard-coded 'personal')."""
+    from open_notebook.domain.connectors.base import ConnectorItem, ImportedDoc
+
+    captured = {}
+
+    class FakeAdapter:
+        async def list_items(self, conn):
+            return [ConnectorItem(id="item1", kind="file", title="t")]
+
+        async def fetch_content(self, conn, item):
+            return ImportedDoc(title="t", content="c")
+
+    class FakeConnection:
+        workspace = "workspace:1"
+
+    async def fake_connection_get(connection_id):
+        return FakeConnection()
+
+    async def fake_project_get(notebook_id):
+        return FakeProject(workspace="workspace:1", default_source_scope="company")
+
+    async def fake_ingest_doc(doc, notebooks, owner, scope):
+        captured["doc"] = doc
+        captured["notebooks"] = notebooks
+        captured["owner"] = owner
+        captured["scope"] = scope
+        return "command:123"
+
+    monkeypatch.setattr(svc, "get_connector", lambda provider: FakeAdapter())
+    monkeypatch.setattr(svc.Connection, "get", staticmethod(fake_connection_get))
+    monkeypatch.setattr(svc, "Project", type("P", (), {"get": staticmethod(fake_project_get)}))
+    monkeypatch.setattr(svc, "_ingest_doc", fake_ingest_doc)
+
+    ctx = _ctx(user_id="user:42", workspace_id="workspace:1", workspace_role="member")
+
+    async def fake_project_role(self, project_id):
+        return "member"
+
+    monkeypatch.setattr(PermissionContext, "project_role", fake_project_role)
+
+    result = await svc.import_items(
+        "gdrive", "connection:1", ["item1"], ["notebook:proj"], ctx
+    )
+
+    assert result["accepted"] == ["item1"]
+    assert captured["owner"] == "user:42"
+    assert captured["scope"] == "company"
+    assert captured["notebooks"] == ["notebook:proj"]
+
+
+@pytest.mark.asyncio
+async def test_import_items_fail_closed_when_connection_workspace_none(monkeypatch):
+    """Fix 3 (MINOR, fail-closed): a connection with workspace=None must never
+    pass the workspace check, regardless of ctx.workspace_id."""
+    class FakeConnection:
+        workspace = None
+
+    async def fake_connection_get(connection_id):
+        return FakeConnection()
+
+    monkeypatch.setattr(svc.Connection, "get", staticmethod(fake_connection_get))
+
+    ctx = _ctx(workspace_id="workspace:1")
+
+    with pytest.raises(ValueError):
+        await svc.import_items(
+            "gdrive", "connection:1", ["item1"], ["notebook:proj"], ctx
+        )
 
 
 @pytest.mark.asyncio

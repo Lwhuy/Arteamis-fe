@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { useConnectionItems, useImportItems } from '@/lib/hooks/use-connectors'
+import { useProjects } from '@/lib/hooks/use-projects'
 import { useTranslation } from '@/lib/hooks/use-translation'
 
 interface Props {
@@ -19,10 +20,11 @@ interface Props {
 export function ImportItemsDialog({ open, provider, connectionId, onOpenChange }: Props) {
   const { t } = useTranslation()
   const { data: items, isLoading } = useConnectionItems(provider, connectionId, open)
+  const { data: notebooks = [], isLoading: notebooksLoading } = useProjects()
   const importItems = useImportItems(provider)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
-  const [notebooksInput, setNotebooksInput] = useState('')
+  const [selectedNotebooks, setSelectedNotebooks] = useState<Set<string>>(new Set())
 
   const filtered = useMemo(
     () => (items ?? []).filter((i) => i.title.toLowerCase().includes(query.toLowerCase())),
@@ -41,18 +43,39 @@ export function ImportItemsDialog({ open, provider, connectionId, onOpenChange }
     })
   }
 
+  const toggleNotebook = (id: string) => {
+    setSelectedNotebooks((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  // Every import must be bound to at least one notebook in the caller's
+  // workspace (P5 visibility: an unbound source is invisible to everyone,
+  // including the importer). The backend enforces this too -- this is UX,
+  // not the security boundary.
+  const canImport =
+    selected.size > 0 && selectedNotebooks.size > 0 && notebooks.length > 0
+
   const onImport = () => {
-    const notebooks = notebooksInput
-      .split(',')
-      .map((n) => n.trim())
-      .filter(Boolean)
     importItems.mutate(
       {
         connection_id: connectionId,
         item_ids: Array.from(selected),
-        ...(notebooks.length > 0 ? { notebooks } : {}),
+        notebooks: Array.from(selectedNotebooks),
       },
-      { onSuccess: () => { setSelected(new Set()); setNotebooksInput(''); onOpenChange(false) } },
+      {
+        onSuccess: () => {
+          setSelected(new Set())
+          setSelectedNotebooks(new Set())
+          onOpenChange(false)
+        },
+      },
     )
   }
 
@@ -80,15 +103,26 @@ export function ImportItemsDialog({ open, provider, connectionId, onOpenChange }
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">{t('connections.selectNotebook')}</label>
-          <Input
-            placeholder={t('connections.selectNotebook')}
-            value={notebooksInput}
-            onChange={(e) => setNotebooksInput(e.target.value)}
-          />
+          <div className="max-h-40 overflow-y-auto space-y-1 border border-border rounded-md p-2">
+            {notebooksLoading && <LoadingSpinner />}
+            {!notebooksLoading && notebooks.length === 0 && (
+              <p className="text-sm text-muted-foreground">{t('sources.noNotebooksFound')}</p>
+            )}
+            {notebooks.map((notebook) => (
+              <label key={notebook.id} className="flex items-center gap-2 py-1 cursor-pointer">
+                <Checkbox
+                  aria-label={notebook.name}
+                  checked={selectedNotebooks.has(notebook.id)}
+                  onCheckedChange={() => toggleNotebook(notebook.id)}
+                />
+                <span className="text-sm truncate">{notebook.name}</span>
+              </label>
+            ))}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
-          <Button disabled={selected.size === 0 || importItems.isPending} onClick={onImport}>
+          <Button disabled={!canImport || importItems.isPending} onClick={onImport}>
             {t('connections.import')}
           </Button>
         </DialogFooter>
