@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useInvitationPreview, useAcceptInvitation } from '@/lib/hooks/use-invitations'
@@ -18,6 +19,7 @@ export default function InvitePage() {
   const token = params?.token ?? ''
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const [emailMismatch, setEmailMismatch] = useState(false)
 
   const { data, isLoading, isError, error } = useInvitationPreview(token)
   const accept = useAcceptInvitation()
@@ -44,11 +46,20 @@ export default function InvitePage() {
   }
 
   const handleAccept = async () => {
-    const res = await accept.mutateAsync(token)
-    // Enter the workspace with a workspace-scoped token (P2's switch-workspace),
-    // which internally applies the new token/role to the auth store.
-    await switchWorkspace.mutateAsync(res.workspace_id)
-    router.push('/projects')
+    try {
+      const res = await accept.mutateAsync(token)
+      // Enter the workspace with a workspace-scoped token (P2's switch-workspace),
+      // which internally applies the new token/role to the auth store.
+      await switchWorkspace.mutateAsync(res.workspace_id)
+      router.push('/projects')
+    } catch (err) {
+      // 403: the authenticated account's email doesn't match inv.email. The
+      // generic toast (useAcceptInvitation's onError) already fires; surface a
+      // clearer inline message specific to this case too.
+      if (statusOf(err) === 403) {
+        setEmailMismatch(true)
+      }
+    }
   }
 
   return (
@@ -59,9 +70,14 @@ export default function InvitePage() {
       <p className="mb-4 text-muted-foreground">{data.role}</p>
 
       {isAuthenticated ? (
-        <Button onClick={handleAccept} disabled={accept.isPending}>
-          {t('invitations.acceptButton')}
-        </Button>
+        <div className="flex flex-col items-center gap-2">
+          {emailMismatch && (
+            <p className="text-sm text-destructive">{t('invitations.emailMismatch')}</p>
+          )}
+          <Button onClick={handleAccept} disabled={accept.isPending}>
+            {t('invitations.acceptButton')}
+          </Button>
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
           <Button
