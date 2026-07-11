@@ -1,0 +1,7 @@
+-- Migration 22 rollback: drop edges before the tables they reference, then
+-- the governance tables themselves.
+REMOVE TABLE promotes_to;
+REMOVE TABLE derived_from;
+REMOVE TABLE audit_event;
+REMOVE TABLE belief;
+REMOVE TABLE proposal;

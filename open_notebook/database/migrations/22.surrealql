@@ -1,0 +1,42 @@
+-- Migration 22: governance tables (Promotion Bridge, P8.2).
+-- proposal/belief/audit_event carry an optional workspace scope (mirrors
+-- migration 20/21's workspace-ready idiom: option<record<workspace>>, not
+-- required, so existing single-tenant data keeps working). derived_from and
+-- promotes_to are edge tables recording provenance and promotion lineage.
+
+DEFINE TABLE proposal SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS workspace  ON TABLE proposal FLEXIBLE TYPE option<record<workspace>>;
+DEFINE FIELD IF NOT EXISTS author     ON TABLE proposal TYPE record<user>;
+DEFINE FIELD IF NOT EXISTS kind       ON TABLE proposal TYPE string DEFAULT 'belief' ASSERT $value IN ['belief','decision','rule','learning'];
+DEFINE FIELD IF NOT EXISTS title      ON TABLE proposal TYPE string;
+DEFINE FIELD IF NOT EXISTS body       ON TABLE proposal TYPE string DEFAULT '';
+DEFINE FIELD IF NOT EXISTS claim_type ON TABLE proposal TYPE string DEFAULT 'inference' ASSERT $value IN ['fact','inference','assumption','recommendation','preference'];
+DEFINE FIELD IF NOT EXISTS confidence ON TABLE proposal TYPE float DEFAULT 0.5;
+DEFINE FIELD IF NOT EXISTS status     ON TABLE proposal TYPE string DEFAULT 'pending' ASSERT $value IN ['pending','accepted','changes_requested','rejected'];
+DEFINE FIELD IF NOT EXISTS visibility ON TABLE proposal TYPE string DEFAULT 'company' ASSERT $value IN ['private','company'];
+DEFINE FIELD IF NOT EXISTS created    ON proposal DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated    ON proposal DEFAULT time::now() VALUE time::now();
+
+DEFINE TABLE belief SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS workspace  ON TABLE belief FLEXIBLE TYPE option<record<workspace>>;
+DEFINE FIELD IF NOT EXISTS title      ON TABLE belief TYPE string;
+DEFINE FIELD IF NOT EXISTS body       ON TABLE belief TYPE string DEFAULT '';
+DEFINE FIELD IF NOT EXISTS status     ON TABLE belief TYPE string DEFAULT 'current' ASSERT $value IN ['current','superseded'];
+DEFINE FIELD IF NOT EXISTS claim_type ON TABLE belief TYPE string DEFAULT 'inference';
+DEFINE FIELD IF NOT EXISTS confidence ON TABLE belief TYPE float DEFAULT 0.5;
+DEFINE FIELD IF NOT EXISTS created    ON belief DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated    ON belief DEFAULT time::now() VALUE time::now();
+
+DEFINE TABLE audit_event SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE audit_event FLEXIBLE TYPE option<record<workspace>>;
+DEFINE FIELD IF NOT EXISTS actor     ON TABLE audit_event TYPE record<user>;
+DEFINE FIELD IF NOT EXISTS action    ON TABLE audit_event TYPE string;
+DEFINE FIELD IF NOT EXISTS object    ON TABLE audit_event FLEXIBLE TYPE option<record>;
+DEFINE FIELD IF NOT EXISTS meta      ON TABLE audit_event FLEXIBLE TYPE option<object>;
+DEFINE FIELD IF NOT EXISTS created   ON audit_event DEFAULT time::now() VALUE $before OR time::now();
+
+-- edges
+DEFINE TABLE derived_from SCHEMAFULL TYPE RELATION;
+DEFINE FIELD IF NOT EXISTS locator ON TABLE derived_from TYPE option<string>;
+
+DEFINE TABLE promotes_to SCHEMAFULL TYPE RELATION;
