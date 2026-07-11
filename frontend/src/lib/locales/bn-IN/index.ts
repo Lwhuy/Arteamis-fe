@@ -548,6 +548,23 @@ export const bnIN = {
       traceHint: "outcome → learn",
       boundary: "Personal · Company boundary",
     },
+    workPackage: {
+      createTitle: "Create work package",
+      titleLabel: "Title",
+      assigneeKindLabel: "Assignee kind",
+      assigneeKindHuman: "Human",
+      assigneeKindAgent: "Agent",
+      assigneeLabel: "Assignee",
+      submit: "Create",
+      agentBrief: {
+        heading: "Agent brief",
+        objective: "Objective",
+        allowedContext: "Allowed context",
+        allowedContextHint: "Comma-separated source/belief ids",
+        budget: "Budget",
+        approvalGate: "Require approval before the agent proceeds",
+      },
+    },
   },
   searchPage: {
     askAndSearch: "জিজ্ঞাসা ও অনুসন্ধান",
