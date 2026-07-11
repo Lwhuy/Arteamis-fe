@@ -7,14 +7,22 @@ maps outcomes to typed exceptions (global handlers in api/main.py map to status)
 
 import secrets
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from loguru import logger
 
 from api import auth_service
 from api.auth_config import get_auth_config
-from api.models import LoginRequest, MeResponse, RegisterRequest, SessionPayload
-from api.security import create_refresh_token, decode_refresh_token
+from api.deps import get_identity
+from api.models import (
+    LoginRequest,
+    MeResponse,
+    RegisterRequest,
+    SessionPayload,
+    TokenResponse,
+)
+from api.security import create_access_token, create_refresh_token, decode_refresh_token
+from api.workspace_service import get_membership
 from open_notebook.auth import google
 from open_notebook.domain.user import User
 from open_notebook.exceptions import (
@@ -151,3 +159,30 @@ async def me(request: Request):
         "user": {"id": user.id, "email": user.email, "display_name": user.display_name},
         "memberships": [],
     }
+
+
+@router.post("/switch-workspace/{workspace_id}", response_model=TokenResponse)
+async def switch_workspace(
+    workspace_id: str,
+    user_id: str = Depends(get_identity),
+) -> TokenResponse:
+    """Re-mint a workspace-scoped token after re-verifying membership server-side.
+
+    Never trusts a client-sent role: the role comes from the freshly-loaded
+    membership. A non-member or a non-active (invited/revoked) membership -> 403.
+    No kind branch: switching into a personal workspace (incl. your own) is
+    handled by the exact same path as a company workspace.
+    """
+    membership = await get_membership(user_id, workspace_id)
+    if membership is None or membership.status != "active":
+        raise HTTPException(status_code=403, detail="Not a member of this workspace")
+    access_token = create_access_token(
+        user_id=user_id,
+        workspace_id=workspace_id,
+        role=membership.role,
+    )
+    return TokenResponse(
+        access_token=access_token,
+        active_workspace_id=workspace_id,
+        role=membership.role,
+    )

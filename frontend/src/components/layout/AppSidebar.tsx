@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/common/Logo'
 import { Button } from '@/components/ui/button'
+import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useSidebarStore } from '@/lib/stores/sidebar-store'
 import { useCreateDialogs } from '@/lib/hooks/use-create-dialogs'
@@ -160,6 +161,12 @@ export function AppSidebar() {
             isCollapsed ? 'px-2' : 'px-3'
           )}
         >
+          {!isCollapsed && (
+            <div className="mb-4 px-3">
+              <WorkspaceSwitcher />
+            </div>
+          )}
+
           <div
             className={cn(
               'mb-4',

@@ -246,3 +246,36 @@ export interface RecentlyViewedResponse {
   title: string
   last_viewed_at: string
 }
+
+// Workspace Types
+export interface WorkspaceResponse {
+  id: string
+  name: string
+  slug: string
+  kind: 'personal' | 'company'
+  role: string
+  created: string
+  updated: string
+}
+
+export interface CreateWorkspaceRequest {
+  name: string
+  slug?: string
+}
+
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+  active_workspace_id: string
+  role: string
+}
+
+// Shape of each row in the auth store's `memberships` (from GET /auth/me and
+// workspace_service.list_memberships). Always includes the personal workspace.
+export interface Membership {
+  workspace_id: string
+  name: string
+  slug: string
+  kind: 'personal' | 'company'
+  role: string
+}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useAuthStore } from '@/lib/stores/auth-store'
@@ -14,49 +15,36 @@ import { useTranslation } from '@/lib/hooks/use-translation'
 
 export function LoginForm() {
   const { t, language } = useTranslation()
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const { login, isLoading, error } = useAuth()
+  const { login, loginWithGoogle, isLoading, error } = useAuth()
   const { authRequired, checkAuthRequired, hasHydrated, isAuthenticated } = useAuthStore()
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [configInfo, setConfigInfo] = useState<{ apiUrl: string; version: string; buildTime: string } | null>(null)
   const router = useRouter()
 
-  // Load config info for debugging
   useEffect(() => {
     getConfig().then(cfg => {
-      setConfigInfo({
-        apiUrl: cfg.apiUrl,
-        version: cfg.version,
-        buildTime: cfg.buildTime,
-      })
+      setConfigInfo({ apiUrl: cfg.apiUrl, version: cfg.version, buildTime: cfg.buildTime })
     }).catch(err => {
       console.error('Failed to load config:', err)
     })
   }, [])
 
-  // Check if authentication is required on mount
   useEffect(() => {
-    if (!hasHydrated) {
-      return
-    }
+    if (!hasHydrated) return
 
     const checkAuth = async () => {
       try {
         const required = await checkAuthRequired()
-
-        // If auth is not required, redirect to notebooks
-        if (!required) {
-          router.push('/notebooks')
-        }
-      } catch (error) {
-        console.error('Error checking auth requirement:', error)
-        // On error, assume auth is required to be safe
+        if (!required) router.push('/notebooks')
+      } catch (err) {
+        console.error('Error checking auth requirement:', err)
       } finally {
         setIsCheckingAuth(false)
       }
     }
 
-    // If we already know auth status, use it
     if (authRequired !== null) {
       if (!authRequired && isAuthenticated) {
         router.push('/notebooks')
@@ -68,7 +56,6 @@ export function LoginForm() {
     }
   }, [hasHydrated, authRequired, checkAuthRequired, router, isAuthenticated])
 
-  // Show loading while checking if auth is required
   if (!hasHydrated || isCheckingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -77,26 +64,20 @@ export function LoginForm() {
     )
   }
 
-  // If we still don't know if auth is required (connection error), show error
   if (authRequired === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle>{t('common.connectionError')}</CardTitle>
-            <CardDescription>
-              {t('common.unableToConnect')}
-            </CardDescription>
+            <CardDescription>{t('common.unableToConnect')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-start gap-2 text-red-600 text-sm">
                 <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  {error || t('auth.connectErrorHint')}
-                </div>
+                <div className="flex-1">{error || t('auth.googleError') || t('auth.connectErrorHint')}</div>
               </div>
-
               {configInfo && (
                 <div className="space-y-2 text-xs text-muted-foreground border-t pt-3">
                   <div className="font-medium">{t('common.diagnosticInfo')}:</div>
@@ -106,16 +87,10 @@ export function LoginForm() {
                     <div className="break-all">{t('common.apiUrl')}: {configInfo.apiUrl}</div>
                     <div className="break-all">{t('common.frontendUrl')}: {typeof window !== 'undefined' ? window.location.href : 'N/A'}</div>
                   </div>
-                  <div className="text-xs pt-2">
-                    {t('common.checkConsoleLogs')}
-                  </div>
+                  <div className="text-xs pt-2">{t('common.checkConsoleLogs')}</div>
                 </div>
               )}
-
-              <Button
-                onClick={() => window.location.reload()}
-                className="w-full"
-              >
+              <Button onClick={() => window.location.reload()} className="w-full">
                 {t('common.retryConnection')}
               </Button>
             </div>
@@ -127,12 +102,11 @@ export function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password.trim()) {
+    if (email.trim() && password.trim()) {
       try {
-        await login(password)
-      } catch (error) {
-        console.error('Unhandled error during login:', error)
-        // The auth store should handle most errors, but this catches any unhandled ones
+        await login(email.trim(), password)
+      } catch (err) {
+        console.error('Unhandled error during login:', err)
       }
     }
   }
@@ -142,44 +116,60 @@ export function LoginForm() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle>{t('auth.loginTitle')}</CardTitle>
-          <CardDescription>
-            {t('auth.loginDesc')}
-          </CardDescription>
+          <CardDescription>{t('auth.loginDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Input
-                type="password"
-                placeholder={t('auth.passwordPlaceholder')}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
+            <Input
+              type="email"
+              placeholder={t('auth.emailPlaceholder')}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
+            />
+            <Input
+              type="password"
+              placeholder={t('auth.passwordPlaceholder')}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+            />
 
             {error && (
               <div className="flex items-center gap-2 text-red-600 text-sm">
                 <AlertCircle className="h-4 w-4" />
-                {error}
+                {error || t('auth.invalidCredentials')}
               </div>
             )}
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading || !password.trim()}
-            >
+            <Button type="submit" className="w-full" disabled={isLoading || !email.trim() || !password.trim()}>
               {isLoading ? t('auth.signingIn') : t('auth.signIn')}
             </Button>
-
-            {configInfo && (
-              <div className="text-xs text-center text-muted-foreground pt-2 border-t">
-                <div>{t('common.version')} {configInfo.version}</div>
-                <div className="font-mono text-[10px]">{configInfo.apiUrl}</div>
-              </div>
-            )}
           </form>
+
+          <div className="flex items-center gap-3 my-4">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">{t('auth.orWithEmail')}</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <Button type="button" variant="outline" className="w-full" onClick={() => loginWithGoogle()} disabled={isLoading}>
+            {t('auth.continueWithGoogle')}
+          </Button>
+
+          <div className="text-sm text-center text-muted-foreground pt-4">
+            {t('auth.noAccount')}{' '}
+            <Link href="/signup" className="underline">
+              {t('auth.signUpLink')}
+            </Link>
+          </div>
+
+          {configInfo && (
+            <div className="text-xs text-center text-muted-foreground pt-2 border-t mt-4">
+              <div>{t('common.version')} {configInfo.version}</div>
+              <div className="font-mono text-[10px]">{configInfo.apiUrl}</div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

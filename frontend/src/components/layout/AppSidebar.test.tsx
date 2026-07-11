@@ -12,6 +12,12 @@ vi.mock('@/components/ui/tooltip', () => ({
   TooltipContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+// WorkspaceSwitcher's useSwitchWorkspace needs a QueryClientProvider ancestor;
+// mock it out here since these tests only exercise sidebar chrome/collapse behavior.
+vi.mock('@/lib/hooks/use-workspaces', () => ({
+  useSwitchWorkspace: () => ({ mutate: vi.fn(), isPending: false }),
+}))
+
 describe('AppSidebar', () => {
   it('renders correctly when expanded', () => {
     render(<AppSidebar />)
