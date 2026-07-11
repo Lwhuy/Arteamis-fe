@@ -7,16 +7,17 @@ from langchain_core.runnables import RunnableConfig
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from api.deps import CtxDep
 from api.source_permissions import (
     PermissionContext,
     get_permission_context,
     visible_source_ids,
 )
-from open_notebook.database.repository import ensure_record_id, repo_query
+from open_notebook.database.repository import ensure_record_id
 from open_notebook.domain.notebook import (
     ChatSession,
     Note,
-    Notebook,
+    Project,
     Source,
     SourceInsight,
 )
@@ -104,38 +105,87 @@ class SuccessResponse(BaseModel):
     message: str = Field(..., description="Success message")
 
 
-@router.get("/chat/sessions", response_model=List[ChatSessionResponse])
-async def get_sessions(notebook_id: str = Query(..., description="Notebook ID")):
-    """Get all chat sessions for a notebook."""
-    try:
-        # Get notebook to verify it exists
-        notebook = await Notebook.get(notebook_id)
-        if not notebook:
-            raise HTTPException(status_code=404, detail="Notebook not found")
+def _full_session_id(session_id: str) -> str:
+    return (
+        session_id
+        if session_id.startswith("chat_session:")
+        else f"chat_session:{session_id}"
+    )
 
-        # Get sessions for this notebook
-        sessions_list = await notebook.get_chat_sessions()
+
+async def _get_owned_chat_session(repo: CtxDep, session_id: str) -> dict:
+    """`chat_session` has no native `workspace` column (like `source`/`note` —
+    see `_get_owned_source` in api/routers/projects.py) — it only belongs to a
+    workspace transitively via the `refers_to` edge to a notebook in that
+    workspace. A session created by api/routers/source_chat.py instead refers
+    to a `source` (no `.workspace` field), so `out.workspace` evaluates to NONE
+    for those edges and they never match here — this router only ever manages
+    notebook-linked sessions, which is the only kind it creates. 404 (not 403)
+    hides cross-workspace existence, matching ScopedRepository.get()'s
+    no-oracle behavior.
+    """
+    rows = await repo.raw(
+        # scoped-raw: chat_session has no native workspace column; ownership is
+        # verified via the refers_to edge to a notebook in the caller's workspace
+        "SELECT * FROM $sid WHERE id IN "
+        "(SELECT VALUE in FROM refers_to WHERE out.workspace = $workspace_id)",
+        {"sid": ensure_record_id(session_id)},
+    )
+    if not rows:
+        raise NotFoundError(f"chat_session {session_id} not found")
+    return rows[0]
+
+
+async def _notebook_id_for_session(repo: CtxDep, session_id: str) -> Optional[str]:
+    """Best-effort notebook id for an already workspace-verified session."""
+    rows = await repo.raw(
+        # scoped-raw: session_id is already workspace-verified by the caller
+        # before this is invoked; only used to enrich the response payload
+        "SELECT out FROM refers_to WHERE in = $session_id",
+        {"session_id": ensure_record_id(session_id)},
+    )
+    return str(rows[0]["out"]) if rows else None
+
+
+@router.get("/chat/sessions", response_model=List[ChatSessionResponse])
+async def get_sessions(repo: CtxDep, notebook_id: str = Query(..., description="Notebook ID")):
+    """Get all chat sessions for a notebook in the caller's active workspace."""
+    try:
+        await repo.get(notebook_id)  # workspace-checked; 404 on miss/cross-workspace
+
+        rows = await repo.raw(
+            # scoped-raw: chat_session has no native workspace column;
+            # notebook_id is already workspace-verified via repo.get() above
+            """
+            SELECT * FROM (
+                SELECT <-chat_session AS chat_session FROM refers_to
+                WHERE out = $notebook_id
+                FETCH chat_session
+            )
+            """,
+            {"notebook_id": ensure_record_id(notebook_id)},
+        )
+        sessions = [row["chat_session"][0] for row in rows if row.get("chat_session")]
 
         results = []
-        for session in sessions_list:
-            session_id = str(session.id)
-
-            # Get message count from LangGraph state
+        for session in sessions:
+            session_id = str(session["id"])
             msg_count = await get_session_message_count(chat_graph, session_id)
-
             results.append(
                 ChatSessionResponse(
-                    id=session.id or "",
-                    title=session.title or "Untitled Session",
+                    id=session_id,
+                    title=session.get("title") or "Untitled Session",
                     notebook_id=notebook_id,
-                    created=str(session.created),
-                    updated=str(session.updated),
+                    created=str(session.get("created")),
+                    updated=str(session.get("updated")),
                     message_count=msg_count,
-                    model_override=getattr(session, "model_override", None),
+                    model_override=session.get("model_override"),
                 )
             )
-
+        results.sort(key=lambda r: r.updated, reverse=True)
         return results
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Notebook not found")
     except Exception as e:
@@ -146,15 +196,14 @@ async def get_sessions(notebook_id: str = Query(..., description="Notebook ID"))
 
 
 @router.post("/chat/sessions", response_model=ChatSessionResponse)
-async def create_session(request: CreateSessionRequest):
-    """Create a new chat session."""
+async def create_session(request: CreateSessionRequest, repo: CtxDep):
+    """Create a new chat session, linked to a notebook in the caller's active
+    workspace. `chat_session` is workspace-inherited, so it's created via the
+    domain model (ScopedRepository.create() rejects inherited tables) — but
+    the notebook it's linked to is workspace-checked first."""
     try:
-        # Verify notebook exists
-        notebook = await Notebook.get(request.notebook_id)
-        if not notebook:
-            raise HTTPException(status_code=404, detail="Notebook not found")
+        await repo.get(request.notebook_id)  # workspace-checked; 404 on miss/cross-workspace
 
-        # Create new session
         session = ChatSession(
             title=request.title
             or f"Chat Session {asyncio.get_event_loop().time():.0f}",
@@ -162,7 +211,6 @@ async def create_session(request: CreateSessionRequest):
         )
         await session.save()
 
-        # Relate session to notebook
         await session.relate_to_notebook(request.notebook_id)
 
         return ChatSessionResponse(
@@ -174,6 +222,8 @@ async def create_session(request: CreateSessionRequest):
             message_count=0,
             model_override=session.model_override,
         )
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Notebook not found")
     except Exception as e:
@@ -186,19 +236,13 @@ async def create_session(request: CreateSessionRequest):
 @router.get(
     "/chat/sessions/{session_id}", response_model=ChatSessionWithMessagesResponse
 )
-async def get_session(session_id: str):
-    """Get a specific session with its messages."""
+async def get_session(session_id: str, repo: CtxDep):
+    """Get a specific session with its messages. 404 if not in the caller's
+    workspace (no cross-workspace oracle)."""
     try:
-        # Get session
-        # Ensure session_id has proper table prefix
-        full_session_id = (
-            session_id
-            if session_id.startswith("chat_session:")
-            else f"chat_session:{session_id}"
-        )
-        session = await ChatSession.get(full_session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
+        full_session_id = _full_session_id(session_id)
+        row = await _get_owned_chat_session(repo, full_session_id)  # 404 on cross-workspace
+        session = ChatSession(**row)
 
         # Get session state from LangGraph to retrieve messages
         # Use sync get_state() in a thread since SqliteSaver doesn't support async
@@ -220,23 +264,8 @@ async def get_session(session_id: str):
                     )
                 )
 
-        # Find notebook_id (we need to query the relationship)
-        # Ensure session_id has proper table prefix
-        full_session_id = (
-            session_id
-            if session_id.startswith("chat_session:")
-            else f"chat_session:{session_id}"
-        )
-
-        notebook_query = await repo_query(
-            "SELECT out FROM refers_to WHERE in = $session_id",
-            {"session_id": ensure_record_id(full_session_id)},
-        )
-
-        notebook_id = notebook_query[0]["out"] if notebook_query else None
-
+        notebook_id = await _notebook_id_for_session(repo, full_session_id)
         if not notebook_id:
-            # This might be an old session created before API migration
             logger.warning(
                 f"No notebook relationship found for session {session_id} - may be an orphaned session"
             )
@@ -251,6 +280,8 @@ async def get_session(session_id: str):
             messages=messages,
             model_override=getattr(session, "model_override", None),
         )
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Session not found")
     except Exception as e:
@@ -259,18 +290,12 @@ async def get_session(session_id: str):
 
 
 @router.put("/chat/sessions/{session_id}", response_model=ChatSessionResponse)
-async def update_session(session_id: str, request: UpdateSessionRequest):
-    """Update session title."""
+async def update_session(session_id: str, request: UpdateSessionRequest, repo: CtxDep):
+    """Update session title. 404 on cross-workspace id (ownership-checked first)."""
     try:
-        # Ensure session_id has proper table prefix
-        full_session_id = (
-            session_id
-            if session_id.startswith("chat_session:")
-            else f"chat_session:{session_id}"
-        )
+        full_session_id = _full_session_id(session_id)
+        await _get_owned_chat_session(repo, full_session_id)  # 404 on cross-workspace
         session = await ChatSession.get(full_session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
 
         update_data = request.model_dump(exclude_unset=True)
 
@@ -282,20 +307,7 @@ async def update_session(session_id: str, request: UpdateSessionRequest):
 
         await session.save()
 
-        # Find notebook_id
-        # Ensure session_id has proper table prefix
-        full_session_id = (
-            session_id
-            if session_id.startswith("chat_session:")
-            else f"chat_session:{session_id}"
-        )
-        notebook_query = await repo_query(
-            "SELECT out FROM refers_to WHERE in = $session_id",
-            {"session_id": ensure_record_id(full_session_id)},
-        )
-        notebook_id = notebook_query[0]["out"] if notebook_query else None
-
-        # Get message count from LangGraph state
+        notebook_id = await _notebook_id_for_session(repo, full_session_id)
         msg_count = await get_session_message_count(chat_graph, full_session_id)
 
         return ChatSessionResponse(
@@ -307,6 +319,8 @@ async def update_session(session_id: str, request: UpdateSessionRequest):
             message_count=msg_count,
             model_override=session.model_override,
         )
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Session not found")
     except Exception as e:
@@ -315,22 +329,18 @@ async def update_session(session_id: str, request: UpdateSessionRequest):
 
 
 @router.delete("/chat/sessions/{session_id}", response_model=SuccessResponse)
-async def delete_session(session_id: str):
-    """Delete a chat session."""
+async def delete_session(session_id: str, repo: CtxDep):
+    """Delete a chat session. 404 on cross-workspace id (ownership-checked first)."""
     try:
-        # Ensure session_id has proper table prefix
-        full_session_id = (
-            session_id
-            if session_id.startswith("chat_session:")
-            else f"chat_session:{session_id}"
-        )
+        full_session_id = _full_session_id(session_id)
+        await _get_owned_chat_session(repo, full_session_id)  # 404 on cross-workspace
         session = await ChatSession.get(full_session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
 
         await session.delete()
 
         return SuccessResponse(success=True, message="Session deleted successfully")
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Session not found")
     except Exception as e:
@@ -339,28 +349,19 @@ async def delete_session(session_id: str):
 
 
 @router.post("/chat/execute", response_model=ExecuteChatResponse)
-async def execute_chat(request: ExecuteChatRequest):
-    """Execute a chat request and get AI response."""
+async def execute_chat(request: ExecuteChatRequest, repo: CtxDep):
+    """Execute a chat request and get AI response. The session must belong to
+    a notebook in the caller's active workspace (404 otherwise) — without
+    this check a caller could inject messages/context into, and read the
+    LangGraph checkpoint history of, another workspace's chat session merely
+    by guessing its id."""
     try:
-        # Verify session exists
-        # Ensure session_id has proper table prefix
-        full_session_id = (
-            request.session_id
-            if request.session_id.startswith("chat_session:")
-            else f"chat_session:{request.session_id}"
-        )
+        full_session_id = _full_session_id(request.session_id)
+        await _get_owned_chat_session(repo, full_session_id)  # 404 on cross-workspace
         session = await ChatSession.get(full_session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
 
-        # Fetch notebook linked to this session
-        notebook_query = await repo_query(
-            "SELECT out FROM refers_to WHERE in = $session_id",
-            {"session_id": ensure_record_id(full_session_id)},
-        )
-        notebook = None
-        if notebook_query:
-            notebook = await Notebook.get(notebook_query[0]["out"])
+        notebook_id = await _notebook_id_for_session(repo, full_session_id)
+        notebook = Project(**await repo.get(notebook_id)) if notebook_id else None
 
         # Determine model override (per-request override takes precedence over session-level)
         model_override = (
@@ -420,6 +421,8 @@ async def execute_chat(request: ExecuteChatRequest):
             )
 
         return ExecuteChatResponse(session_id=request.session_id, messages=messages)
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Session not found")
     except Exception as e:
@@ -436,14 +439,15 @@ async def execute_chat(request: ExecuteChatRequest):
 @router.post("/chat/context", response_model=BuildContextResponse)
 async def build_context(
     request: BuildContextRequest,
+    repo: CtxDep,
     ctx: PermissionContext = Depends(get_permission_context),
 ):
     """Build context for a notebook based on context configuration."""
     try:
-        # Verify notebook exists
-        notebook = await Notebook.get(request.notebook_id)
-        if not notebook:
-            raise HTTPException(status_code=404, detail="Notebook not found")
+        # Workspace-checked; 404 on miss/cross-workspace (already gated in P5
+        # via visible_source_ids' workspace filter -- kept unchanged here).
+        notebook_row = await repo.get(request.notebook_id)
+        notebook = Project(**notebook_row)
 
         # Allow-list of source ids the caller may view in this project (3-scope).
         # Also enforces workspace isolation: a notebook_id from another
@@ -476,7 +480,16 @@ async def build_context(
                         continue
 
                     try:
-                        source = await Source.get(full_source_id)
+                        source_rows = await repo.raw(
+                            # scoped-raw: full_source_id is already verified to
+                            # be in the caller's visible-in-workspace set
+                            # (visible_source_ids) above
+                            "SELECT * FROM $sid",
+                            {"sid": ensure_record_id(full_source_id)},
+                        )
+                        if not source_rows:
+                            continue
+                        source = Source(**source_rows[0])
                     except Exception:
                         continue
 
@@ -563,6 +576,8 @@ async def build_context(
         )
     except HTTPException:
         raise
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Notebook not found")
     except Exception as e:
         logger.error(f"Error building context: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error building context: {str(e)}")

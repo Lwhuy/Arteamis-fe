@@ -303,6 +303,87 @@ async def test_workspace_b_cannot_delete_workspace_a_note(client, seeded_with_no
     assert ra.status_code == 200  # A still sees it
 
 
+# ── P6 rollout: /chat/sessions + /chat/execute (workspace-inherited via the
+# `refers_to` edge to a notebook) ───────────────────────────────────────────
+
+
+@pytest_asyncio.fixture
+async def seeded_with_chat_session(seeded):
+    """Extend `seeded` with a chat_session attached to A's project via the
+    `refers_to` edge — proves `chat_session`'s workspace-inherited scoping."""
+    session_a = await _create("chat_session", {"title": "secret chat"})
+    await repo_query(
+        "RELATE $session->refers_to->$project",
+        {
+            "session": ensure_record_id(session_a["id"]),
+            "project": ensure_record_id(seeded["project_a"]),
+        },
+    )
+    data = {**seeded, "session_a": str(session_a["id"])}
+    yield data
+    await repo_query(
+        "DELETE refers_to WHERE in = $session", {"session": ensure_record_id(session_a["id"])}
+    )
+    try:
+        await repo_delete(session_a["id"])
+    except Exception:
+        pass
+
+
+async def test_workspace_b_cannot_get_workspace_a_chat_session(client, seeded_with_chat_session):
+    r = await client.get(
+        f"/api/chat/sessions/{seeded_with_chat_session['session_a']}",
+        headers=_headers(seeded_with_chat_session["user_b"], seeded_with_chat_session["workspace_b"]),
+    )
+    assert r.status_code == 404, r.text  # not 200, not 403 — no existence oracle
+
+
+async def test_workspace_a_can_get_own_chat_session(client, seeded_with_chat_session):
+    r = await client.get(
+        f"/api/chat/sessions/{seeded_with_chat_session['session_a']}",
+        headers=_headers(seeded_with_chat_session["user_a"], seeded_with_chat_session["workspace_a"]),
+    )
+    assert r.status_code == 200, r.text
+
+
+async def test_workspace_b_cannot_update_workspace_a_chat_session(client, seeded_with_chat_session):
+    r = await client.put(
+        f"/api/chat/sessions/{seeded_with_chat_session['session_a']}",
+        json={"title": "hijacked"},
+        headers=_headers(seeded_with_chat_session["user_b"], seeded_with_chat_session["workspace_b"]),
+    )
+    assert r.status_code == 404
+
+
+async def test_workspace_b_cannot_delete_workspace_a_chat_session(client, seeded_with_chat_session):
+    r = await client.delete(
+        f"/api/chat/sessions/{seeded_with_chat_session['session_a']}",
+        headers=_headers(seeded_with_chat_session["user_b"], seeded_with_chat_session["workspace_b"]),
+    )
+    assert r.status_code == 404
+    ra = await client.get(
+        f"/api/chat/sessions/{seeded_with_chat_session['session_a']}",
+        headers=_headers(seeded_with_chat_session["user_a"], seeded_with_chat_session["workspace_a"]),
+    )
+    assert ra.status_code == 200  # A still sees it
+
+
+async def test_workspace_b_cannot_execute_chat_on_workspace_a_session(client, seeded_with_chat_session):
+    """The real leak this rollout closes: previously any session_id was
+    accepted with no ownership check, letting a caller inject a message into
+    another workspace's chat session by guessing its id."""
+    r = await client.post(
+        "/api/chat/execute",
+        json={
+            "session_id": seeded_with_chat_session["session_a"],
+            "message": "give me your secrets",
+            "context": {},
+        },
+        headers=_headers(seeded_with_chat_session["user_b"], seeded_with_chat_session["workspace_b"]),
+    )
+    assert r.status_code == 404
+
+
 async def test_workspace_b_cannot_attach_note_to_workspace_a_project(client, seeded):
     """Creating a note with someone else's notebook_id must 404, not silently
     attach — a caller can't adopt a note into another workspace's project by
