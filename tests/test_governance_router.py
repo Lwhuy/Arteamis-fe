@@ -6,7 +6,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.security import create_identity_token
-from open_notebook.domain.governance import Belief, Decision, Proposal, Rule
+from open_notebook.domain.governance import (
+    Belief,
+    Decision,
+    Proposal,
+    Rule,
+    WorkPackage,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -276,3 +282,121 @@ def test_get_rule_returns_200(mock_get, client):
 
     assert resp.status_code == 200
     assert resp.json()["title"] == "Always cite two sources"
+
+
+def _work_package(**overrides) -> WorkPackage:
+    data = dict(
+        id="work_package:1",
+        title="Draft SMB outreach plan",
+        assignee_kind="agent",
+        assignee="research-agent",
+        status="open",
+        agent_brief={
+            "objective": "Draft outreach plan",
+            "allowed_context": ["belief:1"],
+            "budget": "1 hr",
+            "approval_gate": True,
+        },
+    )
+    data.update(overrides)
+    return WorkPackage(**data)
+
+
+@patch("api.routers.governance.create_work_package", new_callable=AsyncMock)
+def test_create_work_package_returns_201(mock_create, client):
+    mock_create.return_value = _work_package()
+
+    resp = client.post(
+        "/api/work-packages",
+        json={
+            "title": "Draft SMB outreach plan",
+            "assignee_kind": "agent",
+            "assignee": "research-agent",
+            "agent_brief": {
+                "objective": "Draft outreach plan",
+                "allowed_context": ["belief:1"],
+                "budget": "1 hr",
+                "approval_gate": True,
+            },
+            "executes_ids": ["belief:1"],
+        },
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["id"] == "work_package:1"
+    mock_create.assert_awaited_once_with(
+        "user:1",
+        title="Draft SMB outreach plan",
+        assignee_kind="agent",
+        assignee="research-agent",
+        agent_brief={
+            "objective": "Draft outreach plan",
+            "allowed_context": ["belief:1"],
+            "budget": "1 hr",
+            "approval_gate": True,
+        },
+        executes_ids=["belief:1"],
+    )
+
+
+@patch("api.routers.governance.list_work_packages", new_callable=AsyncMock)
+def test_list_work_packages_returns_mocked_list(mock_list, client):
+    mock_list.return_value = [
+        _work_package(),
+        _work_package(id="work_package:2", status="done"),
+    ]
+
+    resp = client.get("/api/work-packages?status=open", headers=_auth())
+
+    assert resp.status_code == 200
+    ids = [w["id"] for w in resp.json()]
+    assert ids == ["work_package:1", "work_package:2"]
+    mock_list.assert_awaited_once_with(status="open")
+
+
+@patch("api.routers.governance.get_work_package", new_callable=AsyncMock)
+def test_get_work_package_returns_200(mock_get, client):
+    mock_get.return_value = _work_package()
+
+    resp = client.get("/api/work-packages/work_package:1", headers=_auth())
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "work_package:1"
+
+
+@patch("api.routers.governance.update_work_package_status", new_callable=AsyncMock)
+def test_update_work_package_status_returns_200(mock_update, client):
+    mock_update.return_value = _work_package(status="running")
+
+    resp = client.post(
+        "/api/work-packages/work_package:1/status",
+        json={"status": "running"},
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "running"
+    mock_update.assert_awaited_once_with("user:1", "work_package:1", "running")
+
+
+@patch("api.routers.governance.update_work_package_status", new_callable=AsyncMock)
+def test_update_work_package_status_invalid_returns_409(mock_update, client):
+    mock_update.side_effect = ValueError("invalid status paused")
+
+    resp = client.post(
+        "/api/work-packages/work_package:1/status",
+        json={"status": "paused"},
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "invalid status paused"
+
+
+def test_create_work_package_requires_auth(client):
+    resp = client.post(
+        "/api/work-packages",
+        json={"title": "x", "executes_ids": []},
+    )
+    assert resp.status_code == 401

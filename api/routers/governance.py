@@ -17,14 +17,18 @@ from api.governance_service import (
     create_decision,
     create_proposal,
     create_rule,
+    create_work_package,
     get_belief_lineage,
     get_decision,
     get_proposal,
     get_rule,
+    get_work_package,
     list_decisions,
     list_proposals,
     list_rules,
+    list_work_packages,
     request_changes,
+    update_work_package_status,
 )
 
 router = APIRouter()
@@ -178,3 +182,64 @@ async def list_rules_endpoint(status: Optional[str] = None) -> list[dict[str, An
 async def get_rule_endpoint(rule_id: str) -> dict[str, Any]:
     rule = await get_rule(rule_id)
     return rule.model_dump()
+
+
+class AgentBriefBody(BaseModel):
+    objective: str
+    allowed_context: list[str] = []
+    budget: Optional[str] = None
+    approval_gate: bool = True
+
+
+class CreateWorkPackageBody(BaseModel):
+    title: str
+    assignee_kind: str = "human"
+    assignee: Optional[str] = None
+    agent_brief: Optional[AgentBriefBody] = None
+    executes_ids: list[str] = []
+
+
+class UpdateWorkPackageStatusBody(BaseModel):
+    status: str
+
+
+@router.post("/work-packages", status_code=201)
+async def create_work_package_endpoint(
+    body: CreateWorkPackageBody, request: Request
+) -> dict[str, Any]:
+    work_package = await create_work_package(
+        _actor(request),
+        title=body.title,
+        assignee_kind=body.assignee_kind,
+        assignee=body.assignee,
+        agent_brief=body.agent_brief.model_dump() if body.agent_brief else None,
+        executes_ids=body.executes_ids,
+    )
+    return work_package.model_dump()
+
+
+@router.get("/work-packages")
+async def list_work_packages_endpoint(
+    status: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    work_packages = await list_work_packages(status=status)
+    return [w.model_dump() for w in work_packages]
+
+
+@router.get("/work-packages/{work_package_id}")
+async def get_work_package_endpoint(work_package_id: str) -> dict[str, Any]:
+    work_package = await get_work_package(work_package_id)
+    return work_package.model_dump()
+
+
+@router.post("/work-packages/{work_package_id}/status")
+async def update_work_package_status_endpoint(
+    work_package_id: str, body: UpdateWorkPackageStatusBody, request: Request
+) -> dict[str, Any]:
+    try:
+        work_package = await update_work_package_status(
+            _actor(request), work_package_id, body.status
+        )
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from e
+    return work_package.model_dump()
