@@ -104,7 +104,14 @@ class TestProjectCreate:
         assert resp.status_code == 201, resp.text
         body = resp.json()
         assert body["id"] == "notebook:new"
-        assert body["workspace"] == "workspace:a" and body["owner"] == "user:1"
+        # owner/workspace round-trip through ensure_record_id (needed so the real
+        # SurrealDB schema, which requires an actual record<user> type, accepts
+        # it) — RecordID's str() bracket-quotes a purely-numeric id segment like
+        # "1", so compare against the same normalization rather than the literal.
+        from open_notebook.database.repository import ensure_record_id
+
+        assert body["workspace"] == "workspace:a"
+        assert body["owner"] == str(ensure_record_id("user:1"))
         assert body["default_source_scope"] == "project"
         # a project_member(admin, active) row is seeded for the creator
         seed_table, seed_data = mock_create.await_args_list[-1].args

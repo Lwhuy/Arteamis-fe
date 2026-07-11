@@ -130,7 +130,7 @@ async def create_project(
         {
             "name": validated.name,
             "description": validated.description,
-            "owner": repo.user_id,
+            "owner": ensure_record_id(repo.user_id),
             "default_source_scope": validated.default_source_scope,
             "archived": False,
         },
@@ -144,8 +144,8 @@ async def create_project(
         await repo.create(
             "project_member",
             {
-                "project": created["id"],
-                "user": repo.user_id,
+                "project": ensure_record_id(created["id"]),
+                "user": ensure_record_id(repo.user_id),
                 "role": "admin",
                 "status": "active",
             },

@@ -156,7 +156,14 @@ class ScopedRepository:
     async def create(self, table: str, data: dict) -> dict:
         _assert_scoped(table)
         data = {**data, "workspace": self._workspace_rid}  # server-set; client workspace overwritten
-        return await repo_create(table, data)
+        result = await repo_create(table, data)
+        # repo_create's runtime return shape is inconsistent (a bare dict in some
+        # SurrealDB client versions, a one-element list in others) — normalize the
+        # same defensive way open_notebook.domain.base.ObjectModel.save() already
+        # does, rather than assume callers get a dict back.
+        if isinstance(result, list):
+            return result[0]
+        return result
 
     async def update(self, record_id: str, data: dict) -> List[dict]:
         table = _table_of(record_id)
