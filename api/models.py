@@ -900,3 +900,11 @@ class AcceptInvitationResponse(BaseModel):
     role: str
     project_id: Optional[str] = None
     membership_status: str
+
+
+class MemberResponse(BaseModel):
+    user_id: str
+    email: str
+    display_name: Optional[str] = None
+    role: str
+    status: str

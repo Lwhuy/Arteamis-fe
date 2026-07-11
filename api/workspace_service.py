@@ -183,3 +183,28 @@ async def get_membership(user_id: str, workspace_id: str) -> Optional[Membership
     if not rows:
         return None
     return Membership(**rows[0])
+
+
+async def list_members(workspace_id: str) -> List[dict]:
+    """Active members of a workspace, joined to their user for name/email."""
+    rows = await repo_query(
+        """
+        SELECT user.id AS user_id, user.email AS email,
+               user.display_name AS display_name, role, status
+        FROM membership
+        WHERE workspace = $workspace AND status = 'active'
+        ORDER BY role
+        FETCH user
+        """,
+        {"workspace": ensure_record_id(workspace_id)},
+    )
+    return [
+        {
+            "user_id": str(r.get("user_id", "")),
+            "email": r.get("email", ""),
+            "display_name": r.get("display_name"),
+            "role": r.get("role", "member"),
+            "status": r.get("status", "active"),
+        }
+        for r in rows
+    ]

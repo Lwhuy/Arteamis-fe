@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 
-from api import email_service, invitation_service
+from api import email_service, invitation_service, workspace_service
 from api.deps import get_identity, require_role
 from api.models import (
     AcceptInvitationResponse,
@@ -11,6 +11,7 @@ from api.models import (
     InvitationCreateResponse,
     InvitationPreviewResponse,
     InvitationResponse,
+    MemberResponse,
 )
 from api.security import AuthContext
 from open_notebook.domain.invitation import Invitation
@@ -131,3 +132,13 @@ async def preview_invitation(token: str):
 async def accept_invitation(token: str, user_id: str = Depends(get_identity)):
     data = await invitation_service.accept_invitation(token, user_id)
     return AcceptInvitationResponse(**data)
+
+
+@router.get("/workspaces/{workspace_id}/members", response_model=List[MemberResponse])
+async def list_workspace_members(
+    workspace_id: str,
+    ctx: AuthContext = Depends(require_role("owner", "admin", "member")),
+):
+    _assert_workspace_scope(ctx, workspace_id)
+    members = await workspace_service.list_members(workspace_id)
+    return [MemberResponse(**m) for m in members]
