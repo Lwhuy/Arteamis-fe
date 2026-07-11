@@ -514,7 +514,7 @@ export const esES = {
     disconnect: "Desconectar",
     pickItems: "Selecciona elementos para importar",
     import: "Importar",
-    selectNotebook: "Añadir al cuaderno (opcional)",
+    selectNotebook: "Añadir al cuaderno (obligatorio)",
     searchItems: "Buscar…",
     noItems: "No hay nada disponible para importar.",
     importStarted: "Importando {count} elemento(s) — procesando en segundo plano.",

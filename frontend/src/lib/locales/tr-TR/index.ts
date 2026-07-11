@@ -514,7 +514,7 @@ export const trTR = {
     disconnect: "Bağlantıyı kes",
     pickItems: "İçe aktarılacak öğeleri seçin",
     import: "İçe aktar",
-    selectNotebook: "Not defterine ekle (isteğe bağlı)",
+    selectNotebook: "Not defterine ekle (zorunlu)",
     searchItems: "Ara…",
     noItems: "İçe aktarılacak bir şey yok.",
     importStarted: "{count} öğe içe aktarılıyor — arka planda işleniyor.",

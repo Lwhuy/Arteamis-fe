@@ -514,7 +514,7 @@ export const caES = {
     disconnect: "Desconnectar",
     pickItems: "Selecciona elements per importar",
     import: "Importar",
-    selectNotebook: "Afegir al quadern (opcional)",
+    selectNotebook: "Afegir al quadern (obligatori)",
     searchItems: "Cerca…",
     noItems: "No hi ha res disponible per importar.",
     importStarted: "Important {count} element(s) — processant en segon pla.",

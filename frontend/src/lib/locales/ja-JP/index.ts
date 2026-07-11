@@ -514,7 +514,7 @@ export const jaJP = {
     disconnect: "切断",
     pickItems: "インポートする項目を選択",
     import: "インポート",
-    selectNotebook: "ノートブックに追加（任意）",
+    selectNotebook: "ノートブックに追加（必須）",
     searchItems: "検索…",
     noItems: "インポートできる項目がありません。",
     importStarted: "{count} 件のアイテムをインポート中 — バックグラウンドで処理しています。",

@@ -514,7 +514,7 @@ export const itIT = {
     disconnect: "Disconnetti",
     pickItems: "Seleziona gli elementi da importare",
     import: "Importa",
-    selectNotebook: "Aggiungi al taccuino (opzionale)",
+    selectNotebook: "Aggiungi al taccuino (obbligatorio)",
     searchItems: "Cerca…",
     noItems: "Nessun elemento disponibile da importare.",
     importStarted: "Importazione di {count} elemento/i — elaborazione in background.",

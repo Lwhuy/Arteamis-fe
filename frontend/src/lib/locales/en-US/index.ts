@@ -514,7 +514,7 @@ export const enUS = {
     disconnect: "Disconnect",
     pickItems: "Select items to import",
     import: "Import",
-    selectNotebook: "Add to notebook",
+    selectNotebook: "Add to notebook (required)",
     searchItems: "Search…",
     noItems: "Nothing available to import.",
     importStarted: "Importing {count} item(s) — processing in the background.",

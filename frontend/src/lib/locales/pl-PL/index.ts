@@ -514,7 +514,7 @@ export const plPL = {
     disconnect: "Rozłącz",
     pickItems: "Wybierz elementy do zaimportowania",
     import: "Importuj",
-    selectNotebook: "Dodaj do notatnika (opcjonalnie)",
+    selectNotebook: "Dodaj do notatnika (wymagane)",
     searchItems: "Szukaj…",
     noItems: "Brak elementów do zaimportowania.",
     importStarted: "Importowanie {count} element(ów) — przetwarzanie w tle.",

@@ -514,7 +514,7 @@ export const zhCN = {
     disconnect: "断开连接",
     pickItems: "选择要导入的项目",
     import: "导入",
-    selectNotebook: "添加到笔记本（可选）",
+    selectNotebook: "添加到笔记本（必填）",
     searchItems: "搜索…",
     noItems: "没有可导入的内容。",
     importStarted: "正在导入 {count} 个项目 — 后台处理中。",

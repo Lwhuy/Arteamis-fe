@@ -514,7 +514,7 @@ export const zhTW = {
     disconnect: "中斷連接",
     pickItems: "選擇要匯入的項目",
     import: "匯入",
-    selectNotebook: "新增至筆記本（可選）",
+    selectNotebook: "新增至筆記本（必填）",
     searchItems: "搜尋…",
     noItems: "沒有可匯入的內容。",
     importStarted: "正在匯入 {count} 個項目 — 於背景處理中。",

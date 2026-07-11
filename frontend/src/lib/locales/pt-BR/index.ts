@@ -514,7 +514,7 @@ export const ptBR = {
     disconnect: "Desconectar",
     pickItems: "Selecione itens para importar",
     import: "Importar",
-    selectNotebook: "Adicionar ao caderno (opcional)",
+    selectNotebook: "Adicionar ao caderno (obrigatório)",
     searchItems: "Buscar…",
     noItems: "Nada disponível para importar.",
     importStarted: "Importando {count} item(ns) — processando em segundo plano.",

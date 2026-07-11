@@ -514,7 +514,7 @@ export const frFR = {
     disconnect: "Déconnecter",
     pickItems: "Sélectionnez les éléments à importer",
     import: "Importer",
-    selectNotebook: "Ajouter au carnet (facultatif)",
+    selectNotebook: "Ajouter au carnet (obligatoire)",
     searchItems: "Rechercher…",
     noItems: "Rien à importer pour le moment.",
     importStarted: "Importation de {count} élément(s) — traitement en arrière-plan.",

@@ -517,7 +517,7 @@ export const deDE = {
     disconnect: "Trennen",
     pickItems: "Elemente zum Importieren auswählen",
     import: "Importieren",
-    selectNotebook: "Zum Notizbuch hinzufügen (optional)",
+    selectNotebook: "Zum Notizbuch hinzufügen (erforderlich)",
     searchItems: "Suchen…",
     noItems: "Nichts zum Importieren verfügbar.",
     importStarted: "{count} Element(e) werden importiert — Verarbeitung im Hintergrund.",

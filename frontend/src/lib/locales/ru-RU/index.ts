@@ -514,7 +514,7 @@ export const ruRU = {
     disconnect: "Отключить",
     pickItems: "Выберите элементы для импорта",
     import: "Импорт",
-    selectNotebook: "Добавить в блокнот (необязательно)",
+    selectNotebook: "Добавить в блокнот (обязательно)",
     searchItems: "Поиск…",
     noItems: "Нет доступных для импорта элементов.",
     importStarted: "Импорт {count} элемент(ов) — обработка в фоновом режиме.",
