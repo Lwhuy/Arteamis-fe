@@ -33,7 +33,7 @@ def client():
 
 
 class TestRecentlyViewedApi:
-    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
     def test_recently_viewed_returns_mixed_items_newest_first(self, mock_repo_query, client):
         mock_repo_query.side_effect = [
             [{"id": "notebook:old", "title": "Older Project", "last_viewed_at": "2026-06-26T10:00:00Z"}],
@@ -46,7 +46,7 @@ class TestRecentlyViewedApi:
             {"type": "project", "id": "notebook:old", "title": "Older Project", "last_viewed_at": "2026-06-26T10:00:00Z"},
         ]
 
-    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
     def test_recently_viewed_honors_limit(self, mock_repo_query, client):
         mock_repo_query.side_effect = [
             [
@@ -63,35 +63,31 @@ class TestRecentlyViewedApi:
         data = response.json()
         assert [item["id"] for item in data] == ["source:1", "notebook:1"]
         assert len(data) == 2
-        # projects query is passed both workspace_id and limit
+        # both queries are passed workspace_id (repo.raw() always injects it) and limit
         assert mock_repo_query.await_args_list[0].args[1]["limit"] == 2
-        assert mock_repo_query.await_args_list[1].args[1] == {"limit": 2}
+        assert mock_repo_query.await_args_list[1].args[1]["limit"] == 2
+        assert "workspace_id" in mock_repo_query.await_args_list[1].args[1]
 
-    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
     def test_recently_viewed_empty_when_no_view_history(self, mock_repo_query, client):
         mock_repo_query.side_effect = [[], []]
         response = client.get("/api/recently-viewed")
         assert response.status_code == 200
         assert response.json() == []
 
-    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
-    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
-    def test_get_project_stamps_last_viewed_at(self, mock_get, mock_repo_query, client):
-        from open_notebook.domain.notebook import Project
-
-        mock_get.return_value = Project(
-            id="notebook:1", name="Project", description="", workspace="workspace:a", owner="user:1"
-        )
-        mock_repo_query.side_effect = [
-            [{"id": "notebook:1", "name": "Project", "description": "", "archived": False,
-              "created": "2026-06-27T09:00:00Z", "updated": "2026-06-27T09:00:00Z",
-              "source_count": 0, "note_count": 0, "workspace": "workspace:a",
-              "owner": "user:1", "default_source_scope": "personal", "promoted_from": None}],
-            [],
-        ]
+    @patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+    def test_get_project_stamps_last_viewed_at(self, mock_repo_query, client):
+        row = {
+            "id": "notebook:1", "name": "Project", "description": "", "archived": False,
+            "created": "2026-06-27T09:00:00Z", "updated": "2026-06-27T09:00:00Z",
+            "source_count": 0, "note_count": 0, "workspace": "workspace:a",
+            "owner": "user:1", "default_source_scope": "personal", "promoted_from": None,
+        }
+        # 1) repo.get() ownership check, 2) counts raw query, 3) last_viewed stamp
+        mock_repo_query.side_effect = [[row], [row], []]
         response = client.get("/api/projects/notebook:1")
         assert response.status_code == 200
-        assert "last_viewed_at = time::now()" in mock_repo_query.await_args_list[1].args[0]
+        assert "last_viewed_at = time::now()" in mock_repo_query.await_args_list[2].args[0]
 
     @patch("api.routers.sources.Source.get_embedded_chunks", new_callable=AsyncMock)
     @patch("api.routers.sources.require_view_source", new_callable=AsyncMock)

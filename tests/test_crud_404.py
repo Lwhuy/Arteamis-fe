@@ -36,56 +36,56 @@ def _member_ctx():
 
 
 @pytest.mark.asyncio
-@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
-async def test_delete_project_missing_returns_404(mock_get, client):
+@patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+async def test_delete_project_missing_returns_404(mock_q, client):
     from api.main import app
 
     app.dependency_overrides[get_auth_context] = _member_ctx
-    mock_get.side_effect = _nf
+    mock_q.return_value = []  # repo.get() ownership check finds nothing -> 404
     assert client.delete("/api/projects/notebook:gone").status_code == 404
     app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
-async def test_update_project_missing_returns_404(mock_get, client):
+@patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+async def test_update_project_missing_returns_404(mock_q, client):
     from api.main import app
 
     app.dependency_overrides[get_auth_context] = _member_ctx
-    mock_get.side_effect = _nf
+    mock_q.return_value = []  # repo.get() ownership check finds nothing -> 404
     assert client.put("/api/projects/notebook:gone", json={"name": "x"}).status_code == 404
     app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
-async def test_delete_preview_missing_returns_404(mock_get, client):
+@patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+async def test_delete_preview_missing_returns_404(mock_q, client):
     from api.main import app
 
     app.dependency_overrides[get_auth_context] = _member_ctx
-    mock_get.side_effect = _nf
+    mock_q.return_value = []  # repo.get() ownership check finds nothing -> 404
     assert client.get("/api/projects/notebook:gone/delete-preview").status_code == 404
     app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
-async def test_add_source_missing_project_returns_404(mock_get, client):
+@patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+async def test_add_source_missing_project_returns_404(mock_q, client):
     from api.main import app
 
     app.dependency_overrides[get_auth_context] = _member_ctx
-    mock_get.side_effect = _nf
+    mock_q.return_value = []  # repo.get() ownership check finds nothing -> 404
     assert client.post("/api/projects/notebook:gone/sources/source:1").status_code == 404
     app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
-async def test_remove_source_missing_project_returns_404(mock_get, client):
+@patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+async def test_remove_source_missing_project_returns_404(mock_q, client):
     from api.main import app
 
     app.dependency_overrides[get_auth_context] = _member_ctx
-    mock_get.side_effect = _nf
+    mock_q.return_value = []  # repo.get() ownership check finds nothing -> 404
     assert client.delete("/api/projects/notebook:gone/sources/source:1").status_code == 404
     app.dependency_overrides.clear()
 
