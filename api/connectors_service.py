@@ -144,10 +144,11 @@ async def _ingest_doc(doc, notebooks: Optional[List[str]]) -> str:
 
     source = Source(title=doc.title or "Untitled", topics=[], asset=asset)
     await source.save()
-    for notebook_id in notebooks or []:
-        await source.add_to_notebook(notebook_id)
 
     try:
+        for notebook_id in notebooks or []:
+            await source.add_to_notebook(notebook_id)
+
         command_input = SourceProcessingInput(
             source_id=str(source.id),
             content_state=content_state,

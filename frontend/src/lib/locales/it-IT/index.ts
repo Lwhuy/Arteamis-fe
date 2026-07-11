@@ -439,6 +439,7 @@ export const itIT = {
     comingSoon: "Prossimamente",
     connect: "Connetti",
     connectDisabledHint: "Chiedi al tuo amministratore di configurare l'app OAuth di questo connettore.",
+    connectError: "Impossibile connettersi. Riprova.",
     disconnect: "Disconnetti",
     pickItems: "Seleziona gli elementi da importare",
     import: "Importa",

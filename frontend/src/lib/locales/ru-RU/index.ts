@@ -439,6 +439,7 @@ export const ruRU = {
     comingSoon: "Скоро",
     connect: "Подключить",
     connectDisabledHint: "Попросите администратора настроить OAuth-приложение этого коннектора.",
+    connectError: "Не удалось подключиться. Попробуйте снова.",
     disconnect: "Отключить",
     pickItems: "Выберите элементы для импорта",
     import: "Импорт",

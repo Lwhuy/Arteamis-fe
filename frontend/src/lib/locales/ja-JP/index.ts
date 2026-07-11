@@ -439,6 +439,7 @@ export const jaJP = {
     comingSoon: "近日公開",
     connect: "接続",
     connectDisabledHint: "管理者にこのコネクタのOAuthアプリの設定を依頼してください。",
+    connectError: "接続できませんでした。もう一度お試しください。",
     disconnect: "切断",
     pickItems: "インポートする項目を選択",
     import: "インポート",

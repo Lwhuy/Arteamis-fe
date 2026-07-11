@@ -439,6 +439,7 @@ export const zhTW = {
     comingSoon: "即將推出",
     connect: "連接",
     connectDisabledHint: "請讓管理員設定此連接器的 OAuth 應用程式。",
+    connectError: "連線失敗，請再試一次。",
     disconnect: "中斷連接",
     pickItems: "選擇要匯入的項目",
     import: "匯入",

@@ -439,6 +439,7 @@ export const caES = {
     comingSoon: "Properament",
     connect: "Connectar",
     connectDisabledHint: "Demana al teu administrador que configuri l'aplicació OAuth d'aquest connector.",
+    connectError: "No s'ha pogut connectar. Torna-ho a provar.",
     disconnect: "Desconnectar",
     pickItems: "Selecciona elements per importar",
     import: "Importar",

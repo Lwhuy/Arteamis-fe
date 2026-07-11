@@ -439,6 +439,7 @@ export const esES = {
     comingSoon: "Próximamente",
     connect: "Conectar",
     connectDisabledHint: "Pide a tu administrador que configure la aplicación OAuth de este conector.",
+    connectError: "No se pudo conectar. Inténtalo de nuevo.",
     disconnect: "Desconectar",
     pickItems: "Selecciona elementos para importar",
     import: "Importar",

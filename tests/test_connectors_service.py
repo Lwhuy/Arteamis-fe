@@ -57,3 +57,51 @@ async def test_ingest_doc_without_notebooks_builds_valid_command(monkeypatch):
 
     command_id = await svc._ingest_doc(ImportedDoc(title="t", content="c"), None)
     assert command_id == "command:123"
+
+
+@pytest.mark.asyncio
+async def test_import_items_rolls_back_source_when_add_to_notebook_fails(monkeypatch):
+    """Regression: if source.add_to_notebook() fails (e.g. bad notebook id), the
+    half-created Source must be rolled back (deleted), not left orphaned, and
+    the item must be reported in failed[] rather than raising out of import_items."""
+    from open_notebook.domain.connectors.base import ConnectorItem, ImportedDoc
+
+    delete_calls = {"count": 0}
+
+    class FakeSource:
+        def __init__(self, **kwargs):
+            self.id = "source:1"
+            self.command = None
+
+        async def save(self):
+            return None
+
+        async def add_to_notebook(self, notebook_id):
+            raise ValueError(f"notebook not found: {notebook_id}")
+
+        async def delete(self):
+            delete_calls["count"] += 1
+
+    class FakeAdapter:
+        async def list_items(self, conn):
+            return [ConnectorItem(id="item1", kind="file", title="t")]
+
+        async def fetch_content(self, conn, item):
+            return ImportedDoc(title="t", content="c")
+
+    async def fake_connection_get(connection_id):
+        return object()
+
+    monkeypatch.setattr(svc, "Source", FakeSource)
+    monkeypatch.setattr(svc, "Asset", lambda **kw: None)
+    monkeypatch.setattr(svc, "get_connector", lambda provider: FakeAdapter())
+    monkeypatch.setattr(svc.Connection, "get", staticmethod(fake_connection_get))
+
+    result = await svc.import_items(
+        "gdrive", "connection:1", ["item1"], notebooks=["notebook:bad"]
+    )
+
+    assert result["accepted"] == []
+    assert len(result["failed"]) == 1
+    assert result["failed"][0]["item_id"] == "item1"
+    assert delete_calls["count"] == 1

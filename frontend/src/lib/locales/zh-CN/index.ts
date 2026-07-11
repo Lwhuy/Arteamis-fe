@@ -439,6 +439,7 @@ export const zhCN = {
     comingSoon: "即将推出",
     connect: "连接",
     connectDisabledHint: "请让管理员配置此连接器的 OAuth 应用。",
+    connectError: "连接失败，请重试。",
     disconnect: "断开连接",
     pickItems: "选择要导入的项目",
     import: "导入",

@@ -439,6 +439,7 @@ export const frFR = {
     comingSoon: "Bientôt disponible",
     connect: "Connecter",
     connectDisabledHint: "Demandez à votre administrateur de configurer l'application OAuth de ce connecteur.",
+    connectError: "Impossible de se connecter. Veuillez réessayer.",
     disconnect: "Déconnecter",
     pickItems: "Sélectionnez les éléments à importer",
     import: "Importer",

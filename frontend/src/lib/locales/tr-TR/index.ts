@@ -439,6 +439,7 @@ export const trTR = {
     comingSoon: "Yakında",
     connect: "Bağlan",
     connectDisabledHint: "Yöneticinizden bu bağlayıcının OAuth uygulamasını yapılandırmasını isteyin.",
+    connectError: "Bağlanılamadı. Lütfen tekrar deneyin.",
     disconnect: "Bağlantıyı kes",
     pickItems: "İçe aktarılacak öğeleri seçin",
     import: "İçe aktar",

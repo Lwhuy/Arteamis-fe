@@ -439,6 +439,7 @@ export const ptBR = {
     comingSoon: "Em breve",
     connect: "Conectar",
     connectDisabledHint: "Peça ao seu administrador para configurar o aplicativo OAuth deste conector.",
+    connectError: "Não foi possível conectar. Tente novamente.",
     disconnect: "Desconectar",
     pickItems: "Selecione itens para importar",
     import: "Importar",

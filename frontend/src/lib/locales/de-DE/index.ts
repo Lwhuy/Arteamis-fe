@@ -442,6 +442,7 @@ export const deDE = {
     comingSoon: "Demnächst",
     connect: "Verbinden",
     connectDisabledHint: "Bitte deinen Administrator, die OAuth-App dieses Connectors zu konfigurieren.",
+    connectError: "Verbindung fehlgeschlagen. Bitte versuche es erneut.",
     disconnect: "Trennen",
     pickItems: "Elemente zum Importieren auswählen",
     import: "Importieren",

@@ -439,6 +439,7 @@ export const bnIN = {
     comingSoon: "শীঘ্রই আসছে",
     connect: "সংযুক্ত করুন",
     connectDisabledHint: "এই কানেক্টরের OAuth অ্যাপ কনফিগার করতে আপনার অ্যাডমিনকে বলুন।",
+    connectError: "সংযোগ করা যায়নি। আবার চেষ্টা করুন।",
     disconnect: "সংযোগ বিচ্ছিন্ন করুন",
     pickItems: "ইম্পোর্ট করার জন্য আইটেম নির্বাচন করুন",
     import: "ইম্পোর্ট",

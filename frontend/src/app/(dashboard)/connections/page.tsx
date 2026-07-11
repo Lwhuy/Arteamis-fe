@@ -26,7 +26,7 @@ export default function ConnectionsPage() {
       toast.success(t('connections.connectedToast'))
       router.replace('/connections')
     } else if (error) {
-      toast.error(t('connections.connectDisabledHint'))
+      toast.error(t('connections.connectError'))
       router.replace('/connections')
     }
   }, [params, router, t])

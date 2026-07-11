@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from fastapi import Request
@@ -8,6 +9,8 @@ from starlette.types import ASGIApp
 from api.auth_config import auth_enabled
 from api.security import decode_identity_token
 from open_notebook.exceptions import AuthenticationError
+
+_CONNECTOR_CALLBACK_RE = re.compile(r"^/api/connectors/[^/]+/callback$")
 
 
 class JWTAuthMiddleware(BaseHTTPMiddleware):
@@ -53,7 +56,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
         # OAuth provider callbacks arrive without a Bearer token; the CSRF state
         # (validated in connectors_service) is the protection here.
-        if request.url.path.startswith("/api/connectors/") and request.url.path.endswith("/callback"):
+        if _CONNECTOR_CALLBACK_RE.match(request.url.path):
             return await call_next(request)
 
         if request.method == "OPTIONS":

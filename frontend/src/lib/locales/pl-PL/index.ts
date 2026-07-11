@@ -439,6 +439,7 @@ export const plPL = {
     comingSoon: "Wkrótce",
     connect: "Połącz",
     connectDisabledHint: "Poproś administratora o skonfigurowanie aplikacji OAuth tego konektora.",
+    connectError: "Nie udało się połączyć. Spróbuj ponownie.",
     disconnect: "Rozłącz",
     pickItems: "Wybierz elementy do zaimportowania",
     import: "Importuj",

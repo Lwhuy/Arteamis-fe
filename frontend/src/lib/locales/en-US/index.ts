@@ -439,6 +439,7 @@ export const enUS = {
     comingSoon: "Coming soon",
     connect: "Connect",
     connectDisabledHint: "Ask your admin to configure this connector's OAuth app.",
+    connectError: "Couldn't connect. Please try again.",
     disconnect: "Disconnect",
     pickItems: "Select items to import",
     import: "Import",

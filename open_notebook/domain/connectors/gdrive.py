@@ -91,13 +91,16 @@ class GDriveConnector(BaseConnector):
         )
 
     async def _account_email(self, access_token: str) -> str:
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            if r.status_code == 200:
-                return r.json().get("email", "Google Drive")
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.get(
+                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                if r.status_code == 200:
+                    return r.json().get("email", "Google Drive")
+        except Exception:  # noqa: BLE001 — label is cosmetic; never fail connect over it
+            pass
         return "Google Drive"
 
     async def list_items(self, conn: Connection) -> List[ConnectorItem]:
@@ -105,7 +108,7 @@ class GDriveConnector(BaseConnector):
         params = {
             "pageSize": 100,
             "fields": "files(id,name,mimeType,modifiedTime)",
-            "q": "trashed = false",
+            "q": "trashed = false and mimeType != 'application/vnd.google-apps.folder'",
             "orderBy": "modifiedTime desc",
         }
         async with httpx.AsyncClient(timeout=30) as client:
