@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import BaseModel
 
+from api.command_service import CommandService
 from api.deps import CtxDep
 from api.podcast_service import (
     PodcastGenerationRequest,
@@ -116,16 +117,30 @@ async def generate_podcast(request: PodcastGenerationRequest, repo: CtxDep):
 
 
 @router.get("/podcasts/jobs/{job_id}")
-async def get_podcast_job_status(job_id: str, _repo: CtxDep):
-    """Get the status of a podcast generation job.
+async def get_podcast_job_status(job_id: str, repo: CtxDep):
+    """Get the status of a podcast generation job, scoped to the caller's
+    workspace (P6 rollout jobstatus fix).
 
-    `command` is a global job-queue table (see api/routers/commands.py's
-    justification comment) -- job_id itself is not workspace-filtered, only
-    an active-workspace token is required to call this."""
+    `command` (surreal-commands' own job-queue table, see
+    api/routers/commands.py's module comment) has no native `workspace`
+    column, but `result` for a podcast-generation job carries real tenant
+    content (transcript, outline, audio_file_path) -- previously any caller
+    holding an active-workspace token could read another workspace's episode
+    result merely by supplying its job_id, with no ownership check
+    whatsoever. generate_podcast (above) now stamps the submitting
+    workspace into the command row's `context` field (see
+    PodcastService.submit_generation_job's docstring), and this reads it
+    back via CommandService.get_command_status_for_workspace, which 404s
+    (never 403 -- no existence oracle) on a mismatch, a missing job, or a
+    job with no stored workspace (e.g. one submitted before this fix)."""
     try:
-        status_data = await PodcastService.get_job_status(job_id)
+        status_data = await CommandService.get_command_status_for_workspace(
+            job_id, repo.workspace_id
+        )
         return status_data
 
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Job not found")
     except Exception as e:
         logger.error(f"Error fetching podcast job status: {str(e)}")
         raise HTTPException(

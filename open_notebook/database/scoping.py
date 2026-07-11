@@ -39,6 +39,25 @@ GLOBAL_TABLES: frozenset[str] = frozenset(
     {"user", "auth_identity", "workspace", "membership"}
 )
 
+# NOTE on `command` (surreal-commands' own job-queue table): deliberately NOT
+# listed in GLOBAL_TABLES, NATIVE_WORKSPACE_TABLES, or
+# INHERITED_WORKSPACE_TABLES above -- it doesn't fit this module's model at
+# all. It has no native `workspace` column (so it can't go through
+# ScopedRepository's generic get/list), but unlike a true global table its
+# `result` field carries real per-tenant job output for some producers
+# (podcast generation's transcript/outline/audio_file_path) -- treating it as
+# purely global let ANY caller read another workspace's job result by
+# guessing its job_id (the last leak found in the rollout review). Fixed at
+# the service layer instead of here: the submitting workspace is stamped
+# into the command row's `context` field at submission
+# (api/command_service.py's submit_command_job) and checked on every
+# job-status read via CommandService.get_command_status_for_workspace (used
+# by GET /commands/jobs/{job_id} and GET /podcasts/jobs/{job_id}), 404ing on
+# any mismatch or missing stamp. This is a bespoke context-field check, NOT a
+# ScopedRepository path -- `command` still does not belong in
+# NATIVE_WORKSPACE_TABLES (it has no native `workspace` column for the
+# generic methods to filter on).
+
 # Tenant/content plane — every row belongs to exactly one workspace (personal OR
 # company — the filter is identical either way) and MUST be filtered by
 # workspace_id on every read/write/delete. NOTE: the project table is

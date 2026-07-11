@@ -54,6 +54,16 @@ class PodcastService:
         `notebook_id` before calling this -- this function itself does not
         re-check it, matching the rest of this service's "caller already
         authorized" contract.
+
+        `workspace_id` is ALSO passed below as the command's `context`,
+        separately from `args["workspace_id"]` above (P6 rollout jobstatus
+        fix): `args["workspace_id"]` is only read by the worker (to stamp
+        the new `episode` row), but GET /podcasts/jobs/{job_id} needs to
+        check ownership of the *job itself* before returning `result`, and
+        `context` -- unlike `args` -- is stored verbatim without going
+        through PodcastGenerationInput's schema, so it's what
+        CommandService.get_command_status_for_workspace reads for that
+        check (see its docstring in api/command_service.py).
         """
         try:
             # Validate episode profile exists
@@ -105,8 +115,15 @@ class PodcastService:
                 logger.error(f"Failed to import podcast commands: {import_err}")
                 raise ValueError("Podcast commands not available")
 
-            # Submit command to surreal-commands
-            job_id = submit_command("open_notebook", "generate_podcast", command_args)
+            # Submit command to surreal-commands. context (unlike args) is
+            # stored on the command row verbatim -- see this method's
+            # docstring for why workspace_id is stamped there too.
+            job_id = submit_command(
+                "open_notebook",
+                "generate_podcast",
+                command_args,
+                {"workspace_id": workspace_id},
+            )
 
             # Convert RecordID to string if needed
             if not job_id:

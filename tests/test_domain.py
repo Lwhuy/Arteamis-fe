@@ -494,7 +494,7 @@ class TestPodcastService:
         async def fake_get_for_sources(cls, source_ids):
             return {sid: [] for sid in source_ids}
 
-        def fake_submit_command(app_name, command_name, command_args):
+        def fake_submit_command(app_name, command_name, command_args, context=None):
             submitted_args.update(command_args)
             return "command:podcast"
 
