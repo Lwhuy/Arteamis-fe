@@ -335,7 +335,8 @@ def _recently_viewed_source(row: dict) -> RecentlyViewedResponse:
 async def add_source_to_project(
     project_id: str, source_id: str, ctx: AuthContext = Depends(get_auth_context)
 ):
-    await _load_project_in_workspace(project_id, ctx)
+    project = await _load_project_in_workspace(project_id, ctx)
+    await _authorize_project_write(project, ctx)
     await Source.get(source_id)  # NotFoundError -> 404 via global handler
     existing = await repo_query(
         "SELECT * FROM reference WHERE out = $source_id AND in = $project_id",
@@ -359,7 +360,8 @@ async def add_source_to_project(
 async def remove_source_from_project(
     project_id: str, source_id: str, ctx: AuthContext = Depends(get_auth_context)
 ):
-    await _load_project_in_workspace(project_id, ctx)
+    project = await _load_project_in_workspace(project_id, ctx)
+    await _authorize_project_write(project, ctx)
     await repo_query(
         "DELETE FROM reference WHERE out = $project_id AND in = $source_id",
         {
