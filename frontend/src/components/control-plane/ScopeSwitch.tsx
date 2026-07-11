@@ -21,7 +21,7 @@ export function ScopeSwitch() {
             scope === o && 'bg-background text-foreground shadow-sm',
           )}
         >
-          {t(`controlPlane.${o}`)}
+          {o === 'personal' ? t('controlPlane.personal') : t('controlPlane.company')}
         </button>
       ))}
     </div>

@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
+import { ControlPlane } from '@/components/control-plane/ControlPlane'
 
-export default function DashboardPage() {
-  redirect('/notebooks')
+export default function DashboardHome() {
+  return <ControlPlane />
 }
