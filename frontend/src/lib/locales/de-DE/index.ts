@@ -483,6 +483,10 @@ export const deDE = {
     composerPlaceholder: "Ask the brain, or give a command…",
     addSource: "Add source",
     send: "Send",
+    badge: {
+      private: "Private",
+      company: "Company",
+    },
     artifact: {
       title: "Source",
       locator: "Page {loc}",

@@ -12,6 +12,9 @@ vi.mock('@/lib/hooks/use-create-dialogs', () => ({ useCreateDialogs: () => ({ op
 // QueryClientProvider in this unit test (consistent with other query-hook component tests, e.g.
 // ChatColumn.test.tsx mocking useNotebookChat/useNotes).
 vi.mock('@/lib/hooks/use-models', () => ({ useModelDefaults: () => ({ data: undefined, isLoading: false }) }));
+// ContextSidebar's SourcesSection sources data via useRecentSources, which also wraps
+// useQuery — mock it for the same QueryClientProvider-free reason as useModelDefaults above.
+vi.mock('@/lib/hooks/use-sources', () => ({ useRecentSources: () => ({ data: [], isLoading: false }) }));
 
 describe('ControlPlane', () => {
   it('renders rail, scope switch, chat composer and sidebar together', () => {

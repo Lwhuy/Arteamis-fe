@@ -36,6 +36,8 @@ export interface SourceListResponse {
   command_id?: string
   status?: string
   processing_info?: Record<string, unknown>
+  // Governance: private-by-default visibility (§6.3)
+  visibility?: string
 }
 
 export interface SourceDetailResponse extends SourceListResponse {

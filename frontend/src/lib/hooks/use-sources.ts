@@ -231,6 +231,26 @@ export function useFileUpload() {
   })
 }
 
+const RECENT_SOURCES_LIMIT = 10
+
+/**
+ * Recently added/updated sources across all notebooks, for the control-plane
+ * sidebar. Thin wrapper over the same `sourcesApi.list` endpoint the /sources
+ * page uses, but with no `notebook_id` filter and a small page size.
+ */
+export function useRecentSources() {
+  return useQuery({
+    queryKey: ['sources', 'recent'],
+    queryFn: () =>
+      sourcesApi.list({
+        limit: RECENT_SOURCES_LIMIT,
+        sort_by: 'updated',
+        sort_order: 'desc',
+      }),
+    staleTime: 5000,
+  })
+}
+
 export function useSourceStatus(sourceId: string, enabled = true) {
   return useQuery({
     queryKey: ['sources', sourceId, 'status'],
