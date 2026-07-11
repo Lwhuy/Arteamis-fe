@@ -141,7 +141,7 @@ async def list_memberships(user_id: str) -> List[dict]:
     rely on this ordering without a separate `kind` filter.
     """
     rows = await repo_query(
-        "SELECT role, workspace FROM membership "
+        "SELECT role, workspace, created FROM membership "
         "WHERE user = $user AND status = 'active' "
         "ORDER BY created ASC FETCH workspace",
         {"user": ensure_record_id(user_id)},
