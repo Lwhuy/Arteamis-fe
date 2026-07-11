@@ -9,7 +9,11 @@ vi.mock('@/lib/hooks/use-sources', () => ({
 }))
 vi.mock('@/lib/hooks/use-settings', () => ({ useSettings: () => ({ data: { default_embedding_option: 'ask' } }) }))
 vi.mock('@/lib/hooks/use-transformations', () => ({ useTransformations: () => ({ data: [] }) }))
-vi.mock('@/lib/hooks/use-projects', () => ({ useProjects: () => ({ data: [], isLoading: false }) }))
+let targetProject: { default_source_scope?: 'personal' | 'project' | 'company' } | undefined
+vi.mock('@/lib/hooks/use-projects', () => ({
+  useProjects: () => ({ data: [], isLoading: false }),
+  useProject: () => ({ data: targetProject }),
+}))
 
 // jsdom has no ResizeObserver; the Radix Checkbox rendered in the Settings
 // section (embed toggle) needs one to mount. Stub it so the wizard can be
@@ -42,7 +46,10 @@ async function goToProcessingStep() {
 }
 
 describe('AddSourceDialog scope', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    targetProject = undefined
+  })
 
   it('submits a text source with the selected scope', async () => {
     render(<AddSourceDialog open onOpenChange={() => {}} defaultNotebookId="notebook:p1" />)
@@ -73,5 +80,25 @@ describe('AddSourceDialog scope', () => {
     expect(await screen.findByRole('radio', { name: /personal/i })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /project/i })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /company/i })).toBeInTheDocument()
+  })
+
+  it("defaults to the target project's default_source_scope when set", async () => {
+    targetProject = { default_source_scope: 'company' }
+    render(<AddSourceDialog open onOpenChange={() => {}} defaultNotebookId="notebook:p1" />)
+    await goToProcessingStep()
+
+    expect(await screen.findByRole('radio', { name: /company/i })).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.done' }))
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
+    expect(mutateAsync.mock.calls[0][0]).toMatchObject({ scope: 'company' })
+  })
+
+  it("falls back to 'project' when the target project has no default_source_scope", async () => {
+    targetProject = undefined
+    render(<AddSourceDialog open onOpenChange={() => {}} defaultNotebookId="notebook:p1" />)
+    await goToProcessingStep()
+
+    expect(await screen.findByRole('radio', { name: /project/i })).toHaveAttribute('aria-checked', 'true')
   })
 })
