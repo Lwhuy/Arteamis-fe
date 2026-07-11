@@ -859,3 +859,44 @@ class TokenResponse(BaseModel):  # returned by workspace create + switch (+ reus
     token_type: str = "bearer"
     active_workspace_id: str
     role: str
+
+
+# --- Invitations (P4) ---
+class InvitationCreate(BaseModel):
+    email: EmailStr
+    role: Literal["admin", "member"]
+    project_id: Optional[str] = None
+
+
+class InvitationResponse(BaseModel):
+    id: str
+    email: str
+    role: str
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+    status: str
+    invited_by: str
+    expires_at: str
+    created: str
+
+
+class InvitationCreateResponse(BaseModel):
+    invitation: InvitationResponse
+    email_sent: bool
+    share_url: Optional[str] = None
+
+
+class InvitationPreviewResponse(BaseModel):
+    workspace_name: str
+    role: str
+    email: str
+    project_name: Optional[str] = None
+    status: str
+    expired: bool
+
+
+class AcceptInvitationResponse(BaseModel):
+    workspace_id: str
+    role: str
+    project_id: Optional[str] = None
+    membership_status: str
