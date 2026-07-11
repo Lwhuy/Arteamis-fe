@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuth } from '@/lib/hooks/use-auth'
+import { useAuthStore } from '@/lib/stores/auth-store'
 import { useVersionCheck } from '@/lib/hooks/use-version-check'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -16,6 +17,9 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const { isAuthenticated, isLoading } = useAuth()
+  const memberships = useAuthStore((s) => s.memberships)
+  const activeWorkspaceId = useAuthStore((s) => s.activeWorkspaceId)
+  const setActiveWorkspace = useAuthStore((s) => s.setActiveWorkspace)
   const router = useRouter()
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false)
 
@@ -33,9 +37,20 @@ export default function DashboardLayout({
         const currentPath = window.location.pathname + window.location.search
         sessionStorage.setItem('redirectAfterLogin', currentPath)
         router.push('/login')
+        return
+      }
+
+      // Defensive only: a normal session always has activeWorkspaceId set by
+      // setSession (the backend always names an active — Personal —
+      // workspace). This guards a corrupted/partial persisted session, NOT a
+      // first-run gate — there is intentionally no memberships.length === 0
+      // redirect to /onboarding, because an authenticated user's memberships
+      // list is never empty and onboarding must never be a forced gate.
+      if (!activeWorkspaceId && memberships.length > 0) {
+        setActiveWorkspace(memberships[0].workspace_id, memberships[0].role)
       }
     }
-  }, [isAuthenticated, isLoading, router])
+  }, [isAuthenticated, isLoading, memberships, activeWorkspaceId, setActiveWorkspace, router])
 
   // Show loading spinner during initial auth check or while loading
   if (isLoading || !hasCheckedAuth) {
