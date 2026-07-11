@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException
+from loguru import logger
 
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.invitation import Invitation
@@ -162,6 +163,23 @@ async def create_invitation(
 
 
 async def _upsert_workspace_membership(user_id: str, workspace_id: str, role: str) -> None:
+    """Grant/reactivate a workspace membership for an accepted invitation.
+
+    I2 defense-in-depth: migration 22's `invitation.role` schema field permits
+    "owner" at the DB layer (`ASSERT $value IN ["owner", "admin", "member"]`),
+    even though create_invitation already rejects role="owner" at the API layer
+    (InvalidInputError unless role in ("admin", "member")). This function is the
+    accept-path's last line of defense before a role is actually persisted into
+    `membership` — it must never grant "owner" here, regardless of what a
+    (forged, legacy, or future-bug) invitation row claims. Ownership transfer is
+    out of scope for invitations entirely; clamp rather than trust the value.
+    """
+    if role not in ("admin", "member"):
+        logger.warning(
+            f"_upsert_workspace_membership: refusing to grant role={role!r} "
+            f"(user={user_id}, workspace={workspace_id}); clamping to 'admin'"
+        )
+        role = "admin"
     rows = await repo_query(
         "SELECT * FROM membership WHERE user = $user AND workspace = $workspace LIMIT 1",
         {"user": ensure_record_id(user_id), "workspace": ensure_record_id(workspace_id)},

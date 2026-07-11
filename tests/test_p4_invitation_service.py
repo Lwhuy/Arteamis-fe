@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from api import invitation_service as svc
 from open_notebook.domain.invitation import Invitation
+from open_notebook.domain.workspace import Membership
 
 
 def _inv(**over):
@@ -202,3 +203,48 @@ async def test_accept_project_invite_activates_workspace_and_project_member(monk
     upsert_p.assert_awaited_once_with("user:alice", "notebook:proj", "admin")
     assert result["project_id"] == "notebook:proj"
     assert result["role"] == "admin"
+
+
+@pytest.mark.asyncio
+async def test_upsert_workspace_membership_never_grants_owner_new_row(monkeypatch):
+    """I2 defense-in-depth: migration 22's schema (`ASSERT $value IN ["owner",
+    "admin", "member"]`) permits role="owner" on the invitation table at the DB
+    layer even though create_invitation already rejects it at the API layer
+    (InvalidInputError unless role in admin/member). _upsert_workspace_membership
+    is the accept-path's last line of defense and must never persist an "owner"
+    membership even if a forged/legacy invitation row somehow carries role="owner" —
+    clamp it, never trust the caller-supplied value verbatim."""
+    monkeypatch.setattr(svc, "repo_query", AsyncMock(return_value=[]))
+    saved = {}
+
+    async def fake_save(self):
+        saved["role"] = self.role
+
+    with patch.object(Membership, "save", fake_save):
+        await svc._upsert_workspace_membership("user:alice", "workspace:acme", "owner")
+    assert saved["role"] != "owner"
+    assert saved["role"] in ("admin", "member")
+
+
+@pytest.mark.asyncio
+async def test_upsert_workspace_membership_never_escalates_existing_row_to_owner(monkeypatch):
+    """Same guard on the update-existing-row branch: an inactive membership being
+    reactivated with a forged role="owner" must not be escalated to owner."""
+    existing_row = {
+        "id": "membership:1",
+        "user": "user:alice",
+        "workspace": "workspace:acme",
+        "role": "member",
+        "status": "invited",
+    }
+    monkeypatch.setattr(svc, "repo_query", AsyncMock(return_value=[existing_row]))
+    saved = {}
+
+    async def fake_save(self):
+        saved["role"] = self.role
+        saved["status"] = self.status
+
+    with patch.object(Membership, "save", fake_save):
+        await svc._upsert_workspace_membership("user:alice", "workspace:acme", "owner")
+    assert saved["role"] != "owner"
+    assert saved["status"] == "active"
