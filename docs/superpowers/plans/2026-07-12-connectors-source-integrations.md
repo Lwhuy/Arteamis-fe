@@ -1156,7 +1156,7 @@ git commit -m "feat(connectors): add Slack adapter (pinned messages)"
 - Test: `tests/test_connectors_service.py`
 
 **Interfaces:**
-- Consumes: `get_connector`, `CONNECTOR_REGISTRY`, `COMING_SOON` (Task 2); `Connection` (Task 1); `oauth_state` (Task 2); `SourceService.create_source` (`api/sources_service.py`).
+- Consumes: `get_connector`, `CONNECTOR_REGISTRY`, `COMING_SOON` (Task 2); `Connection` (Task 1); `oauth_state` (Task 2); the source-creation domain path — `Source`/`Asset` (`open_notebook.domain.notebook`), `SourceProcessingInput` (`commands.source_commands`), `CommandService.submit_command_job` (`api.command_service`) — same as `api/routers/sources.py`. **Do NOT use `api.sources_service.SourceService`** (client-side HTTP wrapper).
 - Produces:
   - `def list_connectors() -> list[dict]` — merges live (with `status`) + coming-soon; each dict: `provider`, `display_name`, `description`, `status` ∈ `{connected, configured, available, coming_soon}`, `connections: list[dict]`.
   - `def redirect_uri_for(provider: str) -> str` — `{CONNECTORS_API_URL}/api/connectors/{provider}/callback`.
@@ -1213,7 +1213,8 @@ from typing import List, Optional
 
 from loguru import logger
 
-from api.sources_service import SourceService
+from api.command_service import CommandService
+from open_notebook.database.repository import ensure_record_id, repo_delete
 from open_notebook.domain.connection import Connection
 from open_notebook.domain.connectors import (
     COMING_SOON,
@@ -1221,6 +1222,12 @@ from open_notebook.domain.connectors import (
     get_connector,
     oauth_state,
 )
+from open_notebook.domain.notebook import Asset, Source
+
+# IMPORTANT: create sources via the DOMAIN layer (Source + CommandService),
+# exactly like api/routers/sources.py does — NOT via api.sources_service.SourceService,
+# which is a client-side HTTP wrapper (api_client → httpx to the running API) and would
+# make the API call itself over HTTP. The domain path is the correct in-process route.
 
 
 def _api_url() -> str:
@@ -1323,6 +1330,55 @@ async def list_items(provider: str, connection_id: str) -> List[dict]:
     ]
 
 
+async def _ingest_doc(doc, notebooks: Optional[List[str]]) -> str:
+    """Create a Source from an ImportedDoc and queue async processing, mirroring
+    the async path of api/routers/sources.py. Returns the command id.
+
+    `doc.file_path` (binary download) → upload-style content_state; otherwise
+    `doc.content` → text content_state. The background `process_source` command
+    reads content_state and runs extraction/embedding; the worker
+    (`make worker-start`) must be running or the job queues forever.
+    """
+    # Ensure the process_source command is registered before submitting.
+    import commands.source_commands  # noqa: F401
+    from commands.source_commands import SourceProcessingInput
+
+    if doc.file_path:
+        asset = Asset(file_path=doc.file_path)
+        content_state = {"file_path": doc.file_path, "delete_source": True}
+    else:
+        asset = None
+        content_state = {"content": doc.content or ""}
+
+    source = Source(title=doc.title or "Untitled", topics=[], asset=asset)
+    await source.save()
+    for notebook_id in notebooks or []:
+        await source.add_to_notebook(notebook_id)
+
+    try:
+        command_input = SourceProcessingInput(
+            source_id=str(source.id),
+            content_state=content_state,
+            notebook_ids=notebooks,
+            transformations=[],
+            embed=True,
+        )
+        command_id = await CommandService.submit_command_job(
+            "open_notebook", "process_source", command_input.model_dump()
+        )
+        source.command = ensure_record_id(command_id)
+        await source.save()
+        return command_id
+    except Exception:
+        # Roll back the half-created source so a failed queue submission doesn't
+        # leave an orphan record (mirrors the sources router's cleanup).
+        try:
+            await source.delete()
+        except Exception:  # noqa: BLE001
+            pass
+        raise
+
+
 async def import_items(
     provider: str, connection_id: str, item_ids: List[str],
     notebooks: Optional[List[str]] = None,
@@ -1330,7 +1386,6 @@ async def import_items(
     adapter = get_connector(provider)
     conn = await Connection.get(connection_id)
     all_items = {i.id: i for i in await adapter.list_items(conn)}
-    service = SourceService()
     accepted, failed = [], []
     for item_id in item_ids:
         item = all_items.get(item_id)
@@ -1339,17 +1394,7 @@ async def import_items(
             continue
         try:
             doc = await adapter.fetch_content(conn, item)
-            if doc.file_path:
-                service.create_source(
-                    source_type="upload", file_path=doc.file_path, title=doc.title,
-                    notebooks=notebooks, embed=True, delete_source=True,
-                    async_processing=True,
-                )
-            else:
-                service.create_source(
-                    source_type="text", content=doc.content or "", title=doc.title,
-                    notebooks=notebooks, embed=True, async_processing=True,
-                )
+            await _ingest_doc(doc, notebooks)
             accepted.append(item_id)
         except Exception as e:  # noqa: BLE001
             logger.warning(f"connector import failed for {provider}/{item_id}: {e}")
@@ -1358,11 +1403,10 @@ async def import_items(
 
 
 async def disconnect(connection_id: str) -> None:
-    from open_notebook.database.repository import ensure_record_id, repo_delete
     await repo_delete(ensure_record_id(connection_id))
 ```
 
-> Before writing Step 3, open `api/sources_service.py` and confirm `SourceService().create_source(...)` is sync or async (Task's brainstorm found it sync). If it is `async def`, add `await`. Confirm the `repo_delete`/`ensure_record_id` import path against `api/routers/credentials.py`, which already imports them.
+> **Why the domain layer, not `SourceService`:** `api.sources_service.SourceService` delegates to `api_client` (an `httpx` client pointed at `http://127.0.0.1:5055`) — it is a *client-side* wrapper that calls the API over HTTP. Calling it from inside the API (connectors_service runs in-process) would make the server call itself. No router uses `SourceService`; they all create sources through the `Source` domain model + `CommandService.submit_command_job`, which is what `_ingest_doc` above does. Import paths verified against `api/routers/sources.py` (lines ~448–484): `Asset, Source` from `open_notebook.domain.notebook`; `SourceProcessingInput` from `commands.source_commands`; `CommandService` from `api.command_service`; `ensure_record_id`, `repo_delete` from `open_notebook.database.repository`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -2352,7 +2396,7 @@ git commit -m "fix(connectors): address issues found in end-to-end verification"
 
 ## Self-review notes (for the implementer)
 
-- **Sync vs async `create_source`:** Task 6 assumes `SourceService().create_source(...)` is synchronous (as found during brainstorming). Verify in `api/sources_service.py`; add `await` if it is `async def`.
+- **Source creation path (RESOLVED):** Task 6 creates sources via the domain layer (`Source` + `CommandService.submit_command_job`), NOT `SourceService` (a client-side HTTP wrapper). Verified against `api/routers/sources.py`. The `process_source` background command requires the worker (`make worker-start`); imported temp files (Drive binaries) must be readable by the worker process (same host in dev).
 - **`repo_delete` signature:** Task 6's `disconnect` mirrors the delete pattern already in `api/routers/credentials.py`. Match that file's exact `ensure_record_id`/`repo_delete` usage.
 - **Checkbox primitive:** Task 12 assumes `@/components/ui/checkbox`. If absent, reuse the repo's existing multi-select pattern (see `AddSourceDialog`), preserving `aria-label`.
 - **Migration number:** if a P2–P6 migration lands on 20 before this merges, bump to the next free number in both the filenames and `async_migrate.py`.
