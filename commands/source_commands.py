@@ -3,9 +3,9 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 from pydantic import BaseModel
-from surreal_commands import CommandInput, CommandOutput, command
+from surreal_commands import CommandInput, CommandOutput, command, submit_command
 
-from open_notebook.database.repository import ensure_record_id
+from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.notebook import Source
 from open_notebook.domain.transformation import Transformation
 from open_notebook.exceptions import ConfigurationError
@@ -27,6 +27,38 @@ def full_model_dump(model):
         return [full_model_dump(item) for item in model]
     else:
         return model
+
+
+async def _submit_entity_extraction(source_id: str) -> Optional[str]:
+    """
+    Fire-and-forget: submit the brain entity-extraction job for a source.
+
+    Resolves the source's workspace (added by P6) and submits
+    'extract_source_entities'. Best-effort — any failure is logged and
+    swallowed so it can never block or fail source ingest.
+    """
+    try:
+        rows = await repo_query(
+            "SELECT workspace FROM $id",
+            {"id": ensure_record_id(source_id)},
+        )
+        workspace_id = rows[0].get("workspace") if rows else None
+        if not workspace_id:
+            logger.debug(f"No workspace for source {source_id}; skipping extraction")
+            return None
+        command_id = submit_command(
+            "open_notebook",
+            "extract_source_entities",
+            {"source_id": source_id, "workspace_id": str(workspace_id)},
+        )
+        logger.info(
+            f"Submitted extract_source_entities for {source_id} "
+            f"(workspace={workspace_id}): command_id={command_id}"
+        )
+        return str(command_id)
+    except Exception as e:
+        logger.warning(f"Failed to submit entity extraction for {source_id}: {e}")
+        return None
 
 
 class SourceProcessingInput(CommandInput):
@@ -120,6 +152,10 @@ async def process_source_command(
         # the actual count when it finishes.
         insights_list = await processed_source.get_insights()
         insights_created = len(insights_list)
+
+        # Brain: kick off entity extraction now that ingest/embedding is done.
+        # Best-effort — never blocks or fails ingest.
+        await _submit_entity_extraction(str(processed_source.id))
 
         processing_time = time.time() - start_time
         embed_status = "submitted" if input_data.embed else "skipped"
