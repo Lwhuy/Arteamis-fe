@@ -34,7 +34,7 @@ Source spec: `docs/superpowers/specs/2026-07-11-ask-tab-redesign-design.md`
 - **Create** `frontend/src/components/search/StrategyDisclosure.tsx` — the merged, collapsed-by-default disclosure (reasoning + search terms + individual answers).
 - **Delete** `frontend/src/components/search/StreamingResponse.tsx` — replaced by `AnswerBody` + `StrategyDisclosure` (only importer is `page.tsx`, which is rewritten in Task 6).
 - **Modify** `frontend/src/app/(dashboard)/search/page.tsx` — Ask tab only: question-as-heading + "New Question" reset, two-column layout (answer + `SourcesPanel`), and the spec's vertical order in the left column: `AnswerBody` → `AnswerFeedback` → `StrategyDisclosure` → docked follow-up bar. Relocate model badges/Advanced + Ask button into the follow-up bar.
-- **Modify** all 14 `frontend/src/lib/locales/*/index.ts` — add new `searchPage.*` keys.
+- **Modify** all 14 `frontend/src/lib/locales/*/index.ts` — add new `searchPage.*` keys (Task 2) and remove the orphaned `common.finalAnswer` + `common.strategy` keys (Task 5 Step 4).
 
 ---
 
@@ -513,7 +513,9 @@ Props: `{ isStreaming: boolean; finalAnswer: string | null }`. Renders nothing w
 
 ### StrategyDisclosure — merged, collapsed-by-default
 
-Props: `{ strategy: StrategyData | null; answers: string[] }` (reuse the `StrategyData` interface — export it from a shared spot or redefine identically). Renders nothing when `!strategy && answers.length === 0`. One `Collapsible` (`useState(false)` — collapsed by default) titled `t('searchPage.strategyAndReasoning')` containing: the reasoning paragraph, the numbered search-terms list, AND (if `answers.length`) the individual answers underneath — everything that was previously in the two separate Strategy + Individual Answers cards, now in one disclosure.
+Props: `{ strategy: StrategyData | null; answers: string[] }` (reuse the `StrategyData` interface — export it from a shared spot or redefine identically). Renders nothing when `!strategy && answers.length === 0`. One `Collapsible` (`useState(false)` — collapsed by default) titled `t('searchPage.strategyAndReasoning')` containing: the reasoning paragraph (keep `t('common.reasoning')`), the numbered search-terms list (keep `t('common.searchTerms')`), AND (if `answers.length`) the individual answers under a sub-heading that **keeps** `t('common.individualAnswers').replace('{count}', …)` — everything that was previously in the two separate Strategy + Individual Answers cards, now in one disclosure.
+
+**i18n consequence of the split:** the disclosure title moves to the new `searchPage.strategyAndReasoning` and the answer label moves to `searchPage.answerLabel`, so the old `common.strategy` and `common.finalAnswer` keys become **orphaned** (grep-confirmed: each is referenced only by the deleted `StreamingResponse.tsx`). They MUST be removed from all 14 locales in Step 4 below, or the `locales/index.test.ts` "Unused Key Detection" test fails in Task 6. `common.reasoning`, `common.searchTerms`, `common.individualAnswers`, and `common.accessibility.askResponse` stay referenced (ported above) — do NOT remove those.
 
 - [ ] **Step 2: Implement `StrategyDisclosure.tsx`** — merge the two old `Collapsible` cards' bodies into one. Keep the shadcn `Card`/`Collapsible` styling used elsewhere.
 
@@ -522,15 +524,23 @@ Props: `{ strategy: StrategyData | null; answers: string[] }` (reuse the `Strate
 Run: `git rm frontend/src/components/search/StreamingResponse.tsx`
 (Its import in `page.tsx` is replaced in Task 6 — the build will be red until then; that's expected within this task boundary. Do NOT run the full build here; the lint check below is scoped to the new files.)
 
-- [ ] **Step 4: Lint the new components**
+- [ ] **Step 4: Remove the two orphaned `common.*` keys from all 14 locales**
+
+In each `frontend/src/lib/locales/*/index.ts`, delete the `finalAnswer` and `strategy` leaf keys from the **`common:`** object (NOT `searchPage`, and NOT `common.finalAnswerModel*` or `searchPage.final*` — only the exact `common.finalAnswer` and `common.strategy` leaves). This keeps locale parity green (removed from all 14) and lets Unused Key Detection pass once `page.tsx` is wired in Task 6.
+
+Verify no stray references remain:
+Run: `cd frontend && grep -rn "common.finalAnswer'\|common.strategy'" src --include=*.tsx --include=*.ts | grep -v locales`
+Expected: no output.
+
+- [ ] **Step 5: Lint the new components**
 
 Run: `cd frontend && npm run lint -- src/components/search/AnswerBody.tsx src/components/search/StrategyDisclosure.tsx`
-Expected: lint clean. (Full build is verified in Task 6 after `page.tsx` wires these in.)
+Expected: lint clean. (Full build + full test suite are verified in Task 6 after `page.tsx` wires these in.)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add frontend/src/components/search/AnswerBody.tsx frontend/src/components/search/StrategyDisclosure.tsx
+git add frontend/src/components/search/AnswerBody.tsx frontend/src/components/search/StrategyDisclosure.tsx frontend/src/lib/locales
 git rm frontend/src/components/search/StreamingResponse.tsx
 git commit -m "refactor(search): split StreamingResponse into AnswerBody + StrategyDisclosure"
 ```
