@@ -8,12 +8,13 @@ workspace_id, workspace_role, async project_role) -- keep them in sync.
 """
 from typing import List, Optional
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 
 from api.deps import get_auth_context  # P2
 from api.security import AuthContext  # P1
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.notebook import Source
+from open_notebook.exceptions import NotFoundError
 
 
 class PermissionContext:
@@ -113,3 +114,78 @@ async def can_mutate_source(source: Source, ctx: PermissionContext) -> bool:
         if await ctx.project_role(pid) == "admin":
             return True
     return False
+
+
+async def require_view_source(source_id: str, ctx: PermissionContext) -> Source:
+    """Load + view-check. 404 if missing OR view-denied (no existence oracle)."""
+    try:
+        source = await Source.get(source_id)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if not await can_view_source(source, ctx):
+        raise HTTPException(status_code=404, detail="Source not found")
+    return source
+
+
+async def require_mutate_source(source_id: str, ctx: PermissionContext) -> Source:
+    """Load + mutate-check. 404 if not even viewable; 403 if viewable but not mutable."""
+    try:
+        source = await Source.get(source_id)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if not await can_view_source(source, ctx):
+        raise HTTPException(status_code=404, detail="Source not found")
+    if not await can_mutate_source(source, ctx):
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to modify this source",
+        )
+    return source
+
+
+async def visible_source_ids(
+    ctx: PermissionContext, project_id: Optional[str] = None
+) -> List[str]:
+    """Source ids in the caller's workspace (optionally one project) the caller
+    may VIEW, across all three scopes. Single parameterized query (no N+1);
+    backs GET /sources + search filters.
+
+    Workspace owner/admin: every source in the workspace (any scope).
+    Otherwise: owner's own sources, plus every 'company'-scope source in the
+    workspace (no membership predicate needed — same-workspace is sufficient),
+    plus every source of any project they admin, plus 'project'-scope sources
+    of any project they are a plain member of.
+    """
+    params = {
+        "workspace": ensure_record_id(ctx.workspace_id),
+        "user": ensure_record_id(ctx.user_id),
+    }
+    project_filter = ""
+    if project_id is not None:
+        params["project"] = ensure_record_id(project_id)
+        project_filter = " AND out = $project"
+
+    if ctx.workspace_role in ("owner", "admin"):
+        query = (
+            "SELECT VALUE in FROM reference "
+            "WHERE out.workspace = $workspace" + project_filter
+        )
+    else:
+        query = (
+            "SELECT VALUE in FROM reference "
+            "WHERE out.workspace = $workspace" + project_filter + " AND ("
+            "in.owner = $user "
+            "OR in.scope = 'company' "
+            "OR out IN (SELECT VALUE project FROM project_member "
+            "WHERE user = $user AND role = 'admin' AND status = 'active') "
+            "OR (in.scope = 'project' AND out IN (SELECT VALUE project "
+            "FROM project_member WHERE user = $user AND status = 'active'))"
+            ")"
+        )
+    rows = await repo_query(query, params)
+    seen: List[str] = []
+    for r in rows:
+        s = str(r)
+        if s not in seen:
+            seen.append(s)
+    return seen
