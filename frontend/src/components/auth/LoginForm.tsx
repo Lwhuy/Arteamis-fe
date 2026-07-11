@@ -76,7 +76,7 @@ export function LoginForm() {
             <div className="space-y-4">
               <div className="flex items-start gap-2 text-red-600 text-sm">
                 <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">{error || t('auth.connectErrorHint')}</div>
+                <div className="flex-1">{error || t('auth.googleError') || t('auth.connectErrorHint')}</div>
               </div>
               {configInfo && (
                 <div className="space-y-2 text-xs text-muted-foreground border-t pt-3">
@@ -138,7 +138,7 @@ export function LoginForm() {
             {error && (
               <div className="flex items-center gap-2 text-red-600 text-sm">
                 <AlertCircle className="h-4 w-4" />
-                {error}
+                {error || t('auth.invalidCredentials')}
               </div>
             )}
 
