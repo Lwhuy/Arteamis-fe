@@ -30,8 +30,10 @@ Source spec: `docs/superpowers/specs/2026-07-11-ask-tab-redesign-design.md`
 - **Create** `frontend/src/components/search/AnswerFeedback.test.tsx`.
 - **Create** `frontend/src/components/search/SourcesPanel.tsx` — right-side panel; takes `references: ReferenceIndexEntry[]`, fetches via `useQueries`, renders numbered rows with title + snippet + click-to-open.
 - **Create** `frontend/src/components/search/SourcesPanel.test.tsx`.
-- **Modify** `frontend/src/components/search/StreamingResponse.tsx` — merge Strategy + Individual Answers into one collapsed-by-default disclosure; render the final answer borderless (no `Card`); switch citation rendering to `buildReferenceIndex` numbered links.
-- **Modify** `frontend/src/app/(dashboard)/search/page.tsx` — Ask tab only: question-as-heading + "New Question" reset, two-column layout (answer + `SourcesPanel`), relocate model badges/Advanced + Ask button into a docked follow-up bar, mount `AnswerFeedback`.
+- **Create** `frontend/src/components/search/AnswerBody.tsx` — renders ONLY the borderless final answer (numbered `[1]` citations) plus the streaming loading indicator. Split out of the old `StreamingResponse` so the feedback row can sit between the answer and the strategy disclosure.
+- **Create** `frontend/src/components/search/StrategyDisclosure.tsx` — the merged, collapsed-by-default disclosure (reasoning + search terms + individual answers).
+- **Delete** `frontend/src/components/search/StreamingResponse.tsx` — replaced by `AnswerBody` + `StrategyDisclosure` (only importer is `page.tsx`, which is rewritten in Task 6).
+- **Modify** `frontend/src/app/(dashboard)/search/page.tsx` — Ask tab only: question-as-heading + "New Question" reset, two-column layout (answer + `SourcesPanel`), and the spec's vertical order in the left column: `AnswerBody` → `AnswerFeedback` → `StrategyDisclosure` → docked follow-up bar. Relocate model badges/Advanced + Ask button into the follow-up bar.
 - **Modify** all 14 `frontend/src/lib/locales/*/index.ts` — add new `searchPage.*` keys.
 
 ---
@@ -189,7 +191,7 @@ git commit -m "feat(search): add buildReferenceIndex + truncateSnippet utils"
 **Files:**
 - Modify: all 14 `frontend/src/lib/locales/*/index.ts`
 
-New keys under the existing `searchPage:` object. English values (put the same English string in every locale as a placeholder — parity is enforced by key, not translation):
+New keys **nested inside the existing `searchPage: { ... }` object** (NOT flat top-level keys) — the dotted notation in the table below is the resolved path `t('searchPage.newQuestion')`, produced by nesting `newQuestion: "..."` under `searchPage`. English values (put the same English string in every locale as a placeholder — parity is enforced by key, not translation):
 
 | Key | en-US value |
 |---|---|
@@ -494,29 +496,43 @@ git commit -m "feat(search): add SourcesPanel with useQueries + unavailable fall
 
 ---
 
-## Task 5: Restyle `StreamingResponse` (merged disclosure, borderless answer, numbered citations)
+## Task 5: Split `StreamingResponse` into `AnswerBody` + `StrategyDisclosure`
+
+**Why the split:** the spec fixes the left-column order as **Answer → Feedback row → Strategy disclosure → Follow-up bar** (spec lines 30–34: "Feedback row directly under the answer"; "Strategy & reasoning ... positioned below the feedback row"). If the answer and the strategy disclosure both stay inside one `StreamingResponse`, the feedback row can never sit *between* them. So `StreamingResponse` is replaced by two focused components that `page.tsx` (Task 6) orders independently.
 
 **Files:**
-- Modify: `frontend/src/components/search/StreamingResponse.tsx`
+- Create: `frontend/src/components/search/AnswerBody.tsx`
+- Create: `frontend/src/components/search/StrategyDisclosure.tsx`
+- Delete: `frontend/src/components/search/StreamingResponse.tsx` (sole importer is `page.tsx`, rewritten in Task 6)
 
-Changes:
-1. Merge the two `Collapsible` cards (Strategy + Individual Answers) into ONE collapsible titled `t('searchPage.strategyAndReasoning')`, collapsed by default, containing the reasoning, search terms, AND (if any) the individual answers underneath.
-2. Render the final answer **borderless** — replace the `<Card className="border-primary">…</Card>` wrapper with a plain `<div>` block; keep an `t('searchPage.answerLabel')` uppercase label above the markdown.
-3. Switch `FinalAnswerContent` to use `buildReferenceIndex(finalAnswer).numberedText` with `createCompactReferenceLinkComponent` (import from `source-references`) so citations render as clickable `[1] [2]`. Remove the `convertReferencesToMarkdownLinks` + `createReferenceLinkComponent` usage.
-4. Keep the streaming loading indicator and all `aria-*` attributes.
+### AnswerBody — borderless final answer + numbered citations + streaming indicator
 
-- [ ] **Step 1: Edit the component** per the four changes above. Import `buildReferenceIndex, createCompactReferenceLinkComponent`. Collapse default: `useState(false)` for the single disclosure.
+Props: `{ isStreaming: boolean; finalAnswer: string | null }`. Renders nothing when `!finalAnswer && !isStreaming`. When `finalAnswer` exists: an uppercase `t('searchPage.answerLabel')` label above a **borderless** `<div>` (no `Card`) containing the markdown, with citations rendered as clickable `[1] [2]` via `buildReferenceIndex(finalAnswer).numberedText` + `createCompactReferenceLinkComponent`. Keep the streaming loading indicator (spinner + `t('searchPage.processingQuestion')`) shown while `isStreaming && !finalAnswer`. Preserve the `role="region"` / `aria-live="polite"` / `aria-busy` attributes from the old component. Reuse the existing `handleReferenceClick` (via `useModalManager`) for citation clicks — port it from `StreamingResponse.tsx`.
 
-- [ ] **Step 2: Typecheck + existing tests**
+- [ ] **Step 1: Implement `AnswerBody.tsx`** — port `FinalAnswerContent`'s markdown rendering but swap `convertReferencesToMarkdownLinks`+`createReferenceLinkComponent` for `buildReferenceIndex(...).numberedText`+`createCompactReferenceLinkComponent`. Keep `MarkdownRenderer`, the modal click handler, and the loading/aria markup.
 
-Run: `cd frontend && npm run lint && npm run test -- src/components/search`
-Expected: lint clean; no test references the old two-card structure (there are no existing StreamingResponse tests, confirmed). PASS.
+### StrategyDisclosure — merged, collapsed-by-default
 
-- [ ] **Step 3: Commit**
+Props: `{ strategy: StrategyData | null; answers: string[] }` (reuse the `StrategyData` interface — export it from a shared spot or redefine identically). Renders nothing when `!strategy && answers.length === 0`. One `Collapsible` (`useState(false)` — collapsed by default) titled `t('searchPage.strategyAndReasoning')` containing: the reasoning paragraph, the numbered search-terms list, AND (if `answers.length`) the individual answers underneath — everything that was previously in the two separate Strategy + Individual Answers cards, now in one disclosure.
+
+- [ ] **Step 2: Implement `StrategyDisclosure.tsx`** — merge the two old `Collapsible` cards' bodies into one. Keep the shadcn `Card`/`Collapsible` styling used elsewhere.
+
+- [ ] **Step 3: Delete `StreamingResponse.tsx`**
+
+Run: `git rm frontend/src/components/search/StreamingResponse.tsx`
+(Its import in `page.tsx` is replaced in Task 6 — the build will be red until then; that's expected within this task boundary. Do NOT run the full build here; the lint check below is scoped to the new files.)
+
+- [ ] **Step 4: Lint the new components**
+
+Run: `cd frontend && npm run lint -- src/components/search/AnswerBody.tsx src/components/search/StrategyDisclosure.tsx`
+Expected: lint clean. (Full build is verified in Task 6 after `page.tsx` wires these in.)
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add frontend/src/components/search/StreamingResponse.tsx
-git commit -m "refactor(search): merge strategy disclosure, borderless answer, numbered citations"
+git add frontend/src/components/search/AnswerBody.tsx frontend/src/components/search/StrategyDisclosure.tsx
+git rm frontend/src/components/search/StreamingResponse.tsx
+git commit -m "refactor(search): split StreamingResponse into AnswerBody + StrategyDisclosure"
 ```
 
 ---
@@ -529,16 +545,26 @@ git commit -m "refactor(search): merge strategy disclosure, borderless answer, n
 Structural changes inside `<TabsContent value="ask">`:
 1. **Empty state (no `ask.finalAnswer` and not streaming):** keep the current "Ask Your Knowledge Base" `Card` with the question `Textarea`, embedding-model warning, model badges, and Ask button, exactly as today.
 2. **Answered/streaming state:** render a two-column flex (`flex flex-col lg:flex-row gap-6`):
-   - **Left (`flex-1 min-w-0`):**
-     - A header row: the submitted question as `<h2 className="text-xl font-semibold">` + a "New Question" `Button` (ghost) that calls `ask.reset()` and clears `askQuestion`.
-     - `<StreamingResponse ... />` (now borderless answer + merged disclosure).
-     - When `ask.finalAnswer`: `<AnswerFeedback answer={ask.finalAnswer}>` wrapping the existing Save-to-Notebooks `Button` (moved here) as its child.
-     - **Follow-up bar** (docked below): a bordered container with the `Textarea` (reuse `askQuestion`/`handleAsk`; placeholder `t('searchPage.askFollowUp')`), the model badges + Advanced button (relocated from the empty-state block), and the Ask/Run button. Submitting calls the same `handleAsk` (stateless fresh ask — this replaces the prior answer, matching current `useAsk` reset behavior).
-   - **Right:** `<SourcesPanel references={buildReferenceIndex(ask.finalAnswer ?? '').references} />` (renders nothing until there's an answer).
+   - **Left (`flex-1 min-w-0`)** — in this exact vertical order (matches spec lines 30–34):
+     1. A header row: the submitted question as `<h2 className="text-xl font-semibold">` + a "New Question" `Button` (ghost, `t('searchPage.newQuestion')`) that calls `ask.reset()` and clears `askQuestion`.
+     2. `<AnswerBody isStreaming={ask.isStreaming} finalAnswer={ask.finalAnswer} />`
+     3. When `ask.finalAnswer`: `<AnswerFeedback answer={ask.finalAnswer}>` wrapping the existing Save-to-Notebooks `Button` (moved here, keeping its `ask.finalAnswer &&` guard — already satisfied in this branch) as its child.
+     4. `<StrategyDisclosure strategy={ask.strategy} answers={ask.answers} />`
+     5. **Follow-up bar** (docked below): a bordered container with the `Textarea` (reuse `askQuestion`/`handleAsk`; placeholder `t('searchPage.askFollowUp')`), the model badges + Advanced button (relocated from the empty-state block), and the Ask/Run button. Submitting calls the same `handleAsk` (stateless fresh ask — replaces the prior answer, matching current `useAsk` reset behavior).
+   - **Right:** `<SourcesPanel references={referenceIndex.references} />` (renders nothing until there's an answer).
 3. Keep `AdvancedModelsDialog` and `SaveToNotebooksDialog` mounts where they are (they're portals; only the trigger button moves).
-4. Import `AnswerFeedback`, `SourcesPanel`, `buildReferenceIndex`.
+4. Import `AnswerBody`, `StrategyDisclosure`, `AnswerFeedback`, `SourcesPanel`, `buildReferenceIndex`. Remove the old `StreamingResponse` import.
 
-- [ ] **Step 1: Implement the layout changes** in the Ask `TabsContent`. Preserve all existing state, `handleAsk`, URL-param auto-trigger effects, and the embedding-model warning.
+- [ ] **Step 1: Memoize the reference index** so `SourcesPanel`'s `useQueries` doesn't refetch on every render from a new array identity:
+
+```tsx
+const referenceIndex = useMemo(
+  () => buildReferenceIndex(ask.finalAnswer ?? ''),
+  [ask.finalAnswer]
+)
+```
+
+- [ ] **Step 2: Implement the layout changes** in the Ask `TabsContent` per the ordered list above. Preserve all existing state, `handleAsk`, URL-param auto-trigger effects, and the embedding-model warning.
 
 - [ ] **Step 2: Lint + typecheck + full test suite (incl. locale unused-key test)**
 
