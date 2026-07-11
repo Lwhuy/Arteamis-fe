@@ -23,3 +23,7 @@ DEFINE FIELD IF NOT EXISTS status ON TABLE membership TYPE string ASSERT $value 
 DEFINE FIELD IF NOT EXISTS created ON membership DEFAULT time::now() VALUE $before OR time::now();
 DEFINE FIELD IF NOT EXISTS updated ON membership DEFAULT time::now() VALUE time::now();
 DEFINE INDEX IF NOT EXISTS idx_membership_user_workspace ON TABLE membership FIELDS user, workspace UNIQUE;
+
+-- P8.1: source.visibility field with private default (governance).
+DEFINE FIELD visibility ON source TYPE string DEFAULT 'private'
+  ASSERT $value IN ['private', 'company'];
