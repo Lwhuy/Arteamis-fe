@@ -1,25 +1,63 @@
-# P4 — Invitation Flow (Company + Project) Implementation Plan
+# P4 — Invitation Flow (Workspace + Project) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let a company owner/admin invite a person by email to a company or a specific project; accepting the invite links/creates the `user`, activates a `membership` (and a `project_member` for project invites), with email delivery that falls back to a copyable shareable link when no email provider is configured.
+**Goal:** Let a workspace owner/admin invite a person by email to a `kind="company"` workspace
+or a specific project within it; accepting the invite links/creates the `user`, activates a
+`membership` (and a `project_member` for project invites), with email delivery that falls back
+to a copyable shareable link when no email provider is configured. Inviting into a
+`kind="personal"` workspace is always rejected with `403` — personal workspaces are solo tenants
+and never have members beyond their owner.
 
-**Architecture:** A new `invitation` SurrealDB table (migration 22) + an `Invitation` domain model, an `api/invitation_service.py` holding token generation/hashing and the create/accept/revoke state machine, an `api/email_service.py` provider abstraction (console/resend/smtp) with a shareable-link fallback, and an `api/routers/invitations.py` router mounted at `/api`. The frontend adds an invite dialog + members panel and a public `/invite/[token]` accept page, wired through TanStack Query hooks on the single `apiClient`.
+**Architecture:** A new `invitation` SurrealDB table (migration 22) + an `Invitation` domain
+model (linked to `workspace`, never `company`), an `api/invitation_service.py` holding token
+generation/hashing, the workspace-kind guard, and the create/accept/revoke state machine, an
+`api/email_service.py` provider abstraction (console/resend/smtp) with a shareable-link
+fallback, and an `api/routers/invitations.py` router mounted at `/api`. The frontend adds an
+invite dialog + members panel and a public `/invite/[token]` accept page, wired through
+TanStack Query hooks on the single `apiClient`.
 
-**Tech Stack:** FastAPI, SurrealDB (custom async repository), Pydantic, `hashlib`/`secrets` (stdlib token+hash), `httpx` (resend), `smtplib` (smtp), Next.js 16 App Router, TanStack Query, Zustand, axios, sonner, i18next.
+**Tech Stack:** FastAPI, SurrealDB (custom async repository), Pydantic, `hashlib`/`secrets`
+(stdlib token+hash), `httpx` (resend), `smtplib` (smtp), Next.js 16 App Router, TanStack Query,
+Zustand, axios, sonner, i18next.
 
 **Spec:** docs/superpowers/specs/2026-07-11-p4-invitation-design.md
-**Depends on:** P1 (users/auth: `user`, `api/security.py` `AuthContext`, `create_identity_token`, JWTAuthMiddleware in `api/auth.py`), P2 (`company`/`membership`, `api/deps.py` with `get_identity`/`get_auth_context`/`require_role`, `Company`/`Membership` domain, `POST /auth/switch-company/{id}`), P3 (`project`=repurposed `notebook`, `project_member`, `Project`/`ProjectMember` domain). · **Branch:** feat/auth-multitenancy
+**Depends on:** P1 (users/auth: `user`, `api/security.py` `AuthContext`, `create_identity_token`,
+JWTAuthMiddleware in `api/auth.py`), P2 (`workspace`/`membership`, `api/deps.py` with
+`get_identity`/`get_auth_context`/`require_role`, `open_notebook/domain/workspace.py`
+`Workspace`/`Membership` domain models, `POST /auth/switch-workspace/{id}`, frontend
+`useSwitchWorkspace()` hook), P3 (`project`=repurposed `notebook` carrying a `workspace` link,
+`project_member`, `Project`/`ProjectMember` domain, `useProjects` hook). · **Branch:**
+feat/auth-multitenancy
 
 ## Global Constraints
 - Async-first: every SurrealDB call is awaited (no sync DB access).
-- All frontend HTTP goes through the single axios `apiClient` (frontend/src/lib/api/client.ts) — never a 2nd instance.
-- i18n MANDATORY: every UI string via t('section.key'); add the key to ALL 14 locales in the `resources` map under frontend/src/lib/locales/. The parity test `frontend/src/lib/locales/index.test.ts` iterates EVERY locale in `resources` and fails the build if any of the 14 locale files drift, so add the new keys to every locale the folder contains. The 7 enforced locales (en-US, pt-BR, zh-CN, zh-TW, ja-JP, ru-RU, bn-IN) get real translations; the other 7 (it-IT, fr-FR, ca-ES, es-ES, de-DE, pl-PL, tr-TR) get English fallback values.
-- New SurrealDB schema = new migration pair `22.surrealql` + `22_down.surrealql`, registered by hand in `open_notebook/database/async_migrate.py` (migrations are NOT auto-discovered). Canonical numbering: P1=19, P2=20, P3=21, P4=22.
-- Physical SurrealDB table for a project stays `notebook` (P3 repurpose-in-place). There is NO physical `project` table; `invitation.project` is `option<record<notebook>>`.
-- Record links are stored as plain strings in domain models (e.g. `"user:abc"`, `"company:xyz"`), matching P2's `Company`/`Membership` models.
-- Backend errors: raise typed exceptions from `open_notebook.exceptions` where a mapping exists (`NotFoundError`→404, `InvalidInputError`→400). Codes with no typed mapping (403/409/410) are raised as `HTTPException(status_code=...)` — the spec sanctions this explicitly for these statuses.
-- Backend tests: `uv run pytest tests/`. Frontend (inside `frontend/`): `npm run lint`, `npm run test`, `npm run build`.
+- All frontend HTTP goes through the single axios `apiClient` (frontend/src/lib/api/client.ts)
+  — never a 2nd instance.
+- i18n MANDATORY: every UI string via t('section.key'); add the key to ALL 14 locales in the
+  `resources` map under frontend/src/lib/locales/. The parity test
+  `frontend/src/lib/locales/index.test.ts` iterates EVERY locale in `resources` and fails the
+  build if any of the 14 locale files drift, so add the new keys to every locale the folder
+  contains. The 7 enforced locales (en-US, pt-BR, zh-CN, zh-TW, ja-JP, ru-RU, bn-IN) get real
+  translations; the other 7 (it-IT, fr-FR, ca-ES, es-ES, de-DE, pl-PL, tr-TR) get English
+  fallback values.
+- New SurrealDB schema = new migration pair `22.surrealql` + `22_down.surrealql`, registered by
+  hand in `open_notebook/database/async_migrate.py` (migrations are NOT auto-discovered).
+  Canonical numbering: P1=19, P2=20, P3=21, P4=22.
+- Physical SurrealDB table for a project stays `notebook` (P3 repurpose-in-place). There is NO
+  physical `project` table; `invitation.project` is `option<record<notebook>>`.
+- Record links are stored as plain strings in domain models (e.g. `"user:abc"`,
+  `"workspace:xyz"`), matching P2's `Workspace`/`Membership` models.
+- **Invitations only ever target a `kind="company"` workspace.** `create_invitation` loads the
+  workspace and 403s before any other check if `workspace.kind != "company"`. This is a
+  permanent data-model rule (a personal workspace always has exactly one member, its owner), not
+  a feature cut.
+- Backend errors: raise typed exceptions from `open_notebook.exceptions` where a mapping exists
+  (`NotFoundError`→404, `InvalidInputError`→400). Codes with no typed mapping (403/409/410) are
+  raised as `HTTPException(status_code=...)` — the spec sanctions this explicitly for these
+  statuses.
+- Backend tests: `uv run pytest tests/`. Frontend (inside `frontend/`): `npm run lint`, `npm run
+  test`, `npm run build`.
 
 ---
 
@@ -27,18 +65,38 @@
 
 These are produced by earlier phases; this plan imports them exactly as written:
 
-- `api/security.py` (P1): `@dataclass AuthContext` with fields `user_id: str`, `company_id: str | None`, `role: str | None`; `create_identity_token(user_id: str) -> str`.
+- `api/security.py` (P1): `@dataclass AuthContext` with fields `user_id: str`, `workspace_id:
+  str | None`, `role: str | None`; `create_identity_token(user_id: str) -> str`.
 - `api/deps.py` (P2):
-  - `async def get_identity() -> str` — returns the caller's `user_id` from an identity **or** company-scoped access token (decodes the `Authorization: Bearer` header itself; usable before any company is active).
-  - `async def get_auth_context() -> AuthContext` — requires a company-scoped access token.
-  - `def require_role(*roles: str)` — returns an async dependency that yields the `AuthContext` and raises `HTTPException(403)` when `ctx.role` is not in `roles`.
-- `open_notebook/domain/company.py` (P2): `class Company(ObjectModel)` (`table_name="company"`, fields `name`, `slug`, `owner`), `class Membership(ObjectModel)` (`table_name="membership"`, fields `user`, `company`, `role`, `status="active"`).
-- `open_notebook/domain/user.py` (P1): `class User(ObjectModel)` (`table_name="user"`, field `email: str`, lower-cased) with `@classmethod async def get_by_email(cls, email) -> Optional[User]`.
-- `open_notebook/domain/notebook.py` (P3): `class Project(ObjectModel)` (`table_name="notebook"`, fields incl. `company`, `owner`, `name`), `class ProjectMember(ObjectModel)` (`table_name="project_member"`, fields `project`, `user`, `role`, `status="active"`).
-- `api/auth.py` (P1): `JWTAuthMiddleware` (replaces `PasswordAuthMiddleware`), constructed in `api/main.py` with an `excluded_paths` list; skips auth entirely when `JWT_SECRET` is unset (dev/test).
-- Frontend: `frontend/src/lib/stores/auth-store.ts` exposes `token`, `user`, `isAuthenticated`, `activeCompanyId`, `role`, `applyToken(res)`, and a `switchCompany(companyId)` action (P2). `useToast` (`frontend/src/lib/hooks/use-toast.ts`), `useTranslation` (`frontend/src/lib/hooks/use-translation.ts`), `getApiErrorKey` (`frontend/src/lib/utils/error-handler.ts`).
+  - `async def get_identity() -> str` — returns the caller's `user_id` from an identity **or**
+    workspace-scoped access token (decodes the `Authorization: Bearer` header itself; usable
+    before any company workspace is active).
+  - `async def get_auth_context() -> AuthContext` — requires a workspace-scoped access token.
+  - `def require_role(*roles: str)` — returns an async dependency that yields the `AuthContext`
+    and raises `HTTPException(403)` when `ctx.role` is not in `roles`.
+- `open_notebook/domain/workspace.py` (P2): `class Workspace(ObjectModel)` (`table_name=
+  "workspace"`, fields `name`, `slug`, `kind` ("personal"|"company"), `owner`), `class
+  Membership(ObjectModel)` (`table_name="membership"`, fields `user`, `workspace`, `role`,
+  `status="active"`).
+- `open_notebook/domain/user.py` (P1): `class User(ObjectModel)` (`table_name="user"`, field
+  `email: str`, lower-cased) with `@classmethod async def get_by_email(cls, email) ->
+  Optional[User]`.
+- `open_notebook/domain/notebook.py` (P3): `class Project(ObjectModel)` (`table_name="notebook"`,
+  fields incl. `workspace`, `owner`, `name`), `class ProjectMember(ObjectModel)`
+  (`table_name="project_member"`, fields `project`, `user`, `role`, `status="active"`).
+- `api/auth.py` (P1): `JWTAuthMiddleware` (replaces `PasswordAuthMiddleware`), constructed in
+  `api/main.py` with an `excluded_paths` list; skips auth entirely when `JWT_SECRET` is unset
+  (dev/test).
+- Frontend: `frontend/src/lib/stores/auth-store.ts` exposes `token`, `user`, `isAuthenticated`,
+  `activeWorkspaceId`, `role`, `memberships`, `applyToken(res)` (P2). `useSwitchWorkspace()`
+  (`frontend/src/lib/hooks/use-workspaces.ts`, P2) is the mutation this plan's accept page calls
+  to enter a workspace after accepting (it internally calls `applyToken`). `useToast`
+  (`frontend/src/lib/hooks/use-toast.ts`), `useTranslation`
+  (`frontend/src/lib/hooks/use-translation.ts`), `getApiErrorKey`
+  (`frontend/src/lib/utils/error-handler.ts`).
 
-If P1/P2/P3 have not landed yet, this plan cannot be executed — its tasks import the above symbols directly.
+If P1/P2/P3 have not landed yet, this plan cannot be executed — its tasks import the above
+symbols directly.
 
 ---
 
@@ -47,12 +105,18 @@ If P1/P2/P3 have not landed yet, this plan cannot be executed — its tasks impo
 **Files:**
 - Create: `open_notebook/database/migrations/22.surrealql`
 - Create: `open_notebook/database/migrations/22_down.surrealql`
-- Modify: `open_notebook/database/async_migrate.py` (append `22` to `up_migrations` and `22_down` to `down_migrations`, after the P3-added `21` entries)
+- Modify: `open_notebook/database/async_migrate.py` (append `22` to `up_migrations` and
+  `22_down` to `down_migrations`, after the P3-added `21` entries)
 - Test: `tests/test_p4_migration_22.py`
 
 **Interfaces:**
-- Consumes: `AsyncMigrationManager` (`open_notebook/database/async_migrate.py`); `AsyncMigration.from_file` (strips `--` comment lines, joins the rest with spaces, so every statement must be `;`-terminated and no code may follow an inline `--`).
-- Produces: physical table `invitation` with fields `company, email, role, project, token_hash, status, invited_by, expires_at, created, updated` and indexes `idx_invitation_token_hash` (UNIQUE), `idx_invitation_company_status`, `idx_invitation_company_email`.
+- Consumes: `AsyncMigrationManager` (`open_notebook/database/async_migrate.py`);
+  `AsyncMigration.from_file` (strips `--` comment lines, joins the rest with spaces, so every
+  statement must be `;`-terminated and no code may follow an inline `--`).
+- Produces: physical table `invitation` with fields `workspace, email, role, project,
+  token_hash, status, invited_by, expires_at, created, updated` and indexes
+  `idx_invitation_token_hash` (UNIQUE), `idx_invitation_workspace_status`,
+  `idx_invitation_workspace_email`.
 
 - [ ] **Step 1: Write the failing test** — `tests/test_p4_migration_22.py`:
 ```python
@@ -68,8 +132,11 @@ def test_migration_22_files_exist_with_schema():
     down = (MIGRATIONS / "22_down.surrealql").read_text()
 
     assert "DEFINE TABLE IF NOT EXISTS invitation" in up
+    assert "record<workspace>" in up  # invitation links a workspace, not a company
     assert "token_hash" in up
     assert "idx_invitation_token_hash" in up and "UNIQUE" in up
+    assert "idx_invitation_workspace_status" in up
+    assert "idx_invitation_workspace_email" in up
     assert "option<record<notebook>>" in up  # project link points at the physical notebook table
     assert "REMOVE TABLE IF EXISTS invitation" in down
 
@@ -86,10 +153,10 @@ def test_migration_22_registered_in_manager():
 
 `open_notebook/database/migrations/22.surrealql`:
 ```surql
--- Migration 22: Invitations (company + project scoped)
+-- Migration 22: Invitations (workspace + project scoped)
 DEFINE TABLE IF NOT EXISTS invitation SCHEMALESS;
 
-DEFINE FIELD IF NOT EXISTS company    ON TABLE invitation TYPE record<company>;
+DEFINE FIELD IF NOT EXISTS workspace  ON TABLE invitation TYPE record<workspace>;
 DEFINE FIELD IF NOT EXISTS email      ON TABLE invitation TYPE string ASSERT string::is::email($value);
 DEFINE FIELD IF NOT EXISTS role       ON TABLE invitation TYPE string ASSERT $value IN ["owner", "admin", "member"];
 DEFINE FIELD IF NOT EXISTS project    ON TABLE invitation TYPE option<record<notebook>>;
@@ -101,8 +168,8 @@ DEFINE FIELD IF NOT EXISTS created    ON TABLE invitation TYPE option<datetime>;
 DEFINE FIELD IF NOT EXISTS updated    ON TABLE invitation TYPE option<datetime>;
 
 DEFINE INDEX IF NOT EXISTS idx_invitation_token_hash ON TABLE invitation FIELDS token_hash UNIQUE;
-DEFINE INDEX IF NOT EXISTS idx_invitation_company_status ON TABLE invitation FIELDS company, status;
-DEFINE INDEX IF NOT EXISTS idx_invitation_company_email ON TABLE invitation FIELDS company, email;
+DEFINE INDEX IF NOT EXISTS idx_invitation_workspace_status ON TABLE invitation FIELDS workspace, status;
+DEFINE INDEX IF NOT EXISTS idx_invitation_workspace_email ON TABLE invitation FIELDS workspace, email;
 ```
 
 > NOTE: keep each `DEFINE ...` on a single physical line ending in `;`. `AsyncMigration.from_file` joins all non-comment lines with spaces; a statement split across two `--`-free lines still works, but never place code after an inline `--`.
@@ -112,7 +179,9 @@ DEFINE INDEX IF NOT EXISTS idx_invitation_company_email ON TABLE invitation FIEL
 REMOVE TABLE IF EXISTS invitation;
 ```
 
-In `open_notebook/database/async_migrate.py`, append the P4 entry to each list. After the P3 line `AsyncMigration.from_file("open_notebook/database/migrations/21.surrealql"),` in `up_migrations`, add:
+In `open_notebook/database/async_migrate.py`, append the P4 entry to each list. After the P3
+line `AsyncMigration.from_file("open_notebook/database/migrations/21.surrealql"),` in
+`up_migrations`, add:
 ```python
             AsyncMigration.from_file(
                 "open_notebook/database/migrations/22.surrealql"
@@ -136,12 +205,18 @@ After the P3 line `AsyncMigration.from_file("open_notebook/database/migrations/2
 
 **Files:**
 - Create: `open_notebook/domain/invitation.py`
-- Modify: `open_notebook/domain/__init__.py` (import `Invitation` so `ObjectModel.get()` polymorphic resolution finds it at startup)
+- Modify: `open_notebook/domain/__init__.py` (import `Invitation` so `ObjectModel.get()`
+  polymorphic resolution finds it at startup)
 - Test: `tests/test_p4_invitation_domain.py`
 
 **Interfaces:**
-- Consumes: `ObjectModel` (`open_notebook/domain/base.py`) — inherited `save()`/`get()`/`delete()`, `_prepare_save_data()` honoring `nullable_fields`; `repo_query`, `ensure_record_id` (`open_notebook/database/repository.py`).
-- Produces: `class Invitation(ObjectModel)` with `table_name="invitation"`, fields `company, email, role, project(Optional), token_hash, status="pending", invited_by, expires_at`; methods `is_expired() -> bool` and `@classmethod async def get_by_token_hash(cls, token_hash: str) -> Optional["Invitation"]`.
+- Consumes: `ObjectModel` (`open_notebook/domain/base.py`) — inherited `save()`/`get()`/
+  `delete()`, `_prepare_save_data()` honoring `nullable_fields`; `repo_query`,
+  `ensure_record_id` (`open_notebook/database/repository.py`).
+- Produces: `class Invitation(ObjectModel)` with `table_name="invitation"`, fields `workspace,
+  email, role, project(Optional), token_hash, status="pending", invited_by, expires_at`;
+  methods `is_expired() -> bool` and `@classmethod async def get_by_token_hash(cls, token_hash:
+  str) -> Optional["Invitation"]`.
 
 - [ ] **Step 1: Write the failing test** — `tests/test_p4_invitation_domain.py`:
 ```python
@@ -155,7 +230,7 @@ from open_notebook.domain.invitation import Invitation
 
 def _make(**over):
     base = dict(
-        company="company:acme",
+        workspace="workspace:acme",
         email="alice@example.com",
         role="member",
         token_hash="deadbeef",
@@ -170,7 +245,7 @@ def test_defaults_and_nullable_project():
     inv = _make()
     assert inv.status == "pending"
     assert inv.project is None
-    # A company invite must persist project=None (nullable_fields lets it through).
+    # A workspace invite must persist project=None (nullable_fields lets it through).
     assert "project" in inv._prepare_save_data()
     assert inv._prepare_save_data()["project"] is None
 
@@ -197,7 +272,7 @@ async def test_get_by_token_hash_returns_none_when_absent():
 async def test_get_by_token_hash_hydrates_row():
     row = dict(
         id="invitation:1",
-        company="company:acme",
+        workspace="workspace:acme",
         email="alice@example.com",
         role="member",
         project=None,
@@ -228,19 +303,23 @@ from open_notebook.domain.base import ObjectModel
 
 
 class Invitation(ObjectModel):
-    """A pending/accepted/revoked/expired invitation to a company or a project.
+    """A pending/accepted/revoked/expired invitation to a workspace or a project.
+
+    Invitations only ever target a `kind="company"` workspace (enforced in
+    `api/invitation_service.create_invitation`, not here — a personal workspace
+    always has exactly one member, its owner, and can never be invited into).
 
     `role` overloads two meanings, decided by whether `project` is set:
-    - company invite (`project is None`): `role` is the COMPANY role (admin|member).
-    - project invite (`project` set):     `role` is the PROJECT role (admin|member).
+    - workspace invite (`project is None`): `role` is the WORKSPACE role (admin|member).
+    - project invite (`project` set):        `role` is the PROJECT role (admin|member).
     `owner` is never an invitable role (transfer-ownership is out of scope).
     """
 
     table_name: ClassVar[str] = "invitation"
-    # Persist an explicit null project for company invites via _prepare_save_data.
+    # Persist an explicit null project for workspace invites via _prepare_save_data.
     nullable_fields: ClassVar[set[str]] = {"project"}
 
-    company: str  # "company:<id>"
+    workspace: str  # "workspace:<id>"
     email: str
     role: str  # admin|member
     project: Optional[str] = None  # "notebook:<id>" (project) or None
@@ -302,7 +381,10 @@ __all__: list[str] = ["Invitation"]
 
 **Interfaces:**
 - Consumes: `httpx` (already a dependency), stdlib `smtplib`, `os.getenv`.
-- Produces: `async def send_invite_email(to_email, invite_url, company_name, project_name) -> bool` — returns `True` only when actually delivered; `console` (default) returns `False` (triggers the shareable-link fallback); a delivery failure is logged and returns `False`, never raises into the request path.
+- Produces: `async def send_invite_email(to_email, invite_url, workspace_name, project_name) ->
+  bool` — returns `True` only when actually delivered; `console` (default) returns `False`
+  (triggers the shareable-link fallback); a delivery failure is logged and returns `False`,
+  never raises into the request path.
 
 - [ ] **Step 1: Write the failing test** — `tests/test_p4_email_service.py`:
 ```python
@@ -370,7 +452,10 @@ endpoint return a copyable shareable link instead. `resend` and `smtp` do real
 delivery. A delivery failure is logged and returns False (fall back to the link)
 — it never raises into the request path.
 
-Mirrors arteamis-system/backend/app/auth/email_sender.py.
+Mirrors the provider-selection pattern of
+arteamis-system/backend/app/auth/email_sender.py (there used for single-purpose
+OTP delivery; here adapted to a generic invite email with a workspace/project
+context line).
 """
 
 import os
@@ -384,9 +469,9 @@ def _provider() -> str:
     return os.getenv("EMAIL_PROVIDER", "console").strip().lower()
 
 
-def _subject_and_body(company_name: str, project_name: Optional[str], invite_url: str) -> tuple[str, str]:
-    where = f'the "{project_name}" project in {company_name}' if project_name else company_name
-    subject = f"You're invited to {company_name} on Arteamis"
+def _subject_and_body(workspace_name: str, project_name: Optional[str], invite_url: str) -> tuple[str, str]:
+    where = f'the "{project_name}" project in {workspace_name}' if project_name else workspace_name
+    subject = f"You're invited to {workspace_name} on Arteamis"
     body = (
         f"You have been invited to join {where} on Arteamis.\n\n"
         f"Accept your invitation here:\n{invite_url}\n\n"
@@ -432,12 +517,12 @@ async def _send_smtp(to_email: str, subject: str, body: str) -> None:
 async def send_invite_email(
     to_email: str,
     invite_url: str,
-    company_name: str,
+    workspace_name: str,
     project_name: Optional[str] = None,
 ) -> bool:
     """Return True only when the email was actually delivered."""
     provider = _provider()
-    subject, body = _subject_and_body(company_name, project_name, invite_url)
+    subject, body = _subject_and_body(workspace_name, project_name, invite_url)
     try:
         if provider == "resend":
             await _send_resend(to_email, subject, body)
@@ -460,28 +545,37 @@ async def send_invite_email(
 
 ---
 
-### Task 4: `api/invitation_service.py` — token gen, create, accept state machine, revoke
+### Task 4: `api/invitation_service.py` — token gen, create (with personal-workspace guard), accept state machine, revoke
 
 **Files:**
 - Create: `api/invitation_service.py`
 - Test: `tests/test_p4_invitation_service.py`
 
 **Interfaces:**
-- Consumes: `Invitation` (Task 2); `Company`, `Membership` (P2 `open_notebook/domain/company.py`); `User` (P1 `open_notebook/domain/user.py`, `get_by_email`); `Project`, `ProjectMember` (P3 `open_notebook/domain/notebook.py`); `repo_query`, `ensure_record_id` (repository); `NotFoundError`, `InvalidInputError` (`open_notebook.exceptions`).
+- Consumes: `Invitation` (Task 2); `Workspace`, `Membership` (P2
+  `open_notebook/domain/workspace.py`); `User` (P1 `open_notebook/domain/user.py`,
+  `get_by_email`); `Project`, `ProjectMember` (P3 `open_notebook/domain/notebook.py`);
+  `repo_query`, `ensure_record_id` (repository); `NotFoundError`, `InvalidInputError`
+  (`open_notebook.exceptions`).
 - Produces:
   - `generate_token() -> tuple[str, str]` → `(raw, token_hash)`.
   - `hash_token(raw: str) -> str`.
   - `build_invite_url(raw_token: str) -> str`.
-  - `async def create_invitation(company_id, inviter_user_id, email, role, project_id=None) -> tuple[Invitation, str]` → `(invitation, raw_token)`.
-  - `async def accept_invitation(raw_token: str, user_id: str) -> dict` → `{company_id, role, project_id, membership_status}`.
-  - `async def revoke_invitation(company_id: str, invitation_id: str) -> Invitation`.
+  - `async def _get_workspace(workspace_id: str) -> Workspace` (404 wrapper, independently
+    mockable so the personal-workspace guard is unit-testable in isolation).
+  - `async def create_invitation(workspace_id, inviter_user_id, email, role, project_id=None) ->
+    tuple[Invitation, str]` — **403 if `workspace.kind != "company"`**, checked first.
+  - `async def accept_invitation(raw_token: str, user_id: str) -> dict` → `{workspace_id, role,
+    project_id, membership_status}`.
+  - `async def revoke_invitation(workspace_id: str, invitation_id: str) -> Invitation`.
   - `async def preview_invitation(raw_token: str) -> dict` → sanitized preview (no secrets).
-  - `async def list_invitations(company_id: str, status: Optional[str]) -> list[Invitation]`.
+  - `async def list_invitations(workspace_id: str, status: Optional[str]) -> list[Invitation]`.
 
 - [ ] **Step 1: Write the failing test** — `tests/test_p4_invitation_service.py`:
 ```python
 import hashlib
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -494,7 +588,7 @@ from open_notebook.domain.invitation import Invitation
 def _inv(**over):
     base = dict(
         id="invitation:1",
-        company="company:acme",
+        workspace="workspace:acme",
         email="alice@example.com",
         role="member",
         project=None,
@@ -505,6 +599,10 @@ def _inv(**over):
     )
     base.update(over)
     return Invitation(**base)
+
+
+def _workspace(kind="company", id="workspace:acme"):
+    return SimpleNamespace(id=id, kind=kind, name="Acme")
 
 
 def test_generate_token_returns_raw_and_matching_sha256():
@@ -521,7 +619,22 @@ def test_build_invite_url_uses_env(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_create_company_invite_persists_pending_with_hash(monkeypatch):
+async def test_create_invite_into_personal_workspace_403(monkeypatch):
+    """NEW v2 guard: a kind=personal workspace can never be invited into."""
+    monkeypatch.setattr(
+        svc, "_get_workspace", AsyncMock(return_value=_workspace(kind="personal", id="workspace:p1"))
+    )
+    existing_pending = AsyncMock()
+    monkeypatch.setattr(svc, "_existing_pending", existing_pending)
+    with pytest.raises(HTTPException) as ei:
+        await svc.create_invitation("workspace:p1", "user:owner", "a@x.com", "member", None)
+    assert ei.value.status_code == 403
+    existing_pending.assert_not_called()  # short-circuits before any other work
+
+
+@pytest.mark.asyncio
+async def test_create_workspace_invite_persists_pending_with_hash(monkeypatch):
+    monkeypatch.setattr(svc, "_get_workspace", AsyncMock(return_value=_workspace()))
     monkeypatch.setattr(svc, "_existing_pending", AsyncMock(return_value=None))
     monkeypatch.setattr(svc, "_email_has_active_membership", AsyncMock(return_value=False))
     saved = {}
@@ -532,7 +645,7 @@ async def test_create_company_invite_persists_pending_with_hash(monkeypatch):
 
     with patch.object(Invitation, "save", fake_save):
         inv, raw = await svc.create_invitation(
-            "company:acme", "user:owner", "Alice@Example.com", "member", None
+            "workspace:acme", "user:owner", "Alice@Example.com", "member", None
         )
     assert inv.status == "pending"
     assert inv.email == "alice@example.com"  # normalized lower-case
@@ -543,22 +656,24 @@ async def test_create_company_invite_persists_pending_with_hash(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_create_company_invite_conflict_when_already_active_member(monkeypatch):
+async def test_create_workspace_invite_conflict_when_already_active_member(monkeypatch):
+    monkeypatch.setattr(svc, "_get_workspace", AsyncMock(return_value=_workspace()))
     monkeypatch.setattr(svc, "_existing_pending", AsyncMock(return_value=None))
     monkeypatch.setattr(svc, "_email_has_active_membership", AsyncMock(return_value=True))
     with pytest.raises(HTTPException) as ei:
-        await svc.create_invitation("company:acme", "user:owner", "a@x.com", "member", None)
+        await svc.create_invitation("workspace:acme", "user:owner", "a@x.com", "member", None)
     assert ei.value.status_code == 409
 
 
 @pytest.mark.asyncio
 async def test_create_rotates_existing_pending_invite(monkeypatch):
+    monkeypatch.setattr(svc, "_get_workspace", AsyncMock(return_value=_workspace()))
     existing = _inv(token_hash="OLDHASH")
     monkeypatch.setattr(svc, "_existing_pending", AsyncMock(return_value=existing))
     monkeypatch.setattr(svc, "_email_has_active_membership", AsyncMock(return_value=False))
     with patch.object(Invitation, "save", AsyncMock()):
         inv, raw = await svc.create_invitation(
-            "company:acme", "user:owner", "alice@example.com", "member", None
+            "workspace:acme", "user:owner", "alice@example.com", "member", None
         )
     assert inv.id == "invitation:1"  # rotated the same row
     assert inv.token_hash == hashlib.sha256(raw.encode()).hexdigest()
@@ -615,7 +730,7 @@ async def test_accept_email_mismatch_403(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_accept_company_invite_activates_membership(monkeypatch):
+async def test_accept_workspace_invite_activates_membership(monkeypatch):
     inv = _inv(email="alice@example.com", role="admin")
     monkeypatch.setattr(Invitation, "get_by_token_hash", AsyncMock(return_value=inv))
 
@@ -626,13 +741,13 @@ async def test_accept_company_invite_activates_membership(monkeypatch):
 
     monkeypatch.setattr(user_mod.User, "get", AsyncMock(return_value=_U()))
     upsert_m = AsyncMock()
-    monkeypatch.setattr(svc, "_upsert_company_membership", upsert_m)
+    monkeypatch.setattr(svc, "_upsert_workspace_membership", upsert_m)
     monkeypatch.setattr(Invitation, "save", AsyncMock())
 
     result = await svc.accept_invitation("raw-token", "user:alice")
-    upsert_m.assert_awaited_once_with("user:alice", "company:acme", "admin")
+    upsert_m.assert_awaited_once_with("user:alice", "workspace:acme", "admin")
     assert result == {
-        "company_id": "company:acme",
+        "workspace_id": "workspace:acme",
         "role": "admin",
         "project_id": None,
         "membership_status": "active",
@@ -641,7 +756,7 @@ async def test_accept_company_invite_activates_membership(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_accept_project_invite_activates_company_and_project_member(monkeypatch):
+async def test_accept_project_invite_activates_workspace_and_project_member(monkeypatch):
     inv = _inv(email="alice@example.com", role="admin", project="notebook:proj")
     monkeypatch.setattr(Invitation, "get_by_token_hash", AsyncMock(return_value=inv))
 
@@ -653,12 +768,12 @@ async def test_accept_project_invite_activates_company_and_project_member(monkey
     monkeypatch.setattr(user_mod.User, "get", AsyncMock(return_value=_U()))
     upsert_m = AsyncMock()
     upsert_p = AsyncMock()
-    monkeypatch.setattr(svc, "_upsert_company_membership", upsert_m)
+    monkeypatch.setattr(svc, "_upsert_workspace_membership", upsert_m)
     monkeypatch.setattr(svc, "_upsert_project_member", upsert_p)
     monkeypatch.setattr(Invitation, "save", AsyncMock())
 
     result = await svc.accept_invitation("raw-token", "user:alice")
-    upsert_m.assert_awaited_once_with("user:alice", "company:acme", "member")  # shell access
+    upsert_m.assert_awaited_once_with("user:alice", "workspace:acme", "member")  # shell access
     upsert_p.assert_awaited_once_with("user:alice", "notebook:proj", "admin")
     assert result["project_id"] == "notebook:proj"
     assert result["role"] == "admin"
@@ -668,11 +783,16 @@ async def test_accept_project_invite_activates_company_and_project_member(monkey
 
 - [ ] **Step 3: Write minimal implementation** — `api/invitation_service.py`:
 ```python
-"""Invitation lifecycle: create (company/project), accept (state machine), revoke.
+"""Invitation lifecycle: create (workspace/project), accept (state machine), revoke.
 
 Routers stay thin (api/AGENTS.md); all validation and DB work lives here. Status
 codes without a typed-exception mapping (403/409/410) are raised as HTTPException
 per the P4 spec; 404/400 use the typed exceptions the global handlers already map.
+
+v2 guard: invitations only ever target a kind="company" workspace. A
+kind="personal" workspace always has exactly one member (its owner) and is never
+invitable — create_invitation 403s before any other validation when the target
+workspace is personal, regardless of the caller's role.
 """
 
 import hashlib
@@ -685,10 +805,10 @@ from fastapi import HTTPException
 from loguru import logger
 
 from open_notebook.database.repository import ensure_record_id, repo_query
-from open_notebook.domain.company import Company, Membership
 from open_notebook.domain.invitation import Invitation
 from open_notebook.domain.notebook import Project, ProjectMember
 from open_notebook.domain.user import User
+from open_notebook.domain.workspace import Membership, Workspace
 from open_notebook.exceptions import InvalidInputError, NotFoundError
 
 INVITE_TTL_DAYS = 7
@@ -708,16 +828,23 @@ def build_invite_url(raw_token: str) -> str:
     return f"{base}/invite/{raw_token}"
 
 
-async def _existing_pending(company_id: str, email: str, project_id: Optional[str]) -> Optional[Invitation]:
-    """The pending invite for the same (company, email, project) scope, if any."""
+async def _get_workspace(workspace_id: str) -> Workspace:
+    try:
+        return await Workspace.get(workspace_id)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+
+async def _existing_pending(workspace_id: str, email: str, project_id: Optional[str]) -> Optional[Invitation]:
+    """The pending invite for the same (workspace, email, project) scope, if any."""
     result = await repo_query(
         """
         SELECT * FROM invitation
-        WHERE company = $company AND email = $email AND project = $project AND status = 'pending'
+        WHERE workspace = $workspace AND email = $email AND project = $project AND status = 'pending'
         LIMIT 1
         """,
         {
-            "company": ensure_record_id(company_id),
+            "workspace": ensure_record_id(workspace_id),
             "email": email,
             "project": ensure_record_id(project_id) if project_id else None,
         },
@@ -725,15 +852,15 @@ async def _existing_pending(company_id: str, email: str, project_id: Optional[st
     return Invitation(**result[0]) if result else None
 
 
-async def _email_has_active_membership(company_id: str, email: str) -> bool:
+async def _email_has_active_membership(workspace_id: str, email: str) -> bool:
     result = await repo_query(
         """
         SELECT id FROM membership
-        WHERE company = $company AND status = 'active'
+        WHERE workspace = $workspace AND status = 'active'
           AND user IN (SELECT VALUE id FROM user WHERE email = $email)
         LIMIT 1
         """,
-        {"company": ensure_record_id(company_id), "email": email},
+        {"workspace": ensure_record_id(workspace_id), "email": email},
     )
     return bool(result)
 
@@ -752,27 +879,36 @@ async def _email_has_active_project_member(project_id: str, email: str) -> bool:
 
 
 async def create_invitation(
-    company_id: str,
+    workspace_id: str,
     inviter_user_id: str,
     email: str,
     role: str,
     project_id: Optional[str] = None,
 ) -> tuple[Invitation, str]:
+    workspace = await _get_workspace(workspace_id)
+    if workspace.kind != "company":
+        # Personal workspaces are solo tenants (exactly one member, ever) — this
+        # is a permanent data-model rule, not a role check, so it applies to
+        # every caller including the personal workspace's own owner.
+        raise HTTPException(
+            status_code=403, detail="Cannot invite members into a personal workspace"
+        )
+
     email = email.strip().lower()
     if role not in ("admin", "member"):
         raise InvalidInputError("role must be 'admin' or 'member'")
 
     if project_id is None:
-        # Company invite.
-        if await _email_has_active_membership(company_id, email):
-            raise HTTPException(status_code=409, detail="User is already a member of this company")
+        # Workspace invite.
+        if await _email_has_active_membership(workspace_id, email):
+            raise HTTPException(status_code=409, detail="User is already a member of this workspace")
     else:
-        # Project invite: the project must belong to this company.
+        # Project invite: the project must belong to this workspace.
         try:
             project = await Project.get(project_id)
         except NotFoundError:
             raise HTTPException(status_code=404, detail="Project not found")
-        if project.company != company_id:
+        if project.workspace != workspace_id:
             raise HTTPException(status_code=404, detail="Project not found")
         if await _email_has_active_project_member(project_id, email):
             raise HTTPException(status_code=409, detail="User is already a member of this project")
@@ -780,7 +916,7 @@ async def create_invitation(
     raw, token_hash = generate_token()
     expires_at = datetime.now(timezone.utc) + timedelta(days=INVITE_TTL_DAYS)
 
-    existing = await _existing_pending(company_id, email, project_id)
+    existing = await _existing_pending(workspace_id, email, project_id)
     if existing is not None:
         # Rotate the token/expiry on the existing row (old raw token stops resolving).
         existing.token_hash = token_hash
@@ -792,7 +928,7 @@ async def create_invitation(
         return existing, raw
 
     invitation = Invitation(
-        company=company_id,
+        workspace=workspace_id,
         email=email,
         role=role,
         project=project_id,
@@ -805,13 +941,13 @@ async def create_invitation(
     return invitation, raw
 
 
-async def _upsert_company_membership(user_id: str, company_id: str, role: str) -> None:
+async def _upsert_workspace_membership(user_id: str, workspace_id: str, role: str) -> None:
     rows = await repo_query(
-        "SELECT * FROM membership WHERE user = $user AND company = $company LIMIT 1",
-        {"user": ensure_record_id(user_id), "company": ensure_record_id(company_id)},
+        "SELECT * FROM membership WHERE user = $user AND workspace = $workspace LIMIT 1",
+        {"user": ensure_record_id(user_id), "workspace": ensure_record_id(workspace_id)},
     )
     if not rows:
-        await Membership(user=user_id, company=company_id, role=role, status="active").save()
+        await Membership(user=user_id, workspace=workspace_id, role=role, status="active").save()
         return
     membership = Membership(**rows[0])
     if membership.status != "active":
@@ -854,31 +990,31 @@ async def accept_invitation(raw_token: str, user_id: str) -> dict:
         )
 
     if inv.project is None:
-        # Company invite: activate the company membership with the invited role.
-        await _upsert_company_membership(user_id, inv.company, inv.role)
+        # Workspace invite: activate the workspace membership with the invited role.
+        await _upsert_workspace_membership(user_id, inv.workspace, inv.role)
         result_role = inv.role
     else:
-        # Project invite: ensure a company-shell membership, then the project member.
-        await _upsert_company_membership(user_id, inv.company, "member")
+        # Project invite: ensure a workspace-shell membership, then the project member.
+        await _upsert_workspace_membership(user_id, inv.workspace, "member")
         await _upsert_project_member(user_id, inv.project, inv.role)
         result_role = inv.role
 
     inv.status = "accepted"
     await inv.save()
     return {
-        "company_id": inv.company,
+        "workspace_id": inv.workspace,
         "role": result_role,
         "project_id": inv.project,
         "membership_status": "active",
     }
 
 
-async def revoke_invitation(company_id: str, invitation_id: str) -> Invitation:
+async def revoke_invitation(workspace_id: str, invitation_id: str) -> Invitation:
     try:
         inv = await Invitation.get(invitation_id)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Invitation not found")
-    if inv.company != company_id:
+    if inv.workspace != workspace_id:
         # Hide cross-tenant existence.
         raise HTTPException(status_code=404, detail="Invitation not found")
     inv.status = "revoked"
@@ -886,18 +1022,18 @@ async def revoke_invitation(company_id: str, invitation_id: str) -> Invitation:
     return inv
 
 
-async def list_invitations(company_id: str, status: Optional[str] = None) -> list[Invitation]:
+async def list_invitations(workspace_id: str, status: Optional[str] = None) -> list[Invitation]:
     if status is not None and status not in ("pending", "accepted", "revoked", "expired"):
         raise InvalidInputError("Invalid status filter")
     if status:
         rows = await repo_query(
-            "SELECT * FROM invitation WHERE company = $company AND status = $status ORDER BY created DESC",
-            {"company": ensure_record_id(company_id), "status": status},
+            "SELECT * FROM invitation WHERE workspace = $workspace AND status = $status ORDER BY created DESC",
+            {"workspace": ensure_record_id(workspace_id), "status": status},
         )
     else:
         rows = await repo_query(
-            "SELECT * FROM invitation WHERE company = $company ORDER BY created DESC",
-            {"company": ensure_record_id(company_id)},
+            "SELECT * FROM invitation WHERE workspace = $workspace ORDER BY created DESC",
+            {"workspace": ensure_record_id(workspace_id)},
         )
     return [Invitation(**r) for r in rows]
 
@@ -910,7 +1046,7 @@ async def preview_invitation(raw_token: str) -> dict:
         # Never leak secrets (token_hash / invited_by); 410 = expired/revoked/used.
         raise HTTPException(status_code=410, detail="This invitation is no longer valid")
 
-    company = await Company.get(inv.company)
+    workspace = await Workspace.get(inv.workspace)
     project_name = None
     if inv.project is not None:
         try:
@@ -918,7 +1054,7 @@ async def preview_invitation(raw_token: str) -> dict:
         except NotFoundError:
             project_name = None
     return {
-        "company_name": company.name,
+        "workspace_name": workspace.name,
         "role": inv.role,
         "email": inv.email,
         "project_name": project_name,
@@ -927,11 +1063,14 @@ async def preview_invitation(raw_token: str) -> dict:
     }
 ```
 
-> Import note: `Project`/`ProjectMember` come from `open_notebook/domain/notebook.py` (P3 renamed `Notebook`→`Project` there). If P3 kept a `Notebook = Project` alias, the import above still resolves.
+> Import note: `Project`/`ProjectMember` come from `open_notebook/domain/notebook.py` (P3
+> renamed `Notebook`→`Project` there, and added the `workspace` field). `Workspace`/`Membership`
+> come from `open_notebook/domain/workspace.py` (P2). If P3 kept a `Notebook = Project` alias,
+> the import above still resolves.
 
-- [ ] **Step 4: Run test, verify it passes** — Run: `uv run pytest tests/test_p4_invitation_service.py -q` — Expected: PASS (11 tests).
+- [ ] **Step 4: Run test, verify it passes** — Run: `uv run pytest tests/test_p4_invitation_service.py -q` — Expected: PASS (12 tests).
 
-- [ ] **Step 5: Commit** — `git add api/invitation_service.py tests/test_p4_invitation_service.py && git commit -m "P4: add invitation_service (create/accept/revoke state machine)"`
+- [ ] **Step 5: Commit** — `git add api/invitation_service.py tests/test_p4_invitation_service.py && git commit -m "P4: add invitation_service (create/accept/revoke state machine + personal-workspace guard)"`
 
 ---
 
@@ -940,13 +1079,21 @@ async def preview_invitation(raw_token: str) -> dict:
 **Files:**
 - Modify: `api/models.py` (append the invitation schemas)
 - Create: `api/routers/invitations.py`
-- Modify: `api/main.py` (import + `include_router(invitations.router, prefix="/api", tags=["invitations"])`)
+- Modify: `api/main.py` (import + `include_router(invitations.router, prefix="/api",
+  tags=["invitations"])`)
 - Modify: `api/auth.py` (add `/api/invitations/` public prefix to `JWTAuthMiddleware`)
 - Test: `tests/test_p4_invitations_router.py`
 
 **Interfaces:**
-- Consumes: `invitation_service` (Task 4), `email_service` (Task 3), `require_role`/`get_identity`/`get_auth_context` (`api/deps.py`), `AuthContext` (`api/security.py`).
-- Produces: endpoints `POST /api/companies/{company_id}/invitations`, `GET /api/companies/{company_id}/invitations`, `POST /api/companies/{company_id}/invitations/{invitation_id}/revoke`, `GET /api/invitations/{token}` (public), `POST /api/invitations/{token}/accept`. Schemas `InvitationCreate`, `InvitationResponse`, `InvitationCreateResponse`, `InvitationPreviewResponse`, `AcceptInvitationResponse`.
+- Consumes: `invitation_service` (Task 4), `email_service` (Task 3),
+  `require_role`/`get_identity`/`get_auth_context` (`api/deps.py`), `AuthContext`
+  (`api/security.py`).
+- Produces: endpoints `POST /api/workspaces/{workspace_id}/invitations`, `GET
+  /api/workspaces/{workspace_id}/invitations`, `POST
+  /api/workspaces/{workspace_id}/invitations/{invitation_id}/revoke`, `GET
+  /api/invitations/{token}` (public), `POST /api/invitations/{token}/accept`. Schemas
+  `InvitationCreate`, `InvitationResponse`, `InvitationCreateResponse`,
+  `InvitationPreviewResponse`, `AcceptInvitationResponse`.
 
 - [ ] **Step 1: Write the failing test** — `tests/test_p4_invitations_router.py`:
 ```python
@@ -961,11 +1108,11 @@ from api.security import AuthContext
 
 
 def _owner_ctx():
-    return AuthContext(user_id="user:owner", company_id="company:acme", role="owner")
+    return AuthContext(user_id="user:owner", workspace_id="workspace:acme", role="owner")
 
 
 def _member_ctx():
-    return AuthContext(user_id="user:m", company_id="company:acme", role="member")
+    return AuthContext(user_id="user:m", workspace_id="workspace:acme", role="member")
 
 
 @pytest.fixture
@@ -983,7 +1130,7 @@ def _fake_inv(**over):
 
     base = dict(
         id="invitation:1",
-        company="company:acme",
+        workspace="workspace:acme",
         email="alice@example.com",
         role="member",
         project=None,
@@ -1007,7 +1154,7 @@ def test_create_invite_owner_returns_share_url_when_email_not_sent(app):
         pname.return_value = None
         client = TestClient(app)
         resp = client.post(
-            "/api/companies/company:acme/invitations",
+            "/api/workspaces/workspace:acme/invitations",
             json={"email": "alice@example.com", "role": "member"},
         )
     assert resp.status_code == 201
@@ -1028,7 +1175,7 @@ def test_create_invite_email_sent_hides_share_url(app):
         pname.return_value = None
         client = TestClient(app)
         resp = client.post(
-            "/api/companies/company:acme/invitations",
+            "/api/workspaces/workspace:acme/invitations",
             json={"email": "alice@example.com", "role": "member"},
         )
     assert resp.status_code == 201
@@ -1037,24 +1184,42 @@ def test_create_invite_email_sent_hides_share_url(app):
 
 
 def test_create_invite_member_role_forbidden(app):
-    # require_role("owner","admin") must 403 a company member.
+    # require_role("owner","admin") must 403 a workspace member.
     app.dependency_overrides[deps.get_auth_context] = _member_ctx
     client = TestClient(app)
     resp = client.post(
-        "/api/companies/company:acme/invitations",
+        "/api/workspaces/workspace:acme/invitations",
         json={"email": "a@x.com", "role": "member"},
     )
     assert resp.status_code == 403
 
 
-def test_create_invite_cross_company_404(app):
-    app.dependency_overrides[deps.get_auth_context] = _owner_ctx  # scoped to company:acme
+def test_create_invite_into_personal_workspace_403(app):
+    # RBAC passes (owner), but the service-level personal-workspace guard still 403s.
+    app.dependency_overrides[deps.get_auth_context] = _owner_ctx
+    with patch(
+        "api.routers.invitations.invitation_service.create_invitation", new_callable=AsyncMock
+    ) as create:
+        create.side_effect = HTTPException(
+            status_code=403, detail="Cannot invite members into a personal workspace"
+        )
+        client = TestClient(app)
+        resp = client.post(
+            "/api/workspaces/workspace:acme/invitations",
+            json={"email": "a@x.com", "role": "member"},
+        )
+    assert resp.status_code == 403
+    assert "personal workspace" in resp.json()["detail"]
+
+
+def test_create_invite_cross_workspace_404(app):
+    app.dependency_overrides[deps.get_auth_context] = _owner_ctx  # scoped to workspace:acme
     client = TestClient(app)
     resp = client.post(
-        "/api/companies/company:other/invitations",
+        "/api/workspaces/workspace:other/invitations",
         json={"email": "a@x.com", "role": "member"},
     )
-    assert resp.status_code == 404  # token's company != path company
+    assert resp.status_code == 404  # token's workspace != path workspace
 
 
 def test_list_invites_owner(app):
@@ -1064,7 +1229,7 @@ def test_list_invites_owner(app):
         lst.return_value = [_fake_inv()]
         pname.return_value = None
         client = TestClient(app)
-        resp = client.get("/api/companies/company:acme/invitations?status=pending")
+        resp = client.get("/api/workspaces/workspace:acme/invitations?status=pending")
     assert resp.status_code == 200
     assert resp.json()[0]["email"] == "alice@example.com"
 
@@ -1076,7 +1241,7 @@ def test_revoke_invite_owner(app):
         rev.return_value = _fake_inv(status="revoked")
         pname.return_value = None
         client = TestClient(app)
-        resp = client.post("/api/companies/company:acme/invitations/invitation:1/revoke")
+        resp = client.post("/api/workspaces/workspace:acme/invitations/invitation:1/revoke")
     assert resp.status_code == 200
     assert resp.json()["status"] == "revoked"
 
@@ -1084,7 +1249,7 @@ def test_revoke_invite_owner(app):
 def test_preview_is_public_and_returns_no_secrets(app):
     with patch("api.routers.invitations.invitation_service.preview_invitation", new_callable=AsyncMock) as prev:
         prev.return_value = {
-            "company_name": "Acme",
+            "workspace_name": "Acme",
             "role": "member",
             "email": "alice@example.com",
             "project_name": None,
@@ -1095,7 +1260,7 @@ def test_preview_is_public_and_returns_no_secrets(app):
         resp = client.get("/api/invitations/RAWTOKEN")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["company_name"] == "Acme"
+    assert body["workspace_name"] == "Acme"
     assert "token_hash" not in body and "invited_by" not in body
 
 
@@ -1111,7 +1276,7 @@ def test_accept_as_identity_user(app):
     app.dependency_overrides[deps.get_identity] = lambda: "user:alice"
     with patch("api.routers.invitations.invitation_service.accept_invitation", new_callable=AsyncMock) as acc:
         acc.return_value = {
-            "company_id": "company:acme",
+            "workspace_id": "workspace:acme",
             "role": "member",
             "project_id": None,
             "membership_status": "active",
@@ -1120,7 +1285,7 @@ def test_accept_as_identity_user(app):
         resp = client.post("/api/invitations/RAWTOKEN/accept")
     assert resp.status_code == 200
     assert resp.json() == {
-        "company_id": "company:acme",
+        "workspace_id": "workspace:acme",
         "role": "member",
         "project_id": None,
         "membership_status": "active",
@@ -1132,7 +1297,9 @@ def test_accept_as_identity_user(app):
 
 - [ ] **Step 3: Write minimal implementation** —
 
-Append to `api/models.py` (near the other `*Create`/`*Response` schemas; `EmailStr` is available once P1 added `email-validator` — `from pydantic import EmailStr` at top of the file with the other pydantic imports):
+Append to `api/models.py` (near the other `*Create`/`*Response` schemas; `EmailStr` is available
+once P1 added `email-validator` — `from pydantic import EmailStr` at top of the file with the
+other pydantic imports):
 ```python
 # --- Invitations (P4) ---
 class InvitationCreate(BaseModel):
@@ -1160,7 +1327,7 @@ class InvitationCreateResponse(BaseModel):
 
 
 class InvitationPreviewResponse(BaseModel):
-    company_name: str
+    workspace_name: str
     role: str
     email: str
     project_name: Optional[str] = None
@@ -1169,7 +1336,7 @@ class InvitationPreviewResponse(BaseModel):
 
 
 class AcceptInvitationResponse(BaseModel):
-    company_id: str
+    workspace_id: str
     role: str
     project_id: Optional[str] = None
     membership_status: str
@@ -1226,25 +1393,25 @@ def _to_response(inv: Invitation, project_name: Optional[str]) -> InvitationResp
     )
 
 
-def _assert_company_scope(ctx: AuthContext, company_id: str) -> None:
-    # The company-scoped token must match the path company; else hide existence.
-    if ctx.company_id != company_id:
-        raise HTTPException(status_code=404, detail="Company not found")
+def _assert_workspace_scope(ctx: AuthContext, workspace_id: str) -> None:
+    # The workspace-scoped token must match the path workspace; else hide existence.
+    if ctx.workspace_id != workspace_id:
+        raise HTTPException(status_code=404, detail="Workspace not found")
 
 
 @router.post(
-    "/companies/{company_id}/invitations",
+    "/workspaces/{workspace_id}/invitations",
     response_model=InvitationCreateResponse,
     status_code=201,
 )
 async def create_invitation(
-    company_id: str,
+    workspace_id: str,
     body: InvitationCreate,
     ctx: AuthContext = Depends(require_role("owner", "admin")),
 ):
-    _assert_company_scope(ctx, company_id)
+    _assert_workspace_scope(ctx, workspace_id)
     invitation, raw_token = await invitation_service.create_invitation(
-        company_id=company_id,
+        workspace_id=workspace_id,
         inviter_user_id=ctx.user_id,
         email=body.email,
         role=body.role,
@@ -1253,7 +1420,7 @@ async def create_invitation(
     project_name = await _project_name(invitation.project)
     invite_url = invitation_service.build_invite_url(raw_token)
     email_sent = await email_service.send_invite_email(
-        invitation.email, invite_url, ctx.company_id or "", project_name
+        invitation.email, invite_url, ctx.workspace_id or "", project_name
     )
     return InvitationCreateResponse(
         invitation=_to_response(invitation, project_name),
@@ -1263,30 +1430,30 @@ async def create_invitation(
 
 
 @router.get(
-    "/companies/{company_id}/invitations",
+    "/workspaces/{workspace_id}/invitations",
     response_model=List[InvitationResponse],
 )
 async def list_invitations(
-    company_id: str,
+    workspace_id: str,
     status: Optional[str] = Query(None, description="Filter by status, e.g. pending"),
     ctx: AuthContext = Depends(require_role("owner", "admin")),
 ):
-    _assert_company_scope(ctx, company_id)
-    invitations = await invitation_service.list_invitations(company_id, status)
+    _assert_workspace_scope(ctx, workspace_id)
+    invitations = await invitation_service.list_invitations(workspace_id, status)
     return [_to_response(inv, await _project_name(inv.project)) for inv in invitations]
 
 
 @router.post(
-    "/companies/{company_id}/invitations/{invitation_id}/revoke",
+    "/workspaces/{workspace_id}/invitations/{invitation_id}/revoke",
     response_model=InvitationResponse,
 )
 async def revoke_invitation(
-    company_id: str,
+    workspace_id: str,
     invitation_id: str,
     ctx: AuthContext = Depends(require_role("owner", "admin")),
 ):
-    _assert_company_scope(ctx, company_id)
-    inv = await invitation_service.revoke_invitation(company_id, invitation_id)
+    _assert_workspace_scope(ctx, workspace_id)
+    inv = await invitation_service.revoke_invitation(workspace_id, invitation_id)
     return _to_response(inv, await _project_name(inv.project))
 
 
@@ -1303,14 +1470,21 @@ async def accept_invitation(token: str, user_id: str = Depends(get_identity)):
     return AcceptInvitationResponse(**data)
 ```
 
-In `api/main.py`, add `invitations` to the routers import block and register it. In the `from api.routers import (...)` list add `invitations,` (alphabetical placement near `insights`), then after `app.include_router(insights.router, ...)` add:
+In `api/main.py`, add `invitations` to the routers import block and register it. In the `from
+api.routers import (...)` list add `invitations,` (alphabetical placement near `insights`), then
+after `app.include_router(insights.router, ...)` add:
 ```python
 app.include_router(invitations.router, prefix="/api", tags=["invitations"])
 ```
 
-In `api/auth.py` (the `JWTAuthMiddleware` introduced by P1), make the public invitation-preview reachable when auth is enabled. The middleware already skips exact-match `excluded_paths`; add a prefix bypass so `/api/invitations/...` is public — the `accept` endpoint under it re-authenticates via its own `Depends(get_identity)`, so this is safe. Add a module-level constant and one guard in `dispatch` (place the guard right after the existing `excluded_paths` check):
+In `api/auth.py` (the `JWTAuthMiddleware` introduced by P1), make the public invitation-preview
+reachable when auth is enabled. The middleware already skips exact-match `excluded_paths`; add a
+prefix bypass so `/api/invitations/...` is public — the `accept` endpoint under it
+re-authenticates via its own `Depends(get_identity)`, so this is safe. Add a module-level
+constant and one guard in `dispatch` (place the guard right after the existing
+`excluded_paths` check):
 ```python
-# Public route prefixes (token-scoped, reachable before a company is active).
+# Public route prefixes (token-scoped, reachable before a workspace is active).
 # `/api/invitations/{token}` preview is fully public; `/accept` under it
 # re-checks auth via its own get_identity dependency.
 PUBLIC_PATH_PREFIXES = ("/api/invitations/",)
@@ -1320,25 +1494,28 @@ PUBLIC_PATH_PREFIXES = ("/api/invitations/",)
             return await call_next(request)
 ```
 
-- [ ] **Step 4: Run test, verify it passes** — Run: `uv run pytest tests/test_p4_invitations_router.py -q` — Expected: PASS (9 tests).
+- [ ] **Step 4: Run test, verify it passes** — Run: `uv run pytest tests/test_p4_invitations_router.py -q` — Expected: PASS (10 tests).
 
 - [ ] **Step 5: Commit** — `git add api/models.py api/routers/invitations.py api/main.py api/auth.py tests/test_p4_invitations_router.py && git commit -m "P4: invitations router + schemas + public preview route"`
 
 ---
 
-### Task 6: `GET /api/companies/{company_id}/members` (adds it if P2 did not)
+### Task 6: `GET /api/workspaces/{workspace_id}/members` (adds it since P2's spec does not ship it)
 
 **Files:**
-- Modify: `api/company_service.py` (add `list_members`; created by P2)
+- Modify: `api/workspace_service.py` (add `list_members`; created by P2)
 - Modify: `api/models.py` (add `MemberResponse`)
-- Modify: `api/routers/invitations.py` (add the members route — cohabits with the invitations surface this phase owns)
+- Modify: `api/routers/invitations.py` (add the members route — cohabits with the invitations
+  surface this phase owns)
 - Test: `tests/test_p4_members_endpoint.py`
 
 **Interfaces:**
 - Consumes: `require_role` (`api/deps.py`), `repo_query`/`ensure_record_id`.
-- Produces: `async def list_members(company_id: str) -> list[dict]` and `GET /api/companies/{company_id}/members -> List[MemberResponse]`.
+- Produces: `async def list_members(workspace_id: str) -> list[dict]` and `GET
+  /api/workspaces/{workspace_id}/members -> List[MemberResponse]`.
 
-> If P2 already shipped this exact endpoint, SKIP this task and point the frontend Members panel at P2's route instead. Confirm by grepping: `grep -rn "companies/{company_id}/members\|/members" api/routers/`.
+> If P2 already shipped this exact endpoint, SKIP this task and point the frontend Members panel
+> at P2's route instead. Confirm by grepping: `grep -rn "workspaces/{workspace_id}/members\|/members" api/routers/`.
 
 - [ ] **Step 1: Write the failing test** — `tests/test_p4_members_endpoint.py`:
 ```python
@@ -1361,27 +1538,27 @@ def app():
 
 def test_members_list_for_member(app):
     app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
-        user_id="user:m", company_id="company:acme", role="member"
+        user_id="user:m", workspace_id="workspace:acme", role="member"
     )
-    with patch("api.routers.invitations.company_service.list_members", new_callable=AsyncMock) as lm:
+    with patch("api.routers.invitations.workspace_service.list_members", new_callable=AsyncMock) as lm:
         lm.return_value = [
             {"user_id": "user:1", "email": "a@x.com", "display_name": "A", "role": "owner", "status": "active"}
         ]
         client = TestClient(app)
-        resp = client.get("/api/companies/company:acme/members")
+        resp = client.get("/api/workspaces/workspace:acme/members")
     assert resp.status_code == 200
     assert resp.json()[0]["role"] == "owner"
 
 
-def test_members_cross_company_404(app):
+def test_members_cross_workspace_404(app):
     app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
-        user_id="user:m", company_id="company:acme", role="member"
+        user_id="user:m", workspace_id="workspace:acme", role="member"
     )
     client = TestClient(app)
-    assert client.get("/api/companies/company:other/members").status_code == 404
+    assert client.get("/api/workspaces/workspace:other/members").status_code == 404
 ```
 
-- [ ] **Step 2: Run test, verify it fails** — Run: `uv run pytest tests/test_p4_members_endpoint.py -q` — Expected: FAIL (`company_service.list_members` missing / route 404).
+- [ ] **Step 2: Run test, verify it fails** — Run: `uv run pytest tests/test_p4_members_endpoint.py -q` — Expected: FAIL (`workspace_service.list_members` missing / route 404).
 
 - [ ] **Step 3: Write minimal implementation** —
 
@@ -1395,10 +1572,11 @@ class MemberResponse(BaseModel):
     status: str
 ```
 
-In `api/company_service.py` add (mirrors P2's `list_memberships` join shape):
+In `api/workspace_service.py` add (mirrors P2's `list_memberships` join shape, but scoped to one
+workspace's active members rather than one user's memberships across workspaces):
 ```python
-async def list_members(company_id: str) -> list[dict]:
-    """Active members of a company, joined to their user for name/email."""
+async def list_members(workspace_id: str) -> list[dict]:
+    """Active members of a workspace, joined to their user for name/email."""
     from open_notebook.database.repository import ensure_record_id, repo_query
 
     rows = await repo_query(
@@ -1406,11 +1584,11 @@ async def list_members(company_id: str) -> list[dict]:
         SELECT user.id AS user_id, user.email AS email,
                user.display_name AS display_name, role, status
         FROM membership
-        WHERE company = $company AND status = 'active'
+        WHERE workspace = $workspace AND status = 'active'
         ORDER BY role
         FETCH user
         """,
-        {"company": ensure_record_id(company_id)},
+        {"workspace": ensure_record_id(workspace_id)},
     )
     return [
         {
@@ -1426,23 +1604,23 @@ async def list_members(company_id: str) -> list[dict]:
 
 In `api/routers/invitations.py`, add the import and route:
 ```python
-from api import company_service  # add to the existing `from api import ...` line group
+from api import workspace_service  # add to the existing `from api import ...` line group
 from api.models import MemberResponse  # add to the existing api.models import
 ```
 ```python
-@router.get("/companies/{company_id}/members", response_model=List[MemberResponse])
-async def list_company_members(
-    company_id: str,
+@router.get("/workspaces/{workspace_id}/members", response_model=List[MemberResponse])
+async def list_workspace_members(
+    workspace_id: str,
     ctx: AuthContext = Depends(require_role("owner", "admin", "member")),
 ):
-    _assert_company_scope(ctx, company_id)
-    members = await company_service.list_members(company_id)
+    _assert_workspace_scope(ctx, workspace_id)
+    members = await workspace_service.list_members(workspace_id)
     return [MemberResponse(**m) for m in members]
 ```
 
 - [ ] **Step 4: Run test, verify it passes** — Run: `uv run pytest tests/test_p4_members_endpoint.py -q` — Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit** — `git add api/company_service.py api/models.py api/routers/invitations.py tests/test_p4_members_endpoint.py && git commit -m "P4: GET company members endpoint"`
+- [ ] **Step 5: Commit** — `git add api/workspace_service.py api/models.py api/routers/invitations.py tests/test_p4_members_endpoint.py && git commit -m "P4: GET workspace members endpoint"`
 
 ---
 
@@ -1455,7 +1633,9 @@ async def list_company_members(
 
 **Interfaces:**
 - Consumes: the single `apiClient` (`frontend/src/lib/api/client.ts`).
-- Produces: `invitationsApi = { list, create, revoke, preview, accept }`; types `InvitationResponse`, `InvitationCreateResponse`, `InvitationPreviewResponse`, `AcceptInvitationResponse`, `MemberResponse`, `CreateInvitationRequest`.
+- Produces: `invitationsApi = { list, create, revoke, preview, accept, members }`; types
+  `InvitationResponse`, `InvitationCreateResponse`, `InvitationPreviewResponse`,
+  `AcceptInvitationResponse`, `MemberResponse`, `CreateInvitationRequest`.
 
 - [ ] **Step 1: Write the failing test** — `frontend/src/lib/api/invitations.test.ts`:
 ```ts
@@ -1476,10 +1656,10 @@ describe('invitationsApi', () => {
     mocked.post.mockReset()
   })
 
-  it('create posts to the company invitations endpoint', async () => {
+  it('create posts to the workspace invitations endpoint', async () => {
     mocked.post.mockResolvedValue({ data: { email_sent: false, share_url: 'http://x/invite/t', invitation: {} } })
-    const res = await invitationsApi.create('company:acme', { email: 'a@x.com', role: 'member' })
-    expect(mocked.post).toHaveBeenCalledWith('/companies/company:acme/invitations', {
+    const res = await invitationsApi.create('workspace:acme', { email: 'a@x.com', role: 'member' })
+    expect(mocked.post).toHaveBeenCalledWith('/workspaces/workspace:acme/invitations', {
       email: 'a@x.com',
       role: 'member',
     })
@@ -1488,28 +1668,28 @@ describe('invitationsApi', () => {
 
   it('list requests with a status param', async () => {
     mocked.get.mockResolvedValue({ data: [] })
-    await invitationsApi.list('company:acme', 'pending')
-    expect(mocked.get).toHaveBeenCalledWith('/companies/company:acme/invitations', {
+    await invitationsApi.list('workspace:acme', 'pending')
+    expect(mocked.get).toHaveBeenCalledWith('/workspaces/workspace:acme/invitations', {
       params: { status: 'pending' },
     })
   })
 
   it('preview hits the public token endpoint', async () => {
-    mocked.get.mockResolvedValue({ data: { company_name: 'Acme' } })
+    mocked.get.mockResolvedValue({ data: { workspace_name: 'Acme' } })
     await invitationsApi.preview('RAW')
     expect(mocked.get).toHaveBeenCalledWith('/invitations/RAW')
   })
 
   it('accept posts to the token accept endpoint', async () => {
-    mocked.post.mockResolvedValue({ data: { company_id: 'company:acme' } })
+    mocked.post.mockResolvedValue({ data: { workspace_id: 'workspace:acme' } })
     await invitationsApi.accept('RAW')
     expect(mocked.post).toHaveBeenCalledWith('/invitations/RAW/accept')
   })
 
-  it('members lists company members', async () => {
+  it('members lists workspace members', async () => {
     mocked.get.mockResolvedValue({ data: [] })
-    await invitationsApi.members('company:acme')
-    expect(mocked.get).toHaveBeenCalledWith('/companies/company:acme/members')
+    await invitationsApi.members('workspace:acme')
+    expect(mocked.get).toHaveBeenCalledWith('/workspaces/workspace:acme/members')
   })
 })
 ```
@@ -1546,7 +1726,7 @@ export interface InvitationCreateResponse {
 }
 
 export interface InvitationPreviewResponse {
-  company_name: string
+  workspace_name: string
   role: 'admin' | 'member'
   email: string
   project_name: string | null
@@ -1555,7 +1735,7 @@ export interface InvitationPreviewResponse {
 }
 
 export interface AcceptInvitationResponse {
-  company_id: string
+  workspace_id: string
   role: string
   project_id: string | null
   membership_status: string
@@ -1583,25 +1763,25 @@ import {
 } from '@/lib/types/api'
 
 export const invitationsApi = {
-  list: async (companyId: string, status?: string) => {
+  list: async (workspaceId: string, status?: string) => {
     const response = await apiClient.get<InvitationResponse[]>(
-      `/companies/${companyId}/invitations`,
+      `/workspaces/${workspaceId}/invitations`,
       { params: status ? { status } : undefined },
     )
     return response.data
   },
 
-  create: async (companyId: string, data: CreateInvitationRequest) => {
+  create: async (workspaceId: string, data: CreateInvitationRequest) => {
     const response = await apiClient.post<InvitationCreateResponse>(
-      `/companies/${companyId}/invitations`,
+      `/workspaces/${workspaceId}/invitations`,
       data,
     )
     return response.data
   },
 
-  revoke: async (companyId: string, invitationId: string) => {
+  revoke: async (workspaceId: string, invitationId: string) => {
     const response = await apiClient.post<InvitationResponse>(
-      `/companies/${companyId}/invitations/${invitationId}/revoke`,
+      `/workspaces/${workspaceId}/invitations/${invitationId}/revoke`,
     )
     return response.data
   },
@@ -1618,8 +1798,8 @@ export const invitationsApi = {
     return response.data
   },
 
-  members: async (companyId: string) => {
-    const response = await apiClient.get<MemberResponse[]>(`/companies/${companyId}/members`)
+  members: async (workspaceId: string) => {
+    const response = await apiClient.get<MemberResponse[]>(`/workspaces/${workspaceId}/members`)
     return response.data
   },
 }
@@ -1640,8 +1820,10 @@ export const invitationsApi = {
 - Test: `frontend/src/lib/hooks/use-invitations.test.tsx`
 
 **Interfaces:**
-- Consumes: `invitationsApi` (Task 7), `QUERY_KEYS`, `useToast`, `useTranslation`, `getApiErrorKey`, auth-store `switchCompany` (P2).
-- Produces: `useInvitations`, `useCreateInvitation`, `useRevokeInvitation`, `useMembers`, `useInvitationPreview`, `useAcceptInvitation`.
+- Consumes: `invitationsApi` (Task 7), `QUERY_KEYS`, `useToast`, `useTranslation`,
+  `getApiErrorKey`, `useSwitchWorkspace` (P2, `frontend/src/lib/hooks/use-workspaces.ts`).
+- Produces: `useInvitations`, `useCreateInvitation`, `useRevokeInvitation`, `useMembers`,
+  `useInvitationPreview`, `useAcceptInvitation`.
 
 - [ ] **Step 1: Write the failing test** — `frontend/src/lib/hooks/use-invitations.test.tsx`:
 ```tsx
@@ -1680,10 +1862,10 @@ describe('useCreateInvitation', () => {
       share_url: 'http://x/invite/t',
       invitation: { id: 'invitation:1' },
     })
-    const { result } = renderHook(() => useCreateInvitation('company:acme'), { wrapper })
+    const { result } = renderHook(() => useCreateInvitation('workspace:acme'), { wrapper })
     const res = await result.current.mutateAsync({ email: 'a@x.com', role: 'member' })
     expect(res.share_url).toBe('http://x/invite/t')
-    expect(invitationsApi.create).toHaveBeenCalledWith('company:acme', {
+    expect(invitationsApi.create).toHaveBeenCalledWith('workspace:acme', {
       email: 'a@x.com',
       role: 'member',
     })
@@ -1695,10 +1877,11 @@ describe('useCreateInvitation', () => {
 
 - [ ] **Step 3: Write minimal implementation** —
 
-In `frontend/src/lib/api/query-client.ts`, add two keys to the `QUERY_KEYS` object (after `notebook`):
+In `frontend/src/lib/api/query-client.ts`, add two keys to the `QUERY_KEYS` object (after
+`notebook`):
 ```ts
-  invitations: (companyId: string) => ['invitations', companyId] as const,
-  members: (companyId: string) => ['members', companyId] as const,
+  invitations: (workspaceId: string) => ['invitations', workspaceId] as const,
+  members: (workspaceId: string) => ['members', workspaceId] as const,
 ```
 
 In `frontend/src/lib/utils/error-handler.ts`, add three entries to `ERROR_MAP`:
@@ -1718,32 +1901,32 @@ import { useTranslation } from '@/lib/hooks/use-translation'
 import { getApiErrorKey } from '@/lib/utils/error-handler'
 import { CreateInvitationRequest } from '@/lib/types/api'
 
-export function useInvitations(companyId: string, status?: string) {
+export function useInvitations(workspaceId: string, status?: string) {
   return useQuery({
-    queryKey: [...QUERY_KEYS.invitations(companyId), { status }],
-    queryFn: () => invitationsApi.list(companyId, status),
-    enabled: !!companyId,
+    queryKey: [...QUERY_KEYS.invitations(workspaceId), { status }],
+    queryFn: () => invitationsApi.list(workspaceId, status),
+    enabled: !!workspaceId,
   })
 }
 
-export function useMembers(companyId: string) {
+export function useMembers(workspaceId: string) {
   return useQuery({
-    queryKey: QUERY_KEYS.members(companyId),
-    queryFn: () => invitationsApi.members(companyId),
-    enabled: !!companyId,
+    queryKey: QUERY_KEYS.members(workspaceId),
+    queryFn: () => invitationsApi.members(workspaceId),
+    enabled: !!workspaceId,
   })
 }
 
-export function useCreateInvitation(companyId: string) {
+export function useCreateInvitation(workspaceId: string) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { t } = useTranslation()
 
   return useMutation({
-    mutationFn: (data: CreateInvitationRequest) => invitationsApi.create(companyId, data),
+    mutationFn: (data: CreateInvitationRequest) => invitationsApi.create(workspaceId, data),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invitations(companyId) })
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.members(companyId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invitations(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.members(workspaceId) })
       toast({
         title: t('common.success'),
         // If the email wasn't sent, the dialog surfaces the copyable share link.
@@ -1760,15 +1943,15 @@ export function useCreateInvitation(companyId: string) {
   })
 }
 
-export function useRevokeInvitation(companyId: string) {
+export function useRevokeInvitation(workspaceId: string) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { t } = useTranslation()
 
   return useMutation({
-    mutationFn: (invitationId: string) => invitationsApi.revoke(companyId, invitationId),
+    mutationFn: (invitationId: string) => invitationsApi.revoke(workspaceId, invitationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invitations(companyId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invitations(workspaceId) })
       toast({ title: t('common.success'), description: t('invitations.revokeSuccess') })
     },
     onError: (error: unknown) => {
@@ -1810,6 +1993,12 @@ export function useAcceptInvitation() {
 }
 ```
 
+> The accept page (Task 10) calls `useAcceptInvitation()` for the `POST /invitations/{token}/accept`
+> call, then separately calls P2's `useSwitchWorkspace()` (`frontend/src/lib/hooks/use-workspaces.ts`)
+> with the accept response's `workspace_id` to mint a workspace-scoped token and enter the
+> workspace — that hook already applies the token to the auth store (`applyToken`), so this file
+> does not duplicate that logic.
+
 - [ ] **Step 4: Run test, verify it passes** — Run: `npm run test -- src/lib/hooks/use-invitations.test.tsx` — Expected: PASS.
 
 - [ ] **Step 5: Commit** — `git add frontend/src/lib/api/query-client.ts frontend/src/lib/utils/error-handler.ts frontend/src/lib/hooks/use-invitations.ts frontend/src/lib/hooks/use-invitations.test.tsx && git commit -m "P4: frontend invitation hooks + query keys + 410 mapping"`
@@ -1824,8 +2013,12 @@ export function useAcceptInvitation() {
 - Test: `frontend/src/components/members/invite-dialog.test.tsx`
 
 **Interfaces:**
-- Consumes: `ui/dialog`, `ui/input`, `ui/select`, `ui/button`, `ui/label`, `ui/badge`, `ui/alert-dialog` (`frontend/src/components/ui/`); hooks from Task 8; `useProjects` (P3, `frontend/src/lib/hooks/use-projects.ts`) for the project scope select; auth-store `activeCompanyId`/`role`.
-- Produces: `<InviteDialog companyId open onOpenChange />`, `<MembersPanel companyId />`.
+- Consumes: `ui/dialog`, `ui/input`, `ui/select`, `ui/button`, `ui/label`, `ui/badge`,
+  `ui/alert-dialog` (`frontend/src/components/ui/`); hooks from Task 8; `useProjects` (P3,
+  `frontend/src/lib/hooks/use-projects.ts`) for the project scope select; auth-store `role`.
+- Produces: `<InviteDialog workspaceId open onOpenChange />`, `<MembersPanel workspaceId />`.
+  Both are only ever mounted from a `kind="company"` workspace's settings surface (P2 gates the
+  route; a personal workspace has no Members tab).
 
 - [ ] **Step 1: Write the failing test** — `frontend/src/components/members/invite-dialog.test.tsx`:
 ```tsx
@@ -1846,7 +2039,7 @@ describe('InviteDialog', () => {
   it('shows the copy-link fallback body when a share_url is returned', async () => {
     render(
       <InviteDialog
-        companyId="company:acme"
+        workspaceId="workspace:acme"
         open={true}
         onOpenChange={() => {}}
         initialShareUrl="http://localhost:3000/invite/RAW"
@@ -1858,7 +2051,7 @@ describe('InviteDialog', () => {
   })
 
   it('renders the invite form when no share_url yet', () => {
-    render(<InviteDialog companyId="company:acme" open={true} onOpenChange={() => {}} />)
+    render(<InviteDialog workspaceId="workspace:acme" open={true} onOpenChange={() => {}} />)
     expect(screen.getByText('invitations.sendInvite')).toBeTruthy()
   })
 })
@@ -1895,17 +2088,17 @@ import { useProjects } from '@/lib/hooks/use-projects'
 import { useTranslation } from '@/lib/hooks/use-translation'
 
 interface InviteDialogProps {
-  companyId: string
+  workspaceId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   // Test/seed hook: render the copy-link fallback body directly.
   initialShareUrl?: string
 }
 
-export function InviteDialog({ companyId, open, onOpenChange, initialShareUrl }: InviteDialogProps) {
+export function InviteDialog({ workspaceId, open, onOpenChange, initialShareUrl }: InviteDialogProps) {
   const { t } = useTranslation()
   const { data: projects } = useProjects()
-  const createInvitation = useCreateInvitation(companyId)
+  const createInvitation = useCreateInvitation(workspaceId)
 
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'admin' | 'member'>('member')
@@ -2051,17 +2244,17 @@ import { useTranslation } from '@/lib/hooks/use-translation'
 import { useAuthStore } from '@/lib/stores/auth-store'
 
 interface MembersPanelProps {
-  companyId: string
+  workspaceId: string
 }
 
-export function MembersPanel({ companyId }: MembersPanelProps) {
+export function MembersPanel({ workspaceId }: MembersPanelProps) {
   const { t } = useTranslation()
   const role = useAuthStore((s) => s.role)
   const canManage = role === 'owner' || role === 'admin'
 
-  const { data: members } = useMembers(companyId)
-  const { data: invitations } = useInvitations(companyId, 'pending')
-  const revoke = useRevokeInvitation(companyId)
+  const { data: members } = useMembers(workspaceId)
+  const { data: invitations } = useInvitations(workspaceId, 'pending')
+  const revoke = useRevokeInvitation(workspaceId)
   const [inviteOpen, setInviteOpen] = useState(false)
 
   return (
@@ -2118,13 +2311,17 @@ export function MembersPanel({ companyId }: MembersPanelProps) {
         </div>
       )}
 
-      <InviteDialog companyId={companyId} open={inviteOpen} onOpenChange={setInviteOpen} />
+      <InviteDialog workspaceId={workspaceId} open={inviteOpen} onOpenChange={setInviteOpen} />
     </div>
   )
 }
 ```
 
-> `useAuthStore` is the P2 store hook (`frontend/src/lib/stores/auth-store.ts`). If P2 exported it under a different name, adjust the import to match (the store must expose `role`).
+> `useAuthStore` is the P2 store hook (`frontend/src/lib/stores/auth-store.ts`). If P2 exported
+> it under a different name, adjust the import to match (the store must expose `role`). This
+> panel is only ever rendered by a parent route already scoped to a `kind="company"` workspace
+> (P2's workspace settings surface hides the Members tab entirely for a personal workspace) — it
+> does not itself re-check `kind`.
 
 - [ ] **Step 4: Run test, verify it passes** — Run: `npm run test -- src/components/members/invite-dialog.test.tsx` — Expected: PASS (2 tests).
 
@@ -2139,7 +2336,9 @@ export function MembersPanel({ companyId }: MembersPanelProps) {
 - Test: `frontend/src/app/(auth)/invite/[token]/page.test.tsx`
 
 **Interfaces:**
-- Consumes: `useInvitationPreview`, `useAcceptInvitation` (Task 8); auth-store `isAuthenticated` + `switchCompany` (P2); `next/navigation` `useParams`/`useRouter`.
+- Consumes: `useInvitationPreview`, `useAcceptInvitation` (Task 8); auth-store
+  `isAuthenticated` (P2); `useSwitchWorkspace` (P2, `frontend/src/lib/hooks/use-workspaces.ts`);
+  `next/navigation` `useParams`/`useRouter`.
 - Produces: the public accept page component (default export).
 
 - [ ] **Step 1: Write the failing test** — `frontend/src/app/(auth)/invite/[token]/page.test.tsx`:
@@ -2156,11 +2355,15 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/hooks/use-translation', () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
 
 const previewState = { data: undefined as unknown, isLoading: false, isError: false, error: undefined as unknown }
+const switchWorkspace = { mutateAsync: vi.fn() }
 vi.mock('@/lib/hooks/use-invitations', () => ({
   useInvitationPreview: () => previewState,
   useAcceptInvitation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
-const authState = { isAuthenticated: false, switchCompany: vi.fn() }
+vi.mock('@/lib/hooks/use-workspaces', () => ({
+  useSwitchWorkspace: () => switchWorkspace,
+}))
+const authState = { isAuthenticated: false }
 vi.mock('@/lib/stores/auth-store', () => ({
   useAuthStore: (sel: (s: typeof authState) => unknown) => sel(authState),
 }))
@@ -2178,7 +2381,7 @@ describe('InvitePage', () => {
   it('offers sign-in / create-account when logged out', () => {
     previewState.isError = false
     previewState.error = undefined
-    previewState.data = { company_name: 'Acme', role: 'member', email: 'a@x.com', project_name: null, status: 'pending', expired: false }
+    previewState.data = { workspace_name: 'Acme', role: 'member', email: 'a@x.com', project_name: null, status: 'pending', expired: false }
     authState.isAuthenticated = false
     render(<InvitePage />)
     expect(screen.getByText('invitations.createAccountCta')).toBeTruthy()
@@ -2196,6 +2399,7 @@ describe('InvitePage', () => {
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useInvitationPreview, useAcceptInvitation } from '@/lib/hooks/use-invitations'
+import { useSwitchWorkspace } from '@/lib/hooks/use-workspaces'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { useAuthStore } from '@/lib/stores/auth-store'
 
@@ -2210,10 +2414,10 @@ export default function InvitePage() {
   const token = params?.token ?? ''
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-  const switchCompany = useAuthStore((s) => s.switchCompany)
 
   const { data, isLoading, isError, error } = useInvitationPreview(token)
   const accept = useAcceptInvitation()
+  const switchWorkspace = useSwitchWorkspace()
 
   const nextUrl = `/invite/${token}`
 
@@ -2237,15 +2441,16 @@ export default function InvitePage() {
 
   const handleAccept = async () => {
     const res = await accept.mutateAsync(token)
-    // Enter the company with a company-scoped token (P2), then route in.
-    await switchCompany(res.company_id)
+    // Enter the workspace with a workspace-scoped token (P2's switch-workspace),
+    // which internally applies the new token/role to the auth store.
+    await switchWorkspace.mutateAsync(res.workspace_id)
     router.push('/projects')
   }
 
   return (
     <div className="mx-auto max-w-md p-8 text-center">
       <h1 className="mb-2 text-xl font-semibold">{t('invitations.acceptTitle')}</h1>
-      <p className="mb-1">{data.company_name}</p>
+      <p className="mb-1">{data.workspace_name}</p>
       {data.project_name && <p className="mb-1 text-muted-foreground">{data.project_name}</p>}
       <p className="mb-4 text-muted-foreground">{data.role}</p>
 
@@ -2281,7 +2486,12 @@ export default function InvitePage() {
 }
 ```
 
-> Depends on P1's `/login` and `/signup` honoring `?next=` (redirect back) and `?email=` (prefill/lock the email so the accepted account matches `inv.email`, avoiding the 403). If P1 does not lock the email, accept still rejects mismatches with 403 (correct, degraded UX) — see spec risks. `switchCompany` is P2's auth-store action; if P2 named it differently (e.g. via `useSwitchCompany`), swap this call for that hook.
+> Depends on P1's `/login` and `/signup` honoring `?next=` (redirect back) and `?email=`
+> (prefill/lock the email so the accepted account matches `inv.email`, avoiding the 403). If P1
+> does not lock the email, accept still rejects mismatches with 403 (correct, degraded UX) — see
+> spec risks. `useSwitchWorkspace` is P2's hook (`frontend/src/lib/hooks/use-workspaces.ts`); if
+> P2 named it differently, swap this call for the matching hook — it must end by applying the
+> returned token to the auth store the same way `useCreateWorkspace`/direct switch does.
 
 - [ ] **Step 4: Run test, verify it passes** — Run: `npm run test -- "src/app/(auth)/invite/[token]/page.test.tsx"` — Expected: PASS (2 tests).
 
@@ -2292,20 +2502,33 @@ export default function InvitePage() {
 ### Task 11: i18n — `invitations` section + 2 apiErrors keys in all locales
 
 **Files:**
-- Modify: every locale file under `frontend/src/lib/locales/*/index.ts` (the parity test enforces all of them; the 7 ENFORCED are en-US, pt-BR, zh-CN, zh-TW, ja-JP, ru-RU, bn-IN — add to the rest too so `index.test.ts` stays green)
-- Test: `frontend/src/lib/locales/index.test.ts` (existing parity + unused-key test; no new test file — this task makes it pass)
+- Modify: every locale file under `frontend/src/lib/locales/*/index.ts` (the parity test
+  enforces all of them; the 7 ENFORCED are en-US, pt-BR, zh-CN, zh-TW, ja-JP, ru-RU, bn-IN — add
+  to the rest too so `index.test.ts` stays green)
+- Test: `frontend/src/lib/locales/index.test.ts` (existing parity + unused-key test; no new test
+  file — this task makes it pass)
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `invitations.*` keys and `apiErrors.invitationExpired` / `apiErrors.emailMismatch`, referenced by Tasks 8–10.
+- Produces: `invitations.*` keys and `apiErrors.invitationExpired` / `apiErrors.emailMismatch`,
+  referenced by Tasks 8–10.
 
-- [ ] **Step 1: Write the failing test** — No new test. The existing `frontend/src/lib/locales/index.test.ts` already (a) fails if any locale is missing a key that en-US has (parity) and (b) fails if an en-US leaf key is not referenced anywhere in `src` (unused-key). Adding the `invitations.*` keys to en-US first (referenced by Tasks 8–10 code) makes the unused-key check pass; adding them to every other locale makes parity pass.
+- [ ] **Step 1: Write the failing test** — No new test. The existing
+  `frontend/src/lib/locales/index.test.ts` already (a) fails if any locale is missing a key that
+  en-US has (parity) and (b) fails if an en-US leaf key is not referenced anywhere in `src`
+  (unused-key). Adding the `invitations.*` keys to en-US first (referenced by Tasks 8–10 code)
+  makes the unused-key check pass; adding them to every other locale makes parity pass.
 
 - [ ] **Step 2: Run test, verify it fails** — Run: `npm run test -- src/lib/locales/index.test.ts` — Expected: FAIL — either "Missing keys in <locale>: invitations.title, ..." (if en-US updated first) or an unused-key failure (if referenced-but-undefined). This confirms the parity guard is active.
 
-- [ ] **Step 3: Write minimal implementation** — Add a top-level `invitations` block to each locale's exported object (beside `notebooks`), and two keys to each locale's existing `apiErrors` block. Use the exact key set below; translate the values per locale.
+- [ ] **Step 3: Write minimal implementation** — Add a top-level `invitations` block to each
+locale's exported object (beside `notebooks`), and two keys to each locale's existing
+`apiErrors` block. Use the exact key set below; translate the values per locale. Note the
+`copyLinkTitle`/preview strings deliberately say "invitation" rather than "company invitation",
+since the underlying entity is a `workspace` — no locale string should say "company" here.
 
-en-US (`frontend/src/lib/locales/en-US/index.ts`) — add beside `notebooks:` and inside `apiErrors:`:
+en-US (`frontend/src/lib/locales/en-US/index.ts`) — add beside `notebooks:` and inside
+`apiErrors:`:
 ```ts
   invitations: {
     title: "Invite a member",
@@ -2342,7 +2565,8 @@ en-US (`frontend/src/lib/locales/en-US/index.ts`) — add beside `notebooks:` an
     emailMismatch: "This invitation was sent to a different email address",
 ```
 
-Then replicate the same key structure with translated values in every other locale file. Reference translations for the enforced set (values may be refined by a native speaker later):
+Then replicate the same key structure with translated values in every other locale file.
+Reference translations for the enforced set (values may be refined by a native speaker later):
 
 pt-BR `invitations`: `title:"Convidar um membro", pending:"Convites pendentes", members:"Membros", inviteButton:"Convidar", emailLabel:"Endereço de e-mail", roleLabel:"Função", roleAdmin:"Administrador", roleMember:"Membro", projectScopeToggle:"Convidar para um projeto específico", projectLabel:"Projeto", sendInvite:"Enviar convite", emailedSuccess:"Convite enviado por e-mail", copyLinkTitle:"Compartilhe este link de convite", copyLink:"Copiar link", copied:"Copiado", revoke:"Revogar", revokeConfirm:"Revogar este convite? O link deixará de funcionar.", revokeSuccess:"Convite revogado", acceptTitle:"Você foi convidado", acceptButton:"Aceitar convite", acceptSuccess:"Convite aceito", emailMismatch:"Este convite foi enviado para outro e-mail.", expiredTitle:"Convite expirado ou revogado", expiredBody:"Este convite não é mais válido. Peça a um administrador para enviar um novo.", createAccountCta:"Criar conta", signInCta:"Entrar"`; `apiErrors.invitationExpired:"Este convite expirou ou foi revogado"`, `apiErrors.emailMismatch:"Este convite foi enviado para outro e-mail"`.
 
@@ -2356,11 +2580,15 @@ ru-RU `invitations`: `title:"Пригласить участника", pending:"
 
 bn-IN `invitations`: `title:"একজন সদস্যকে আমন্ত্রণ জানান", pending:"অপেক্ষমাণ আমন্ত্রণ", members:"সদস্যরা", inviteButton:"আমন্ত্রণ", emailLabel:"ইমেল ঠিকানা", roleLabel:"ভূমিকা", roleAdmin:"অ্যাডমিন", roleMember:"সদস্য", projectScopeToggle:"একটি নির্দিষ্ট প্রকল্পে আমন্ত্রণ", projectLabel:"প্রকল্প", sendInvite:"আমন্ত্রণ পাঠান", emailedSuccess:"আমন্ত্রণ ইমেল করা হয়েছে", copyLinkTitle:"এই আমন্ত্রণ লিঙ্কটি শেয়ার করুন", copyLink:"লিঙ্ক কপি করুন", copied:"কপি করা হয়েছে", revoke:"প্রত্যাহার", revokeConfirm:"এই আমন্ত্রণটি প্রত্যাহার করবেন? লিঙ্কটি আর কাজ করবে না।", revokeSuccess:"আমন্ত্রণ প্রত্যাহার করা হয়েছে", acceptTitle:"আপনাকে আমন্ত্রণ জানানো হয়েছে", acceptButton:"আমন্ত্রণ গ্রহণ করুন", acceptSuccess:"আমন্ত্রণ গৃহীত হয়েছে", emailMismatch:"এই আমন্ত্রণটি অন্য একটি ইমেলে পাঠানো হয়েছিল।", expiredTitle:"আমন্ত্রণ মেয়াদোত্তীর্ণ বা প্রত্যাহৃত", expiredBody:"এই আমন্ত্রণটি আর বৈধ নয়। একজন অ্যাডমিনকে নতুন একটি পাঠাতে বলুন।", createAccountCta:"অ্যাকাউন্ট তৈরি করুন", signInCta:"সাইন ইন"`; `apiErrors.invitationExpired:"এই আমন্ত্রণের মেয়াদ শেষ হয়েছে বা প্রত্যাহার করা হয়েছে"`, `apiErrors.emailMismatch:"এই আমন্ত্রণটি অন্য একটি ইমেলে পাঠানো হয়েছিল"`.
 
-For the remaining non-enforced locale files present in the folder (`ca-ES`, `de-DE`, `es-ES`, `fr-FR`, `it-IT`, `pl-PL`, `tr-TR`), the parity test still requires the keys — copy the en-US `invitations` block and the two `apiErrors` keys into each (English values are acceptable there since these locales are outside the enforced set; a native pass can follow). Confirm the folder's exact list first with `ls frontend/src/lib/locales/`.
+For the remaining non-enforced locale files present in the folder (`ca-ES`, `de-DE`, `es-ES`,
+`fr-FR`, `it-IT`, `pl-PL`, `tr-TR`), the parity test still requires the keys — copy the en-US
+`invitations` block and the two `apiErrors` keys into each (English values are acceptable there
+since these locales are outside the enforced set; a native pass can follow). Confirm the
+folder's exact list first with `ls frontend/src/lib/locales/`.
 
-- [ ] **Step 4: Run test, verify it passes** — Run: `npm run test -- src/lib/locales/index.test.ts` — Expected: PASS (parity across all locale files; no unused/missing keys).
+- [ ] **Step 4: Run test, verify it passes** — Run: `npm run test -- src/lib/locales/index.test.ts` — Expected: PASS (parity across all 14 locale files; no unused/missing keys).
 
-- [ ] **Step 5: Commit** — `git add frontend/src/lib/locales && git commit -m "P4: invitations i18n keys across all locales"`
+- [ ] **Step 5: Commit** — `git add frontend/src/lib/locales && git commit -m "P4: invitations i18n keys across all 14 locales"`
 
 ---
 
@@ -2379,18 +2607,72 @@ For the remaining non-enforced locale files present in the folder (`ca-ES`, `de-
 ## Self-review
 
 **1. Spec coverage — every spec section maps to a task:**
-- Data model / migration 22 + `_down` + `async_migrate.py` registration → Task 1. ✅
-- `Invitation` domain model (`nullable_fields={"project"}`, `is_expired`, `get_by_token_hash`) → Task 2. ✅
-- `email_service` (console/resend/smtp + shareable-link fallback, never raises) → Task 3. ✅
-- `invitation_service` (`generate_token` sha256, `build_invite_url` env, `create_invitation` company/project branch + rotation + 409, `accept_invitation` state machine incl. new-vs-existing user, email-mismatch 403, 410 expired/revoked/used, `revoke`, `expire_if_needed` via lazy flip, `preview_invitation` no secrets) → Task 4. ✅
-- Schemas (`InvitationCreate/Response/CreateResponse/PreviewResponse/AcceptInvitationResponse`) + router (5 endpoints, RBAC via `require_role`, public preview via middleware prefix) + `main.py` wiring → Task 5. ✅
-- `GET /companies/{id}/members` (added since P2 may not ship it) → Task 6. ✅
-- Frontend api module + types → Task 7; hooks + query keys + 410 mapping → Task 8; invite dialog (copy-link fallback) + members panel (revoke via alert-dialog, owner/admin gate) → Task 9; public `/invite/[token]` accept page (logged-in vs logged-out branches, expired state, switch-company handoff) → Task 10. ✅
-- i18n `invitations.*` + `apiErrors.invitationExpired`/`emailMismatch` in all locales → Task 11. ✅
-- Testing cases 1–10 (backend) mapped: create+hash (T4/T5), email_sent/share_url + resend mock (T3/T5), RBAC 403 + cross-tenant 404 (T5), accept new user membership (T4), email mismatch 403 (T4), expired/revoked/double-accept 410 (T4), project invite dual membership + duplicate 409 (T4), rotation (T4), preview no-secrets (T4/T5), tenant-leakage cross-company (T5/T6). Frontend cases (dialog copy-link, accept expired, logged-out routing) → T9/T10. ✅
+- Data model / migration 22 (`invitation.workspace`, not `.company`) + `_down` +
+  `async_migrate.py` registration → Task 1. ✅
+- `Invitation` domain model (`workspace` field, `nullable_fields={"project"}`, `is_expired`,
+  `get_by_token_hash`) → Task 2. ✅
+- `email_service` (console/resend/smtp + shareable-link fallback, never raises,
+  `workspace_name` param) → Task 3. ✅
+- `invitation_service` (`generate_token` sha256, `build_invite_url` env, **`_get_workspace` +
+  the personal-workspace `kind` guard checked first and unconditionally**, `create_invitation`
+  workspace/project branch + rotation + 409, `accept_invitation` state machine incl.
+  new-vs-existing user, email-mismatch 403, 410 expired/revoked/used, `revoke`,
+  `expire_if_needed` via lazy flip, `preview_invitation` no secrets) → Task 4. ✅
+- Schemas (`InvitationCreate/Response/CreateResponse/PreviewResponse/AcceptInvitationResponse`,
+  all workspace-named) + router (6 endpoints incl. members, RBAC via `require_role` +
+  service-level kind guard, public preview via middleware prefix) + `main.py` wiring → Task 5. ✅
+- `GET /workspaces/{id}/members` (added since P2's spec does not ship it) → Task 6. ✅
+- Frontend api module + types → Task 7; hooks + query keys + 410 mapping (using
+  `useSwitchWorkspace`) → Task 8; invite dialog (copy-link fallback) + members panel (revoke via
+  alert-dialog, owner/admin gate) → Task 9; public `/invite/[token]` accept page (logged-in vs
+  logged-out branches, expired state, `useAcceptInvitation` + `useSwitchWorkspace` handoff) →
+  Task 10. ✅
+- i18n `invitations.*` + `apiErrors.invitationExpired`/`emailMismatch` in all **14** locales →
+  Task 11. ✅
+- Testing cases 1–11 (backend) mapped: create+hash (T4/T5), **personal-workspace-invite 403
+  (T4/T5 — `test_create_invite_into_personal_workspace_403` at both the service and router
+  layers)**, email_sent/share_url + resend mock (T3/T5), RBAC 403 + cross-tenant 404 (T5),
+  accept new user membership (T4), email mismatch 403 (T4), expired/revoked/double-accept 410
+  (T4), project invite dual membership + duplicate 409 (T4), rotation (T4), preview no-secrets
+  (T4/T5), tenant-leakage cross-workspace (T5/T6). Frontend cases (dialog copy-link, accept
+  expired, logged-out routing) → T9/T10. ✅
 
-**2. Placeholder scan:** no "TBD/implement later/add error handling"; every code step is complete and runnable; test bodies are full. The two documented soft-dependencies (P1 `?next=`/`?email=` login locking; P2 store `switchCompany` naming) are stated with concrete fallbacks, not blanks — per PLAN_FORMAT's "smallest reasonable concrete choice and state it".
+**2. Placeholder scan:** no "TBD/implement later/add error handling"; every code step is
+complete and runnable; test bodies are full. The two documented soft-dependencies (P1
+`?next=`/`?email=` login locking; the exact frontend hook name for switching workspace) are
+stated with concrete fallbacks, not blanks — per PLAN_FORMAT's "smallest reasonable concrete
+choice and state it".
 
-**3. Type consistency:** `AuthContext(user_id, company_id, role)` used identically in Task 5/6 tests and router. `Invitation` field set is identical across Tasks 2/4/5. Service returns the exact dict shape (`company_id, role, project_id, membership_status`) that `AcceptInvitationResponse` (Task 5) and the accept page (Task 10) consume. `invitationsApi` method names (`list/create/revoke/preview/accept/members`) match the hooks (Task 8) and are exercised in Task 7's tests. Query keys `invitations(companyId)`/`members(companyId)` are defined once (Task 8) and referenced consistently. i18n keys referenced in Tasks 8–10 are exactly the set defined in Task 11 (the locale unused-key test cross-checks this).
+**3. Type consistency:** `AuthContext(user_id, workspace_id, role)` used identically in Task
+5/6 tests and router. `Invitation` field set (`workspace`, not `company`) is identical across
+Tasks 2/4/5. Service returns the exact dict shape (`workspace_id, role, project_id,
+membership_status`) that `AcceptInvitationResponse` (Task 5) and the accept page (Task 10)
+consume. `invitationsApi` method names (`list/create/revoke/preview/accept/members`) match the
+hooks (Task 8) and are exercised in Task 7's tests. Query keys `invitations(workspaceId)`/
+`members(workspaceId)` are defined once (Task 8) and referenced consistently. i18n keys
+referenced in Tasks 8–10 are exactly the set defined in Task 11 (the locale unused-key test
+cross-checks this).
 
-**Known cross-phase assumptions (must hold before execution):** P2 exports `get_identity`/`get_auth_context`/`require_role` from `api/deps.py` and `AuthContext` from `api/security.py`; P2's frontend `auth-store` exposes `role`, `isAuthenticated`, and a `switchCompany(companyId)` action; P3 exports `Project`/`ProjectMember` from `open_notebook/domain/notebook.py` and a `useProjects` hook returning `{id, name}[]`; P1's `JWTAuthMiddleware` lives in `api/auth.py` with an `excluded_paths` list and passes through when `JWT_SECRET` is unset. Each is called out at its use site with a concrete fallback where the naming might differ.
+**4. v2 guard verification (personal-workspace invites):** the 403 guard lives in exactly one
+place — `invitation_service.create_invitation`, via `_get_workspace` + `workspace.kind !=
+"company"` — checked before RBAC-adjacent validation (email/role/project checks) so it applies
+unconditionally, even to the personal workspace's own owner. It is exercised at the service
+layer (Task 4, `test_create_invite_into_personal_workspace_403`, asserting the short-circuit
+via `_existing_pending.assert_not_called()`) and at the router layer (Task 5,
+`test_create_invite_into_personal_workspace_403`, asserting the HTTPException propagates as a
+403 response). No code path in `list_invitations`/`revoke_invitation`/`accept_invitation` needs
+its own copy of this guard: listing/revoking only ever operate on rows that could only have been
+created past the guard, and accept operates on an existing `invitation` row whose `workspace`
+was already validated as `kind="company"` at creation time.
+
+**Known cross-phase assumptions (must hold before execution):** P2 exports
+`get_identity`/`get_auth_context`/`require_role` from `api/deps.py`, `AuthContext` (with
+`workspace_id`, not `company_id`) from `api/security.py`, and `Workspace`/`Membership` from
+`open_notebook/domain/workspace.py`; P2's frontend exposes `useAuthStore` with `role`,
+`isAuthenticated`, and a `useSwitchWorkspace()` hook (`frontend/src/lib/hooks/use-workspaces.ts`)
+that POSTs `/auth/switch-workspace/{id}` and applies the returned token to the auth store; P3
+exports `Project`/`ProjectMember` from `open_notebook/domain/notebook.py` (with a `workspace`
+field on `Project`) and a `useProjects` hook returning `{id, name}[]`; P1's `JWTAuthMiddleware`
+lives in `api/auth.py` with an `excluded_paths` list and passes through when `JWT_SECRET` is
+unset. Each is called out at its use site with a concrete fallback where the naming might
+differ.

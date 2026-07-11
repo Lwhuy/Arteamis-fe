@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the shared-password gate (`PasswordAuthMiddleware`) with real per-user accounts and JWT auth supporting BOTH email+password AND "Continue with Google", ending at an authenticated user holding an identity token (no company yet).
+**Goal:** Replace the shared-password gate (`PasswordAuthMiddleware`) with real per-user accounts and JWT auth supporting BOTH email+password AND "Continue with Google", ending at an authenticated user holding an identity token (no workspace yet). Personal-workspace auto-provisioning happens in P2, not P1.
 
 **Architecture:** New identity-plane SurrealDB tables (`user`, `auth_identity`) via migration 19; token helpers in `api/security.py` (identity/refresh tokens + `AuthContext`); a thin `api/routers/auth.py` over `api/auth_service.py` + `open_notebook/domain/user.py`; a `JWTAuthMiddleware` that authenticates every request from a Bearer token and populates `request.state.user_id`. Frontend rewrites `auth-store`, `LoginForm`, adds a signup page, and a one-shot 401→refresh interceptor.
 
@@ -17,7 +17,7 @@
 - i18n MANDATORY: every UI string via `t('section.key')`; add the key to ALL locales in frontend/src/lib/locales/. NOTE: `frontend/src/lib/locales/index.test.ts` (parity test) enforces that EVERY locale in the `resources` map has exactly the en-US key set. There are 14 locales in `resources` (`zh-CN, en-US, zh-TW, pt-BR, ja-JP, it-IT, fr-FR, ru-RU, bn-IN, ca-ES, es-ES, de-DE, pl-PL, tr-TR`). To keep `npm run test` green, every new key MUST be added to ALL 14 files. The 7 enforced locales (`en-US, pt-BR, zh-CN, zh-TW, ja-JP, ru-RU, bn-IN`) get real translations; the other 7 get English fallback values (acceptable — silent en-US fallback). The "Unused Key Detection" test also requires every en-US leaf key to appear in a source file, so every new key must be referenced by a component.
 - New SurrealDB schema = new migration pair open_notebook/database/migrations/N.surrealql + N_down.surrealql, registered in `AsyncMigrationManager.__init__` so it runs on startup. This phase = migration 19.
 - Physical SurrealDB table stays `notebook` (untouched in P1). No `notebook`→`project` repurposing here (that is P3).
-- Tokens: identity token (`sub`, `type:"identity"`) is the P1 Bearer. Company-scoped access token (`sub`, `company_id`, `role`) + refresh cookie: `create_access_token` is a P2 stub; refresh cookie + `/auth/refresh` are live in P1.
+- Tokens: identity token (`sub`, `type:"identity"`) is the P1 Bearer. Workspace-scoped access token (`sub`, `workspace_id`, `role`) + refresh cookie: `create_access_token` is a P2 stub; refresh cookie + `/auth/refresh` are live in P1. Personal-workspace auto-provisioning (attaching the user's default personal workspace) is done in P2, not P1 — P1's register/login leaves the user authenticated on an identity token only, and P1 does not add any workspace tables.
 - Backend tests: `uv run pytest tests/`. Frontend (inside `frontend/`): `npm run lint`, `npm run test`, `npm run build`.
 - Backend error contract: raise typed exceptions from `open_notebook.exceptions` (global handlers in `api/main.py` map them). Body is `{"detail": "..."}`. No bare `HTTPException` for domain errors.
 - pytest-asyncio is in "strict" mode (no `asyncio_mode` configured): every `async def` test needs `@pytest.mark.asyncio`.
@@ -292,8 +292,8 @@ def auth_enabled() -> bool:
   - `decode_identity_token(token: str) -> str` (returns `sub`; raises `AuthenticationError`)
   - `create_refresh_token(user_id: str) -> str`
   - `decode_refresh_token(token: str) -> str` (raises `AuthenticationError`)
-  - `create_access_token(user_id, company_id, role, minutes=None) -> str` (raises `NotImplementedError` in P1)
-  - `AuthContext` dataclass (`user_id: str`, `company_id: str | None`, `role: str | None`)
+  - `create_access_token(user_id, workspace_id, role, minutes=None) -> str` (raises `NotImplementedError` in P1)
+  - `AuthContext` dataclass (`user_id: str`, `workspace_id: str | None`, `role: str | None`)
   - `decode_access_token(token: str) -> AuthContext`
 
 - [ ] **Step 1: Write the failing test** — `tests/test_security_tokens.py`:
@@ -370,16 +370,16 @@ def test_create_access_token_is_p2_stub():
     from api.security import create_access_token
 
     with pytest.raises(NotImplementedError):
-        create_access_token("user:abc", "company:1", "owner")
+        create_access_token("user:abc", "workspace:1", "owner")
 
 
-def test_decode_access_token_returns_context_with_none_company_in_p1():
+def test_decode_access_token_returns_context_with_none_workspace_in_p1():
     from api.security import AuthContext, create_identity_token, decode_access_token
 
     ctx = decode_access_token(create_identity_token("user:abc"))
     assert isinstance(ctx, AuthContext)
     assert ctx.user_id == "user:abc"
-    assert ctx.company_id is None
+    assert ctx.workspace_id is None
     assert ctx.role is None
 ```
 
@@ -391,9 +391,10 @@ def test_decode_access_token_returns_context_with_none_company_in_p1():
 
 Two-token seam:
   * identity token  — {sub, type:"identity", exp}. The P1 frontend Bearer.
-  * access token     — company-scoped ({sub, company_id, role}); create_access_token
+  * access token     — workspace-scoped ({sub, workspace_id, role}); create_access_token
     is a P2 stub. decode_access_token already parses the full claim set so P2/P6
-    share one decoder; in P1 company_id/role are always None.
+    share one decoder; in P1 workspace_id/role are always None. (Personal-workspace
+    auto-provisioning happens in P2, not P1.)
   * refresh token    — {sub, type:"refresh", exp}; httpOnly cookie, mints new tokens.
 
 SurrealDB record ids are strings like "user:abc" (not UUIDs), so sub is validated
@@ -419,7 +420,7 @@ def _require_user_id(value: object, claim: str = "sub") -> str:
 @dataclass
 class AuthContext:
     user_id: str
-    company_id: Optional[str]
+    workspace_id: Optional[str]
     role: Optional[str]
 
 
@@ -432,7 +433,7 @@ def create_identity_token(user_id: str, minutes: Optional[int] = None) -> str:
 
 
 def decode_identity_token(token: str) -> str:
-    """Return sub from an identity OR a (future) company-scoped access token."""
+    """Return sub from an identity OR a (future) workspace-scoped access token."""
     cfg = get_auth_config()
     try:
         payload = jwt.decode(token, cfg.jwt_secret, algorithms=[cfg.jwt_algorithm])
@@ -460,19 +461,19 @@ def decode_refresh_token(token: str) -> str:
 
 
 def create_access_token(
-    user_id: str, company_id: str, role: str, minutes: Optional[int] = None
+    user_id: str, workspace_id: str, role: str, minutes: Optional[int] = None
 ) -> str:
-    """Company-scoped access token. Implemented in P2 (companies/memberships)."""
+    """Workspace-scoped access token. Implemented in P2 (workspaces/memberships)."""
     raise NotImplementedError(
-        "create_access_token (company-scoped) is implemented in P2. "
+        "create_access_token (workspace-scoped) is implemented in P2. "
         "P1 issues identity tokens only via create_identity_token."
     )
 
 
 def decode_access_token(token: str) -> AuthContext:
-    """Decode the full company-scoped claim set into a typed context.
+    """Decode the full workspace-scoped claim set into a typed context.
 
-    In P1 no access token is minted, so company_id/role are always None; P2's
+    In P1 no access token is minted, so workspace_id/role are always None; P2's
     create_access_token populates them.
     """
     cfg = get_auth_config()
@@ -480,7 +481,7 @@ def decode_access_token(token: str) -> AuthContext:
         payload = jwt.decode(token, cfg.jwt_secret, algorithms=[cfg.jwt_algorithm])
         return AuthContext(
             user_id=_require_user_id(payload["sub"]),
-            company_id=payload.get("company_id"),
+            workspace_id=payload.get("workspace_id"),
             role=payload.get("role"),
         )
     except (JWTError, KeyError) as e:
@@ -627,7 +628,7 @@ async def test_upsert_with_identity_new_user_creates_user_and_identity():
 ```python
 class DuplicateResourceError(OpenNotebookError):
     """Raised when creating a resource that violates a uniqueness constraint
-    (e.g. an already-registered email or an existing company slug)."""
+    (e.g. an already-registered email or an existing workspace slug)."""
 
     pass
 ```
@@ -1043,7 +1044,7 @@ def test_build_session_payload_shape():
     payload = auth_service.build_session_payload(user)
     assert payload["token_type"] == "bearer"
     assert payload["needs_onboarding"] is True
-    assert payload["active_company_id"] is None
+    assert payload["active_workspace_id"] is None
     assert payload["memberships"] == []
     assert payload["user"] == {"id": "user:1", "email": "a@b.com", "display_name": "A"}
     assert decode_identity_token(payload["access_token"]) == "user:1"
@@ -1055,8 +1056,10 @@ def test_build_session_payload_shape():
 ```python
 """Auth business logic (routers stay thin, per api/AGENTS.md).
 
-register/login operate on the identity plane only; company selection and
-company-scoped tokens arrive in P2 (build_session_payload's company branch).
+register/login operate on the identity plane only; workspace selection and
+workspace-scoped tokens arrive in P2 (build_session_payload's workspace-aware
+branch). Personal-workspace auto-provisioning is done in P2, not P1 — P1's
+register/login leaves the user authenticated on an identity token only.
 """
 
 from typing import Optional
@@ -1101,15 +1104,17 @@ async def login(email: str, password: str) -> User:
 def build_session_payload(user: User) -> dict:
     """The body returned after any successful register/login/refresh.
 
-    P1 always issues an identity token (no company yet). P2 replaces the
-    needs_onboarding/memberships/active_company_id surface with the real,
-    company-aware branch WITHOUT changing this response shape.
+    P1 always issues an identity token (no workspace yet). P2 replaces the
+    needs_onboarding/memberships/active_workspace_id surface with the real,
+    workspace-aware branch WITHOUT changing this response shape — this is
+    where P2 attaches the user's auto-provisioned default personal workspace
+    (not done in P1).
     """
     return {
         "access_token": create_identity_token(user.id or ""),
         "token_type": "bearer",
         "needs_onboarding": True,
-        "active_company_id": None,
+        "active_workspace_id": None,
         "user": {
             "id": user.id,
             "email": user.email,
@@ -1237,7 +1242,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
       * If no JWT_SECRET is configured, auth is disabled (dev parity with the
         old 'no password → open' behavior) — pass everything through.
       * Otherwise require `Authorization: Bearer <jwt>`; decode it via
-        decode_identity_token (accepts identity OR future company-scoped access
+        decode_identity_token (accepts identity OR future workspace-scoped access
         tokens); on success set request.state.user_id; on missing/invalid/expired
         token return 401 {"detail": ...} with WWW-Authenticate: Bearer.
       * Excluded paths and CORS preflight (OPTIONS) always pass through.
@@ -1614,7 +1619,7 @@ class SessionPayload(BaseModel):
     access_token: str
     token_type: str
     needs_onboarding: bool
-    active_company_id: Optional[str] = None
+    active_workspace_id: Optional[str] = None
     user: AuthUser
     memberships: List[Any] = Field(default_factory=list)
 
@@ -1818,7 +1823,7 @@ const session = {
   access_token: 'jwt-token-123',
   token_type: 'bearer',
   needs_onboarding: true,
-  active_company_id: null,
+  active_workspace_id: null,
   user: { id: 'user:1', email: 'a@b.com', display_name: 'A' },
   memberships: [],
 }
@@ -1906,7 +1911,7 @@ export interface SessionPayload {
   access_token: string
   token_type: string
   needs_onboarding: boolean
-  active_company_id: string | null
+  active_workspace_id: string | null
   user: AuthUser
   memberships: unknown[]
 }
@@ -3257,4 +3262,4 @@ Now the locale `auth` blocks.
 - `/auth/*` endpoints (register/login/google start+callback/refresh/logout/me) + Pydantic schemas → Task 8.
 - Frontend: `auth-store` rewrite + types → Task 9; `apiClient` 401→refresh → Task 10; `use-auth` + bootstrap → Task 11; `LoginForm` → Task 12; `SignupForm` + signup route → Task 13; i18n across all locales → Task 14.
 - Error contract 400/401/404/409 → Tasks 3/4/7/8 (typed exceptions + handlers).
-- Out of scope (company/membership/onboarding/OTP/email-verify/password-reset) → correctly deferred; `create_access_token` left as documented P2 stub.
+- Out of scope (workspace/membership/onboarding/OTP/email-verify/password-reset) → correctly deferred; `create_access_token` left as documented P2 stub. Personal-workspace auto-provisioning is done in P2, not P1 — P1's register/login intentionally leaves the user on an identity token only, and P1 adds no workspace tables.

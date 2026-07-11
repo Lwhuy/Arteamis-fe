@@ -2,16 +2,16 @@
 Date: 2026-07-11 · Branch: feat/auth-multitenancy · Status: Draft
 
 ## Goal
-Replace the single shared-password gate (`PasswordAuthMiddleware` in `api/auth.py`, which compares `Authorization: Bearer <pw>` to `OPEN_NOTEBOOK_PASSWORD`) with real per-user accounts and JWT authentication supporting BOTH email+password AND "Continue with Google". Introduce the identity-plane tables `user` and `auth_identity`, a JWT middleware that authenticates every request from a Bearer token, and a refresh-cookie session lifecycle. P1 ends at an authenticated user holding an **identity token** (no company yet). Company selection, company-scoped access tokens, and onboarding are P2.
+Replace the single shared-password gate (`PasswordAuthMiddleware` in `api/auth.py`, which compares `Authorization: Bearer <pw>` to `OPEN_NOTEBOOK_PASSWORD`) with real per-user accounts and JWT authentication supporting BOTH email+password AND "Continue with Google". Introduce the identity-plane tables `user` and `auth_identity`, a JWT middleware that authenticates every request from a Bearer token, and a refresh-cookie session lifecycle. P1 ends at an authenticated user holding an **identity token** (no workspace yet). Workspace selection, workspace-scoped access tokens, and onboarding are P2 — this includes personal-workspace auto-provisioning: P1's register/login leaves the user authenticated on an identity token, and P2 attaches the user's default personal workspace. P1 does not add any workspace tables.
 
 ## Depends on / Provides
 - **Depends on:** nothing (foundation phase). Uses the existing SurrealDB repository layer, `ObjectModel` base, and `AsyncMigrationManager`. Independent of P0 branding.
 - **Provides (contracts P2–P6 build on):**
-  - Tables `user` and `auth_identity` (identity plane; global, never company-scoped).
+  - Tables `user` and `auth_identity` (identity plane; global, never workspace-scoped).
   - JWT identity token (`{ "sub": <user_id>, "type": "identity", "exp" }`) as the frontend Bearer, stored in Zustand `auth-storage` and auto-injected by `apiClient`.
   - `request.state.user_id` populated by `JWTAuthMiddleware` for downstream routers.
-  - Token helpers in `api/security.py` including a `create_access_token(...)` stub P2 fills in for company-scoped tokens, plus refresh cookie + `/auth/refresh`.
-  - `AuthContext` dataclass (`user_id: str`, `company_id: str | None`, `role: str | None`) and `decode_access_token(token) -> AuthContext` in `api/security.py` — the canonical company-scoped-token decoder P2's `get_auth_context` and P6's `ScopedRepository`/`require_company` consume. The `company_id`/`role` claims are populated once P2 implements `create_access_token`; until then the decoder returns them as `None`.
+  - Token helpers in `api/security.py` including a `create_access_token(...)` stub P2 fills in for workspace-scoped tokens, plus refresh cookie + `/auth/refresh`.
+  - `AuthContext` dataclass (`user_id: str`, `workspace_id: str | None`, `role: str | None`) and `decode_access_token(token) -> AuthContext` in `api/security.py` — the canonical workspace-scoped-token decoder P2's `get_auth_context` and P6's `ScopedRepository`/`require_workspace` consume. The `workspace_id`/`role` claims are populated once P2 implements `create_access_token`; until then the decoder returns them as `None`.
   - `SessionPayload` response shape (`access_token`, `token_type`, `user`, and a `needs_onboarding`/`memberships` surface P2 populates — P1 returns `needs_onboarding: true`, `memberships: []`).
   - `open_notebook/domain/user.py` `User.upsert_with_identity(...)` account-linking helper (Google + email merge by email).
 
@@ -23,10 +23,10 @@ Replace the single shared-password gate (`PasswordAuthMiddleware` in `api/auth.p
 - Endpoints: `POST /auth/register`, `POST /auth/login`, `GET /auth/google/start`, `GET /auth/google/callback`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`. Rework existing `GET /auth/status`.
 - `JWTAuthMiddleware` replacing `PasswordAuthMiddleware`.
 - Frontend: rewrite `LoginForm` (email/password + Google button), new signup page, rewrite `auth-store` to hold a real JWT + user, refresh-on-401 handling, cookie-hydration bootstrap.
-- i18n keys added to all 7 enforced locales.
+- i18n keys added to all 14 locales in the `resources` map (7 enforced translations + 7 English fallback).
 
 **Out of scope (later phases)**
-- `company`, `membership`, `invitation`, company-scoped access tokens, `/auth/switch-company`, onboarding wizard (P2).
+- `workspace`, `membership`, `invitation`, workspace-scoped access tokens, `/auth/switch-workspace`, onboarding wizard (P2). This includes personal-workspace auto-provisioning (P2 attaches the default personal workspace after P1's register/login); P1 does not create any workspace tables.
 - `notebook`→`project` repurposing (P3), invitations (P4), source permissions (P5), app-layer tenant scoping (P6).
 - Passwordless email OTP (arteamis-system uses it; product decision here is email+password + Google only — do NOT port `/auth/otp/*`).
 - Email verification / password reset flows (note as future work in Open questions).
@@ -89,16 +89,16 @@ Note on the SurrealQL cleaner: `AsyncMigration.from_file` strips lines beginning
 
 ### Retiring the `OPEN_NOTEBOOK_PASSWORD` gate
 - Delete `PasswordAuthMiddleware` from `api/auth.py`; add `JWTAuthMiddleware` (same file) with the same `excluded_paths` list currently registered in `api/main.py` (`/`, `/health`, `/docs`, `/openapi.json`, `/redoc`, `/api/auth/status`, `/api/config`) plus the new public auth endpoints: `/api/auth/register`, `/api/auth/login`, `/api/auth/google/start`, `/api/auth/google/callback`, `/api/auth/refresh`, `/api/auth/logout`. Keep the OPTIONS/CORS-preflight bypass.
-- Behavior: if `JWT_SECRET` is unset → pass through (auth disabled, dev mode). Else require `Authorization: Bearer <jwt>`; decode via `decode_identity_token` (accepts identity **or** future company-scoped access tokens); on success set `request.state.user_id`; on missing/invalid/expired token return `401 {"detail": ...}` with `WWW-Authenticate: Bearer` (same JSON error shape as today).
+- Behavior: if `JWT_SECRET` is unset → pass through (auth disabled, dev mode). Else require `Authorization: Bearer <jwt>`; decode via `decode_identity_token` (accepts identity **or** future workspace-scoped access tokens); on success set `request.state.user_id`; on missing/invalid/expired token return `401 {"detail": ...}` with `WWW-Authenticate: Bearer` (same JSON error shape as today).
 - `OPEN_NOTEBOOK_PASSWORD` / `_FILE` are no longer read. Retirement note for operators (goes in the PR description + `.env.example`): the shared-password gate is removed; there is no data migration (no prior users existed) — operators self-register the first account via `POST /auth/register` (or Google). Document the swap of env vars (`OPEN_NOTEBOOK_PASSWORD` → `JWT_SECRET` + Google vars).
 - `api/main.py`: swap `app.add_middleware(PasswordAuthMiddleware, ...)` for `JWTAuthMiddleware` (identical excluded-paths call site, ordering unchanged — still added before `MaxBodySizeMiddleware` and CORS). Router registration line `app.include_router(auth.router, prefix="/api", ...)` is unchanged.
 
 ### `api/security.py` (new) — token helpers (port of arteamis-system `core/security.py`)
 - `create_identity_token(user_id) -> str` — `{ "sub": user_id, "type": "identity", "exp": now + ACCESS_TOKEN_EXPIRE_MINUTES }`.
-- `decode_identity_token(token) -> str` — returns `sub`; accepts identity or (future) company-scoped access tokens; raises `AuthenticationError` on `JWTError`/`KeyError`/expiry.
+- `decode_identity_token(token) -> str` — returns `sub`; accepts identity or (future) workspace-scoped access tokens; raises `AuthenticationError` on `JWTError`/`KeyError`/expiry.
 - `create_refresh_token(user_id)` / `decode_refresh_token(token)` — `type == "refresh"`, `exp = now + REFRESH_TOKEN_EXPIRE_DAYS`.
-- `create_access_token(user_id, company_id, role, ...)` — **stub raising `NotImplementedError` in P1** (documented handoff to P2; keeps the two-token seam explicit). SurrealDB record ids are strings like `user:abc`, not UUIDs, so drop arteamis-system's `_require_uuid` validator; validate instead that `sub` is a non-empty string matching `^user:`.
-- `AuthContext` dataclass (`user_id`, `company_id: str | None`, `role: str | None`) + `decode_access_token(token) -> AuthContext` — decode the full company-scoped claim set (`sub`, `company_id`, `role`) into a typed context. Defined here so P2's `get_auth_context` (in `api/deps.py`) and P6's `require_company`/`ScopedRepository` share one decoder. In P1, `company_id`/`role` are always `None` (no access token is minted yet); P2's `create_access_token` populates them.
+- `create_access_token(user_id, workspace_id, role, ...)` — **stub raising `NotImplementedError` in P1** (documented handoff to P2; keeps the two-token seam explicit). SurrealDB record ids are strings like `user:abc`, not UUIDs, so drop arteamis-system's `_require_uuid` validator; validate instead that `sub` is a non-empty string matching `^user:`.
+- `AuthContext` dataclass (`user_id`, `workspace_id: str | None`, `role: str | None`) + `decode_access_token(token) -> AuthContext` — decode the full workspace-scoped claim set (`sub`, `workspace_id`, `role`) into a typed context. Defined here so P2's `get_auth_context` (in `api/deps.py`) and P6's `require_workspace`/`ScopedRepository` share one decoder. In P1, `workspace_id`/`role` are always `None` (no access token is minted yet); P2's `create_access_token` populates them.
 
 ### `open_notebook/domain/user.py` (new)
 Subclass `ObjectModel` (mirrors `open_notebook/domain/notebook.py`).
@@ -112,7 +112,7 @@ Subclass `ObjectModel` (mirrors `open_notebook/domain/notebook.py`).
 ### `api/auth_service.py` (new) — business logic (routers stay thin, per `api/AGENTS.md`)
 - `register(email, password, display_name) -> User`: reject if `get_by_email` exists → `DuplicateResourceError` (409); else create `User` with hashed password + an `email_password` `AuthIdentity` (`provider_subject = email`).
 - `login(email, password) -> User`: `get_by_email`; `verify_password`; on failure → `AuthenticationError` (401, generic "Invalid email or password" — do not reveal which).
-- `build_session_payload(user) -> dict`: returns `{ access_token: create_identity_token(user.id), token_type: "bearer", needs_onboarding: True, active_company_id: None, user: {id, email, display_name}, memberships: [] }` (P2 replaces the company-aware branch).
+- `build_session_payload(user) -> dict`: returns `{ access_token: create_identity_token(user.id), token_type: "bearer", needs_onboarding: True, active_workspace_id: None, user: {id, email, display_name}, memberships: [] }` (P2 replaces this with the workspace-aware branch: personal-workspace auto-provisioning happens in P2, not P1 — P2 attaches the user's default personal workspace and populates `active_workspace_id`/`memberships`).
 - Google helpers imported from `open_notebook/auth/google.py`.
 
 ### `open_notebook/auth/google.py` (new) — OAuth code exchange (port of arteamis-system `auth/google.py`)
@@ -134,7 +134,7 @@ All under existing `APIRouter(prefix="/auth")`, mounted at `/api`. Refresh cooki
 | `GET /auth/status` | public | replace password-based check: `{"auth_enabled": bool(JWT_SECRET), "message": ...}` so the existing frontend `checkAuthRequired()` keeps working. |
 
 ### `api/models.py` — Pydantic schemas (append)
-`RegisterRequest {email: EmailStr, password: str (min_length 8), display_name: str | None}`, `LoginRequest {email: EmailStr, password: str}`, `AuthUser {id, email, display_name}`, `SessionPayload {access_token, token_type, needs_onboarding, active_company_id: str|None, user: AuthUser, memberships: list}`, `MeResponse {user: AuthUser, memberships: list}`. (`EmailStr` needs `pydantic[email]`/`email-validator`; add to `pyproject.toml` if absent.)
+`RegisterRequest {email: EmailStr, password: str (min_length 8), display_name: str | None}`, `LoginRequest {email: EmailStr, password: str}`, `AuthUser {id, email, display_name}`, `SessionPayload {access_token, token_type, needs_onboarding, active_workspace_id: str|None, user: AuthUser, memberships: list}`, `MeResponse {user: AuthUser, memberships: list}`. (`EmailStr` needs `pydantic[email]`/`email-validator`; add to `pyproject.toml` if absent.)
 
 ### New exception + handler (409)
 `open_notebook/exceptions.py` has no conflict type. Add `class DuplicateResourceError(OpenNotebookError)` and register a handler in `api/main.py` returning `409 {"detail": str(exc)}` with `_cors_headers(request)` (mirrors the existing typed-exception handlers). Satisfies the brief's "409 duplicate email" contract without raising a bare `HTTPException` (forbidden by `api/AGENTS.md`).
@@ -168,10 +168,10 @@ Replace `LoginCredentials {password}` with `LoginCredentials {email, password}`,
 - `frontend/src/app/(auth)/signup/page.tsx` (new): renders `<ErrorBoundary><SignupForm/></ErrorBoundary>` (mirrors `frontend/src/app/(auth)/login/page.tsx`).
 - `frontend/src/app/(auth)/login/page.tsx`: unchanged wrapper.
 
-### i18n keys (add to ALL 7 enforced locales: `en-US, pt-BR, zh-CN, zh-TW, ja-JP, ru-RU, bn-IN` under `frontend/src/lib/locales/<loc>/index.ts`, `auth` section)
+### i18n keys (add to ALL 14 locales in the `resources` map under `frontend/src/lib/locales/<loc>/index.ts`, `auth` section: 7 enforced translations `en-US, pt-BR, zh-CN, zh-TW, ja-JP, ru-RU, bn-IN` + 7 English-fallback locales `it-IT, fr-FR, ca-ES, es-ES, de-DE, pl-PL, tr-TR`)
 Existing keys reused: `signIn`, `signingIn`, `passwordPlaceholder`, `connectErrorHint`. Update `loginTitle`/`loginDesc` copy. New keys:
 `emailPlaceholder`, `displayNamePlaceholder`, `confirmPasswordPlaceholder`, `continueWithGoogle`, `orWithEmail`, `signupTitle`, `signupDesc`, `createAccount`, `creatingAccount`, `haveAccount`, `noAccount`, `signInLink`, `signUpLink`, `invalidCredentials`, `emailInUse`, `passwordTooShort`, `passwordsDontMatch`, `googleError`.
-(en-US is the fallback; missing keys silently fall back, so all 7 must be populated per `frontend/AGENTS.md`.)
+(en-US is the fallback; missing keys silently fall back, but the locale parity test requires the key set to match across all 14 locales, so all 14 must be populated — the 7 enforced locales with real translations, the other 7 with English fallback values — per `frontend/AGENTS.md`.)
 
 ## Permissions / RBAC rules
 P1 has no roles yet (roles arrive with `membership` in P2). Access rules are auth-state only:
@@ -218,4 +218,4 @@ Frontend (`npm run test`, `npm run lint`, `npm run build`):
 - **Google `redirect_uri`:** must exactly match the Google Cloud console entry and `GOOGLE_REDIRECT_URI` (default points at the API `/api/auth/google/callback`); mismatch is the most common OAuth failure.
 - **No rate limiting** on `login`/`register` (repo has none built in) → brute-force/enumeration exposure; recommend adding a limiter or documenting reverse-proxy throttling.
 - **Not in P1 (flag for backlog):** email verification for `email_password` signups, password reset, and refresh-token revocation/rotation-family invalidation (current refresh is stateless — logout clears the cookie but a stolen refresh token stays valid until expiry).
-- **`needs_onboarding`/`memberships` seam:** P1 hard-codes `needs_onboarding: true` / `memberships: []`; P2 must fill `build_session_payload` and the `create_access_token` stub without breaking the P1 response shape.
+- **`needs_onboarding`/`memberships` seam:** P1 hard-codes `needs_onboarding: true` / `memberships: []`; P2 must fill `build_session_payload` and the `create_access_token` stub without breaking the P1 response shape. Note: personal-workspace auto-provisioning is done in P2, not P1 — P1's register/login intentionally leaves the user authenticated on an identity token only (acceptable), and P2 attaches the user's default personal workspace on top of this contract. P1 adds no workspace tables.
