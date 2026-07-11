@@ -81,3 +81,19 @@ def test_decode_access_token_returns_context_with_none_workspace_in_p1():
     assert ctx.user_id == "user:abc"
     assert ctx.workspace_id is None
     assert ctx.role is None
+
+
+def test_decode_identity_rejects_refresh_token():
+    from api.security import create_refresh_token, decode_identity_token
+
+    rt = create_refresh_token("user:abc")
+    with pytest.raises(AuthenticationError):
+        decode_identity_token(rt)
+
+
+def test_decode_access_rejects_refresh_token():
+    from api.security import create_refresh_token, decode_access_token
+
+    rt = create_refresh_token("user:abc")
+    with pytest.raises(AuthenticationError):
+        decode_access_token(rt)

@@ -48,6 +48,8 @@ def decode_identity_token(token: str) -> str:
     cfg = get_auth_config()
     try:
         payload = jwt.decode(token, cfg.jwt_secret, algorithms=[cfg.jwt_algorithm])
+        if payload.get("type") == "refresh":
+            raise AuthenticationError("refresh token cannot be used as a bearer token")
         return _require_user_id(payload["sub"])
     except (JWTError, KeyError) as e:
         raise AuthenticationError(f"Invalid token: {e}") from e
@@ -90,6 +92,8 @@ def decode_access_token(token: str) -> AuthContext:
     cfg = get_auth_config()
     try:
         payload = jwt.decode(token, cfg.jwt_secret, algorithms=[cfg.jwt_algorithm])
+        if payload.get("type") == "refresh":
+            raise AuthenticationError("refresh token cannot be used as a bearer token")
         return AuthContext(
             user_id=_require_user_id(payload["sub"]),
             workspace_id=payload.get("workspace_id"),
