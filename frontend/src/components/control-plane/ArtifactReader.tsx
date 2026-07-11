@@ -5,6 +5,7 @@ import { useSource } from '@/lib/hooks/use-sources';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { ProposeButton } from './ProposeButton';
+import { LineagePanel } from './LineagePanel';
 
 export function ArtifactReader() {
   const { t } = useTranslation();
@@ -21,7 +22,7 @@ export function ArtifactReader() {
           <X className="h-4 w-4" />
         </button>
       </div>
-      {artifact.type === 'source' ? <SourceArtifact id={artifact.id} loc={artifact.loc} /> : <BeliefArtifactStub />}
+      {artifact.type === 'source' ? <SourceArtifact id={artifact.id} loc={artifact.loc} /> : <LineagePanel id={artifact.id} />}
     </aside>
   );
 }
@@ -40,14 +41,9 @@ function SourceArtifact({ id, loc }: { id: string; loc?: string }) {
       <div className="flex-1 overflow-y-auto p-4 text-sm">
         <MarkdownRenderer>{data.full_text ?? ''}</MarkdownRenderer>
         <div className="mt-4">
-          <ProposeButton title={data.title} body="" sourceSpans={[{ source_id: id, locator: loc }]} />
+          <ProposeButton title={data.title ?? ''} body="" sourceSpans={[{ source_id: id, locator: loc }]} />
         </div>
       </div>
     </div>
   );
-}
-
-function BeliefArtifactStub() {
-  const { t } = useTranslation();
-  return <div className="p-4 text-sm text-muted-foreground">{t('controlPlane.artifact.lineageComingSoon')}</div>;
 }

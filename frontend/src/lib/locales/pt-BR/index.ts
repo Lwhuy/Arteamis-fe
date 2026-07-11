@@ -488,7 +488,13 @@ export const ptBR = {
       title: "Source",
       locator: "Page {loc}",
       notFound: "Source not found",
-      lineageComingSoon: "Belief lineage coming soon",
+    },
+    lineage: {
+      belief: "Belief",
+      sources: "Sources",
+      provenance: "Provenance",
+      contradiction: "Contradiction",
+      contradictionNone: "No contradictions detected",
     },
     proposeToCompany: "Propose to Company",
     review: {
