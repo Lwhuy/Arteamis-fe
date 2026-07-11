@@ -53,4 +53,12 @@ describe('AppSidebar', () => {
     // In collapsed mode, app name shouldn't be visible (as text)
     expect(screen.queryByText('common.appName')).toBeNull()
   })
+
+  it('renders an Intelligence nav link to /intelligence', () => {
+    render(<AppSidebar />)
+    const links = screen.getAllByRole('link')
+    const intel = links.find((l) => l.getAttribute('href') === '/intelligence')
+    expect(intel).toBeDefined()
+    expect(screen.getByText('navigation.intelligence')).toBeInTheDocument()
+  })
 })
