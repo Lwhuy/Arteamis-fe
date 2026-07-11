@@ -127,3 +127,30 @@ class WorkPackage(ObjectModel):
         if v not in WORK_PACKAGE_STATUSES:
             raise ValueError(f"invalid status {v}")
         return v
+
+
+TRACE_OUTCOMES = ["pending", "success", "fail", "mixed"]
+
+
+class Trace(ObjectModel):
+    table_name: ClassVar[str] = "trace"
+    work_package: str
+    summary: str
+    sources_used: list[str] = Field(default_factory=list)
+    command: Optional[str] = None
+    outcome: str = "pending"
+
+    @field_validator("outcome")
+    @classmethod
+    def _outcome(cls, v: str) -> str:
+        if v not in TRACE_OUTCOMES:
+            raise ValueError(f"invalid outcome {v}")
+        return v
+
+    def _prepare_save_data(self) -> Dict[str, Any]:
+        data = super()._prepare_save_data()
+        if data.get("work_package") is not None:
+            data["work_package"] = ensure_record_id(data["work_package"])
+        if data.get("command") is not None:
+            data["command"] = ensure_record_id(data["command"])
+        return data

@@ -5,11 +5,13 @@ from open_notebook.domain.governance import (
     CLAIM_TYPES,
     DECISION_RULE_STATUSES,
     PROPOSAL_STATUSES,
+    TRACE_OUTCOMES,
     WORK_PACKAGE_STATUSES,
     Belief,
     Decision,
     Proposal,
     Rule,
+    Trace,
     WorkPackage,
 )
 
@@ -92,3 +94,18 @@ def test_work_package_accepts_agent_brief_dict():
 def test_work_package_status_and_assignee_kind_constants():
     assert WORK_PACKAGE_STATUSES == ["open", "running", "done"]
     assert ASSIGNEE_KINDS == ["human", "agent"]
+
+
+def test_trace_defaults():
+    tr = Trace(work_package="work_package:1", summary="Ran the SMB outreach playbook")
+    assert tr.outcome == "pending"
+    assert tr.sources_used == []
+
+
+def test_trace_rejects_bad_outcome():
+    with pytest.raises(Exception):
+        Trace(work_package="work_package:1", summary="x", outcome="banana")
+
+
+def test_trace_outcomes_constant():
+    assert set(TRACE_OUTCOMES) == {"pending", "success", "fail", "mixed"}
