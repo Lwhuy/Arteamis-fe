@@ -49,6 +49,158 @@ def test_delete_source_mutate_denied_returns_403(client):
     assert resp.status_code == 403
 
 
+def _fake_source(owner="user:owner", scope="personal", sid="source:x"):
+    return Source(id=sid, title="orig title", owner=owner, scope=scope)
+
+
+def test_update_source_scope_change_denied_for_non_owner_non_workspace_admin(client, ctx):
+    # ctx = user:u1, workspace_role="member" -- stands in for a project-admin:
+    # require_mutate_source already lets project-admins through the general
+    # mutate gate, but they must NOT be able to widen/narrow scope.
+    src = _fake_source(owner="user:owner", scope="personal")
+    with patch("api.routers.sources.require_mutate_source", new=AsyncMock(return_value=src)):
+        resp = client.put("/api/sources/source:x", json={"scope": "company"})
+    assert resp.status_code == 403
+
+
+def test_update_source_scope_change_allowed_for_owner(client, ctx):
+    src = _fake_source(owner=ctx.user_id, scope="personal")
+
+    async def fake_save(self):
+        return self
+
+    with patch("api.routers.sources.require_mutate_source", new=AsyncMock(return_value=src)):
+        with patch.object(Source, "save", new=fake_save):
+            with patch.object(Source, "get_embedded_chunks", new=AsyncMock(return_value=0)):
+                resp = client.put("/api/sources/source:x", json={"scope": "company"})
+    assert resp.status_code == 200
+    assert resp.json()["scope"] == "company"
+
+
+def test_update_source_scope_change_allowed_for_workspace_admin(client, ctx):
+    ctx.workspace_role = "admin"
+    src = _fake_source(owner="user:someone-else", scope="personal")
+
+    async def fake_save(self):
+        return self
+
+    with patch("api.routers.sources.require_mutate_source", new=AsyncMock(return_value=src)):
+        with patch.object(Source, "save", new=fake_save):
+            with patch.object(Source, "get_embedded_chunks", new=AsyncMock(return_value=0)):
+                resp = client.put("/api/sources/source:x", json={"scope": "company"})
+    assert resp.status_code == 200
+    assert resp.json()["scope"] == "company"
+
+
+def test_update_source_non_scope_field_allowed_for_project_admin(client, ctx):
+    # A project-admin (not owner, not workspace owner/admin) may still update
+    # OTHER fields like title -- only the scope change itself is restricted.
+    src = _fake_source(owner="user:owner", scope="personal")
+
+    async def fake_save(self):
+        return self
+
+    with patch("api.routers.sources.require_mutate_source", new=AsyncMock(return_value=src)):
+        with patch.object(Source, "save", new=fake_save):
+            with patch.object(Source, "get_embedded_chunks", new=AsyncMock(return_value=0)):
+                resp = client.put("/api/sources/source:x", json={"title": "new title"})
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "new title"
+
+
+def test_update_source_scope_unchanged_allowed_for_project_admin(client, ctx):
+    # Sending the SAME scope back is not a "change" -- no extra authorization
+    # should be required beyond the general mutate gate.
+    src = _fake_source(owner="user:owner", scope="company")
+
+    async def fake_save(self):
+        return self
+
+    with patch("api.routers.sources.require_mutate_source", new=AsyncMock(return_value=src)):
+        with patch.object(Source, "save", new=fake_save):
+            with patch.object(Source, "get_embedded_chunks", new=AsyncMock(return_value=0)):
+                resp = client.put("/api/sources/source:x", json={"scope": "company"})
+    assert resp.status_code == 200
+
+
+def test_check_source_file_view_denied_returns_404(client):
+    with patch(
+        "api.routers.sources.require_view_source",
+        new=AsyncMock(side_effect=HTTPException(status_code=404, detail="Source not found")),
+    ):
+        resp = client.head("/api/sources/source:secret/download")
+    assert resp.status_code == 404
+
+
+def test_download_source_file_view_denied_returns_404(client):
+    with patch(
+        "api.routers.sources.require_view_source",
+        new=AsyncMock(side_effect=HTTPException(status_code=404, detail="Source not found")),
+    ):
+        resp = client.get("/api/sources/source:secret/download")
+    assert resp.status_code == 404
+
+
+def test_get_source_status_view_denied_returns_404(client):
+    with patch(
+        "api.routers.sources.require_view_source",
+        new=AsyncMock(side_effect=HTTPException(status_code=404, detail="Source not found")),
+    ):
+        resp = client.get("/api/sources/source:secret/status")
+    assert resp.status_code == 404
+
+
+def test_get_source_insights_view_denied_returns_404(client):
+    with patch(
+        "api.routers.sources.require_view_source",
+        new=AsyncMock(side_effect=HTTPException(status_code=404, detail="Source not found")),
+    ):
+        resp = client.get("/api/sources/source:secret/insights")
+    assert resp.status_code == 404
+
+
+def test_retry_source_processing_mutate_denied_returns_403(client):
+    with patch(
+        "api.routers.sources.require_mutate_source",
+        new=AsyncMock(side_effect=HTTPException(status_code=403, detail="You do not have permission to modify this source")),
+    ):
+        resp = client.post("/api/sources/source:x/retry")
+    assert resp.status_code == 403
+
+
+def test_retry_source_processing_not_viewable_returns_404(client):
+    with patch(
+        "api.routers.sources.require_mutate_source",
+        new=AsyncMock(side_effect=HTTPException(status_code=404, detail="Source not found")),
+    ):
+        resp = client.post("/api/sources/source:x/retry")
+    assert resp.status_code == 404
+
+
+def test_create_source_insight_mutate_denied_returns_403(client):
+    with patch(
+        "api.routers.sources.require_mutate_source",
+        new=AsyncMock(side_effect=HTTPException(status_code=403, detail="You do not have permission to modify this source")),
+    ):
+        resp = client.post(
+            "/api/sources/source:x/insights",
+            json={"transformation_id": "transformation:t1"},
+        )
+    assert resp.status_code == 403
+
+
+def test_create_source_insight_not_viewable_returns_404(client):
+    with patch(
+        "api.routers.sources.require_mutate_source",
+        new=AsyncMock(side_effect=HTTPException(status_code=404, detail="Source not found")),
+    ):
+        resp = client.post(
+            "/api/sources/source:x/insights",
+            json={"transformation_id": "transformation:t1"},
+        )
+    assert resp.status_code == 404
+
+
 def test_list_sources_filters_by_visible_ids(client):
     # visible_source_ids returns an empty allow-list -> no rows, and the id
     # filter param is threaded into the query.

@@ -7,6 +7,7 @@ import pytest
 
 from api.source_permissions import (
     PermissionContext,
+    can_change_source_scope,
     can_mutate_source,
     can_view_source,
 )
@@ -93,6 +94,40 @@ async def test_outsider_other_workspace_denied():
             ctx.project_role = AsyncMock(return_value=None)
             assert await can_view_source(src, ctx) is False
             assert await can_mutate_source(src, ctx) is False
+
+
+def test_can_change_source_scope_owner_allowed():
+    # Owner may change their own source's scope, regardless of workspace role.
+    ctx = _ctx(user="user:owner", role="member")
+    src = _source(owner="user:owner", scope="personal")
+    assert can_change_source_scope(ctx, src) is True
+
+
+def test_can_change_source_scope_workspace_owner_allowed():
+    ctx = _ctx(user="user:u2", role="owner")
+    src = _source(owner="user:owner", scope="personal")
+    assert can_change_source_scope(ctx, src) is True
+
+
+def test_can_change_source_scope_workspace_admin_allowed():
+    ctx = _ctx(user="user:u2", role="admin")
+    src = _source(owner="user:owner", scope="personal")
+    assert can_change_source_scope(ctx, src) is True
+
+
+def test_can_change_source_scope_project_admin_non_owner_denied():
+    # Regression for the privilege-escalation finding: general project-admin
+    # mutate rights are NOT sufficient to widen/narrow a source's scope --
+    # only the owner or a workspace owner/admin may do that.
+    ctx = _ctx(user="user:u2", role="member")
+    src = _source(owner="user:owner", scope="personal")
+    assert can_change_source_scope(ctx, src) is False
+
+
+def test_can_change_source_scope_plain_member_denied():
+    ctx = _ctx(user="user:u3", role="member")
+    src = _source(owner="user:owner", scope="personal")
+    assert can_change_source_scope(ctx, src) is False
 
 
 @pytest.mark.asyncio

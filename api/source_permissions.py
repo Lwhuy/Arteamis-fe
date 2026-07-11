@@ -116,6 +116,19 @@ async def can_mutate_source(source: Source, ctx: PermissionContext) -> bool:
     return False
 
 
+def can_change_source_scope(ctx: PermissionContext, source: Source) -> bool:
+    """Widening/narrowing a source's `scope` is a privilege-escalation-sensitive
+    operation (e.g. 'personal' -> 'company' exposes it workspace-wide) and is
+    deliberately NOT covered by the general `can_mutate_source` gate: a
+    project-admin of ANY project the source happens to be referenced by can
+    mutate it, but that must not let them widen its visibility to the whole
+    workspace. Only the source's owner, or a workspace owner/admin, may change
+    scope. No DB round-trip needed -- both facts are already on hand."""
+    if source.owner is not None and str(source.owner) == ctx.user_id:
+        return True
+    return ctx.workspace_role in ("owner", "admin")
+
+
 async def require_view_source(source_id: str, ctx: PermissionContext) -> Source:
     """Load + view-check. 404 if missing OR view-denied (no existence oracle)."""
     try:

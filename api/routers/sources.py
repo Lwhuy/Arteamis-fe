@@ -32,6 +32,7 @@ from api.models import (
 )
 from api.source_permissions import (
     PermissionContext,
+    can_change_source_scope,
     get_permission_context,
     require_mutate_source,
     require_view_source,
@@ -909,6 +910,20 @@ async def update_source(
     """Update a source."""
     try:
         source = await require_mutate_source(source_id, ctx)
+
+        # Changing scope can widen a source's visibility (e.g. personal ->
+        # company exposes it workspace-wide), so it needs its own,
+        # narrower authorization check -- general project-admin mutate
+        # rights are NOT enough here. See can_change_source_scope().
+        if (
+            source_update.scope is not None
+            and source_update.scope != source.scope
+            and not can_change_source_scope(ctx, source)
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Only the source owner or a workspace owner/admin may change its scope",
+            )
 
         # Update only provided fields
         if source_update.title is not None:
