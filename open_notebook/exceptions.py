@@ -68,3 +68,10 @@ class NoTranscriptFound(OpenNotebookError):
     """Raised when no transcript is found for a video."""
 
     pass
+
+
+class DuplicateResourceError(OpenNotebookError):
+    """Raised when creating a resource that violates a uniqueness constraint
+    (e.g. an already-registered email or an existing workspace slug)."""
+
+    pass
