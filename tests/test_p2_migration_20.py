@@ -38,7 +38,9 @@ def test_migration_20_down_removes_tables():
 
 def test_migration_20_is_registered():
     manager = AsyncMigrationManager()
-    assert len(manager.up_migrations) == 21
-    assert len(manager.down_migrations) == 21
+    # This branch (feat/auth-mt-p5) has no migration 22 file (separate branch):
+    # 1-21 + 23 = 22 entries registered, numbering gap at 22.
+    assert len(manager.up_migrations) == 22
+    assert len(manager.down_migrations) == 22
     assert "workspace" in manager.up_migrations[19].sql
     assert "membership" in manager.down_migrations[19].sql

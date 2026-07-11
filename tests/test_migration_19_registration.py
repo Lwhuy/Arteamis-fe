@@ -8,8 +8,10 @@ def test_migration_19_is_registered_in_both_lists():
     from open_notebook.database.async_migrate import AsyncMigrationManager
 
     manager = AsyncMigrationManager()
-    assert len(manager.up_migrations) == 21
-    assert len(manager.down_migrations) == 21
+    # This branch (feat/auth-mt-p5) has no migration 22 file (separate branch):
+    # 1-21 + 23 = 22 entries registered, numbering gap at 22.
+    assert len(manager.up_migrations) == 22
+    assert len(manager.down_migrations) == 22
 
 
 def test_migration_19_defines_identity_tables():
