@@ -4,4 +4,6 @@ Domain models for Arteamis.
 This module exports the core domain models used throughout the application.
 """
 
-__all__: list[str] = []
+from open_notebook.domain.workspace import Membership, Workspace
+
+__all__: list[str] = ["Workspace", "Membership"]
