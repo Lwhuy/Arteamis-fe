@@ -38,7 +38,9 @@ def test_migration_20_down_removes_tables():
 
 def test_migration_20_is_registered():
     manager = AsyncMigrationManager()
-    assert len(manager.up_migrations) == 20
-    assert len(manager.down_migrations) == 20
+    # Migration 20 occupies index 19 regardless of later migrations
+    # (e.g. migration 21) being appended after it.
+    assert len(manager.up_migrations) >= 20
+    assert len(manager.down_migrations) >= 20
     assert "workspace" in manager.up_migrations[19].sql
     assert "membership" in manager.down_migrations[19].sql

@@ -1,4 +1,3 @@
--- Migration 20 rollback: remove visibility field, drop membership first (references workspace), then workspace.
-REMOVE FIELD visibility ON source;
+-- Migration 20 rollback: drop membership first (references workspace), then workspace.
 REMOVE TABLE IF EXISTS membership;
 REMOVE TABLE IF EXISTS workspace;

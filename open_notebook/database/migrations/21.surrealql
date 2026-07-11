@@ -1,0 +1,2 @@
+DEFINE FIELD visibility ON source TYPE string DEFAULT 'private'
+  ASSERT $value IN ['private', 'company'];
