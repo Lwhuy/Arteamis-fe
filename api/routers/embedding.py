@@ -1,8 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
 from api.command_service import CommandService
 from api.models import EmbedRequest, EmbedResponse
+from api.source_permissions import (
+    PermissionContext,
+    get_permission_context,
+    require_mutate_source,
+)
 from open_notebook.ai.models import model_manager
 from open_notebook.domain.notebook import Note, Source
 from open_notebook.exceptions import NotFoundError
@@ -11,7 +16,10 @@ router = APIRouter()
 
 
 @router.post("/embed", response_model=EmbedResponse)
-async def embed_content(embed_request: EmbedRequest):
+async def embed_content(
+    embed_request: EmbedRequest,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Embed content for vector search."""
     try:
         # Check if embedding model is available
@@ -29,6 +37,10 @@ async def embed_content(embed_request: EmbedRequest):
             raise HTTPException(
                 status_code=400, detail="Item type must be either 'source' or 'note'"
             )
+
+        # Source embedding writes derived data -> require mutate on the source.
+        if item_type == "source":
+            await require_mutate_source(item_id, ctx)
 
         # Branch based on processing mode
         if embed_request.async_processing:
