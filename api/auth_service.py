@@ -1,14 +1,15 @@
 """Auth business logic (routers stay thin, per api/AGENTS.md).
 
-register/login operate on the identity plane only; workspace selection and
-workspace-scoped tokens arrive in P2 (build_session_payload's workspace-aware
-branch). Personal-workspace auto-provisioning is done in P2, not P1 — P1's
-register/login leaves the user authenticated on an identity token only.
+register/login operate on the identity plane only. build_session_payload is
+the workspace-aware seam: it ALWAYS auto-provisions the caller's personal
+workspace and mints a workspace-scoped access token, so a logged-in user
+never holds a bare identity-only session (see build_session_payload docstring).
 """
 
 from typing import Optional
 
-from api.security import create_identity_token
+from api.security import create_access_token
+from api.workspace_service import ensure_personal_workspace, list_memberships
 from open_notebook.domain.user import _PH, AuthIdentity, User
 from open_notebook.exceptions import AuthenticationError, DuplicateResourceError
 
@@ -61,24 +62,33 @@ async def login(email: str, password: str) -> User:
     return user
 
 
-def build_session_payload(user: User) -> dict:
-    """The body returned after any successful register/login/refresh.
+async def build_session_payload(user: User) -> dict:
+    """Session payload for register/login/refresh/Google-callback.
 
-    P1 always issues an identity token (no workspace yet). P2 replaces the
-    needs_onboarding/memberships/active_workspace_id surface with the real,
-    workspace-aware branch WITHOUT changing this response shape — this is
-    where P2 attaches the user's auto-provisioned default personal workspace
-    (not done in P1).
+    ALWAYS auto-provisions (idempotently) the caller's personal workspace and
+    returns a workspace-scoped token for it — a logged-in user never holds a
+    bare identity-only session. `needs_onboarding` is repurposed from P1's
+    hard-coded placeholder: it no longer gates anything, it only signals
+    "no company workspace yet" for an optional, dismissible frontend prompt.
+    Every call resets the ACTIVE workspace to Personal (stated default
+    decision — see the spec's Open questions) even if the user also owns
+    companies; switching to one is a per-session action.
     """
+    personal = await ensure_personal_workspace(str(user.id))
+    memberships = await list_memberships(str(user.id))
+    has_company = any(m["kind"] == "company" for m in memberships)
+    access_token = create_access_token(
+        user_id=str(user.id), workspace_id=personal.id or "", role="owner"
+    )
     return {
-        "access_token": create_identity_token(user.id or ""),
+        "access_token": access_token,
         "token_type": "bearer",
-        "needs_onboarding": True,
-        "active_workspace_id": None,
+        "needs_onboarding": not has_company,
+        "active_workspace_id": personal.id,
         "user": {
-            "id": user.id,
+            "id": str(user.id),
             "email": user.email,
             "display_name": user.display_name,
         },
-        "memberships": [],
+        "memberships": memberships,
     }

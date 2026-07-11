@@ -4,6 +4,23 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+async def _fake_build_session_payload(user):
+    """P2: build_session_payload now auto-provisions a real workspace via the
+    DB (ensure_personal_workspace/list_memberships), which these router tests
+    must not hit — they only exercise routing/cookie behavior, and the
+    workspace-provisioning behavior itself is covered by
+    tests/test_p2_session_payload.py. Stand in with a minimal, workspace-scoped
+    shape."""
+    return {
+        "access_token": "fake-access-token",
+        "token_type": "bearer",
+        "needs_onboarding": True,
+        "active_workspace_id": "workspace:p1",
+        "user": {"id": user.id, "email": user.email, "display_name": user.display_name},
+        "memberships": [],
+    }
+
+
 @pytest.fixture(autouse=True)
 def _secret(monkeypatch):
     # JWT_SECRET set so real tokens are minted; but /auth/* are excluded paths
@@ -27,7 +44,10 @@ def test_register_success_sets_cookie_and_returns_session(client):
         u = User(id="user:new", email=email, display_name=display_name)
         return u
 
-    with patch("api.routers.auth.auth_service.register", new=fake_register):
+    with patch("api.routers.auth.auth_service.register", new=fake_register), patch(
+        "api.routers.auth.auth_service.build_session_payload",
+        new=_fake_build_session_payload,
+    ):
         resp = client.post(
             "/api/auth/register",
             json={"email": "New@b.com", "password": "password123", "display_name": "New"},
@@ -68,7 +88,10 @@ def test_login_success(client):
     async def fake_login(email, password):
         return User(id="user:1", email=email, display_name="A")
 
-    with patch("api.routers.auth.auth_service.login", new=fake_login):
+    with patch("api.routers.auth.auth_service.login", new=fake_login), patch(
+        "api.routers.auth.auth_service.build_session_payload",
+        new=_fake_build_session_payload,
+    ):
         resp = client.post(
             "/api/auth/login", json={"email": "a@b.com", "password": "password123"}
         )
@@ -148,7 +171,12 @@ def test_refresh_valid_cookie_returns_new_session(client):
     from api.security import create_refresh_token
     from open_notebook.domain.user import User
 
-    with patch("api.routers.auth.User.get", new=AsyncMock(return_value=User(id="user:1", email="a@b.com"))):
+    with patch(
+        "api.routers.auth.User.get", new=AsyncMock(return_value=User(id="user:1", email="a@b.com"))
+    ), patch(
+        "api.routers.auth.auth_service.build_session_payload",
+        new=_fake_build_session_payload,
+    ):
         client.cookies.set("arteamis_refresh", create_refresh_token("user:1"))
         resp = client.post("/api/auth/refresh")
     assert resp.status_code == 200

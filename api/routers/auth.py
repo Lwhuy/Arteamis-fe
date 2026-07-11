@@ -59,14 +59,14 @@ async def register(body: RegisterRequest, response: Response):
         body.email, body.password, body.display_name
     )
     _set_refresh_cookie(response, user.id or "")
-    return auth_service.build_session_payload(user)
+    return await auth_service.build_session_payload(user)
 
 
 @router.post("/login", response_model=SessionPayload)
 async def login(body: LoginRequest, response: Response):
     user = await auth_service.login(body.email, body.password)
     _set_refresh_cookie(response, user.id or "")
-    return auth_service.build_session_payload(user)
+    return await auth_service.build_session_payload(user)
 
 
 @router.get("/google/start")
@@ -128,7 +128,7 @@ async def refresh(request: Request, response: Response):
     except NotFoundError:
         raise AuthenticationError("Unknown user")
     _set_refresh_cookie(response, user.id or "")
-    return auth_service.build_session_payload(user)
+    return await auth_service.build_session_payload(user)
 
 
 @router.post("/logout")
