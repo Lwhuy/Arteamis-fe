@@ -1,6 +1,6 @@
 from surrealdb import RecordID
 
-from open_notebook.domain.governance import AuditEvent, Proposal
+from open_notebook.domain.governance import AuditEvent, Decision, Proposal, Rule
 
 
 def test_proposal_author_converted_to_record_id():
@@ -27,3 +27,24 @@ def test_audit_event_object_none_is_left_none():
     data = e._prepare_save_data()
     assert isinstance(data["actor"], RecordID)
     assert data.get("object") is None
+
+
+def test_decision_and_rule_have_no_direct_record_link_fields():
+    """Decision/Rule link to beliefs only via the `supports` edge (created
+    through repo_relate, which converts ids to RecordID itself) — neither
+    model has a `record<>`-typed field of its own, so unlike Proposal.author
+    or AuditEvent.actor/object, no _prepare_save_data() override is needed.
+    This pins that invariant: if a future field like `decided_by:
+    record<user>` is ever added to Decision, model_dump() and
+    _prepare_save_data() diverge and this test starts failing — the trigger
+    to add the same ensure_record_id override Proposal/AuditEvent use (this
+    exact omission was a Critical bug in P8.2).
+    """
+    d = Decision(title="x")
+    assert d._prepare_save_data() == {
+        k: v for k, v in d.model_dump().items() if v is not None
+    }
+    r = Rule(title="y", statement="z")
+    assert r._prepare_save_data() == {
+        k: v for k, v in r.model_dump().items() if v is not None
+    }

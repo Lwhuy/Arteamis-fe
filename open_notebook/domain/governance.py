@@ -65,3 +65,34 @@ class AuditEvent(ObjectModel):
         if data.get("object") is not None:
             data["object"] = ensure_record_id(data["object"])
         return data
+
+
+DECISION_RULE_STATUSES = ["active", "superseded"]
+
+
+class Decision(ObjectModel):
+    table_name: ClassVar[str] = "decision"
+    title: str
+    rationale: str = ""
+    status: str = "active"
+
+    @field_validator("status")
+    @classmethod
+    def _status(cls, v: str) -> str:
+        if v not in DECISION_RULE_STATUSES:
+            raise ValueError(f"invalid status {v}")
+        return v
+
+
+class Rule(ObjectModel):
+    table_name: ClassVar[str] = "rule"
+    title: str
+    statement: str
+    status: str = "active"
+
+    @field_validator("status")
+    @classmethod
+    def _status(cls, v: str) -> str:
+        if v not in DECISION_RULE_STATUSES:
+            raise ValueError(f"invalid status {v}")
+        return v
