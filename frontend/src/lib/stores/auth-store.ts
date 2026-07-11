@@ -18,7 +18,9 @@ interface AuthState {
   authRequired: boolean | null
   memberships: Membership[]
   activeWorkspaceId: string | null
-  role: string | null
+  role: 'owner' | 'admin' | 'member' | null
+  workspaceName: string | null
+  workspaceKind: 'personal' | 'company' | null
   setHasHydrated: (state: boolean) => void
   checkAuthRequired: () => Promise<boolean>
   register: (email: string, password: string, displayName?: string) => Promise<boolean>
@@ -31,6 +33,11 @@ interface AuthState {
   applyToken: (res: TokenResponse) => void
   setSession: (payload: { memberships: Membership[]; activeWorkspaceId: string | null }) => void
   setActiveWorkspace: (workspaceId: string, role: string) => void
+  setWorkspaceContext: (args: {
+    workspaceName: string | null
+    workspaceKind: 'personal' | 'company' | null
+    role: 'owner' | 'admin' | 'member' | null
+  }) => void
   hasCompany: () => boolean
 }
 
@@ -78,6 +85,8 @@ export const useAuthStore = create<AuthState>()(
         memberships: [],
         activeWorkspaceId: null,
         role: null,
+        workspaceName: null,
+        workspaceKind: null,
 
         setHasHydrated: (state: boolean) => set({ hasHydrated: state }),
 
@@ -188,7 +197,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             token: res.access_token,
             activeWorkspaceId: res.active_workspace_id,
-            role: res.role,
+            role: res.role as 'owner' | 'admin' | 'member',
           })
         },
 
@@ -200,12 +209,16 @@ export const useAuthStore = create<AuthState>()(
           set({
             memberships,
             activeWorkspaceId,
-            role: active ? active.role : null,
+            role: active ? (active.role as 'owner' | 'admin' | 'member') : null,
           })
         },
 
         setActiveWorkspace: (workspaceId: string, role: string) => {
-          set({ activeWorkspaceId: workspaceId, role })
+          set({ activeWorkspaceId: workspaceId, role: role as 'owner' | 'admin' | 'member' })
+        },
+
+        setWorkspaceContext: ({ workspaceName, workspaceKind, role }) => {
+          set({ workspaceName, workspaceKind, role })
         },
 
         hasCompany: () => get().memberships.some((m) => m.kind === 'company'),
@@ -220,6 +233,8 @@ export const useAuthStore = create<AuthState>()(
         memberships: state.memberships,
         activeWorkspaceId: state.activeWorkspaceId,
         role: state.role,
+        workspaceName: state.workspaceName,
+        workspaceKind: state.workspaceKind,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true)
