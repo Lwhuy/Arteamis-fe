@@ -1,0 +1,52 @@
+-- Migration 21: Repurpose notebook as workspace-owned project + project_member.
+-- The notebook table and its relations (reference/artifact/refers_to) are KEPT;
+-- we only ADD governance columns and a member join table. A project belongs to
+-- a workspace (personal or company, per P2's workspace.kind); project_member is
+-- only functionally consulted for company-workspace projects.
+
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE notebook TYPE option<record<workspace>>;
+DEFINE FIELD IF NOT EXISTS owner ON TABLE notebook TYPE option<record<user>>;
+DEFINE FIELD IF NOT EXISTS default_source_scope ON TABLE notebook TYPE string ASSERT $value INSIDE ["personal", "project", "company"] DEFAULT "personal";
+DEFINE FIELD IF NOT EXISTS promoted_from ON TABLE notebook TYPE option<record<notebook>>;
+
+-- Query path: list projects for the active workspace, newest first.
+DEFINE INDEX IF NOT EXISTS idx_notebook_workspace ON TABLE notebook FIELDS workspace;
+
+-- project_member: user <-> project (= notebook) with a project-level role.
+DEFINE TABLE IF NOT EXISTS project_member SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS project ON TABLE project_member TYPE record<notebook>;
+DEFINE FIELD IF NOT EXISTS user ON TABLE project_member TYPE record<user>;
+DEFINE FIELD IF NOT EXISTS role ON TABLE project_member TYPE string ASSERT $value INSIDE ["admin", "member"] DEFAULT "member";
+DEFINE FIELD IF NOT EXISTS status ON TABLE project_member TYPE string ASSERT $value INSIDE ["active", "invited", "revoked"] DEFAULT "active";
+DEFINE FIELD IF NOT EXISTS created ON project_member DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON project_member DEFAULT time::now() VALUE time::now();
+DEFINE INDEX IF NOT EXISTS idx_project_member_unique ON TABLE project_member FIELDS user, project UNIQUE;
+
+-- Backfill (runs only when pre-tenancy notebooks exist). Assign every legacy
+-- notebook to the FIRST existing user's PERSONAL workspace. P2 auto-provisions
+-- a personal workspace on signup/first-login going forward, but a user who
+-- registered before P2 shipped may not have one yet, so this migration
+-- self-seeds one (idempotent: reuses whichever personal workspace already
+-- exists for that user, whether self-seeded on a prior run of this migration or
+-- auto-provisioned by P2 in the meantime).
+LET $legacy = (SELECT VALUE id FROM notebook WHERE workspace = NONE);
+IF array::len($legacy) > 0 {
+    LET $owner = (SELECT VALUE id FROM user ORDER BY created ASC LIMIT 1)[0];
+    IF $owner != NONE {
+        LET $found_personal = (SELECT VALUE id FROM workspace WHERE owner = $owner AND kind = "personal" LIMIT 1)[0];
+        LET $personal_workspace = $found_personal ?? workspace:personal_default;
+        IF $found_personal = NONE {
+            UPSERT workspace:personal_default SET name = "Personal", slug = "personal-default", kind = "personal", owner = $owner;
+            UPSERT membership:personal_default_owner SET user = $owner, workspace = workspace:personal_default, role = "owner", status = "active";
+        };
+        UPDATE notebook SET workspace = $personal_workspace, owner = $owner, default_source_scope = "personal" WHERE workspace = NONE;
+        -- Seed the owner as the sole admin member of each backfilled project.
+        -- Harmless while the project stays personal (ctx.role == "owner" already
+        -- authorizes everything); keeps project_member populated uniformly.
+        FOR $nb IN (SELECT id, owner FROM notebook WHERE owner != NONE) {
+            IF (SELECT id FROM project_member WHERE project = $nb.id AND user = $nb.owner) = [] {
+                CREATE project_member SET project = $nb.id, user = $nb.owner, role = "admin", status = "active";
+            };
+        };
+    };
+};
