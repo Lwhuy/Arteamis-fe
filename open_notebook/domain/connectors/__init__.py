@@ -46,4 +46,7 @@ __all__ = [
 
 # Import adapters for their registration side effects. Kept at the bottom to
 # avoid a circular import (adapters import from this module).
-from open_notebook.domain.connectors import gdrive  # noqa: E402,F401
+from open_notebook.domain.connectors import (
+    gdrive,  # noqa: E402,F401
+    notion,  # noqa: E402,F401
+)
