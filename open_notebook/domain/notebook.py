@@ -14,12 +14,16 @@ from open_notebook.domain.base import ObjectModel
 from open_notebook.exceptions import DatabaseOperationError, InvalidInputError
 
 
-class Notebook(ObjectModel):
+class Project(ObjectModel):
     table_name: ClassVar[str] = "notebook"
     name: str
     description: str
     archived: Optional[bool] = False
     last_viewed_at: Optional[datetime] = None
+    workspace: Optional[str] = None
+    owner: Optional[str] = None
+    default_source_scope: Literal["personal", "project", "company"] = "personal"
+    promoted_from: Optional[str] = None
 
     @field_validator("name")
     @classmethod
@@ -27,6 +31,24 @@ class Notebook(ObjectModel):
         if not v.strip():
             raise InvalidInputError("Notebook name cannot be empty")
         return v
+
+    @field_validator("workspace", "owner", "promoted_from", mode="before")
+    @classmethod
+    def _stringify_record_link(cls, value):
+        # Loads already arrive as strings (repo_query -> parse_record_ids), but a
+        # RecordID may be passed in directly; normalize so equality checks in the
+        # router (project.workspace == ctx.workspace_id) compare like-for-like.
+        return str(value) if value is not None else None
+
+    def _prepare_save_data(self) -> dict:
+        data = super()._prepare_save_data()
+        if data.get("workspace") is not None:
+            data["workspace"] = ensure_record_id(data["workspace"])
+        if data.get("owner") is not None:
+            data["owner"] = ensure_record_id(data["owner"])
+        if data.get("promoted_from") is not None:
+            data["promoted_from"] = ensure_record_id(data["promoted_from"])
+        return data
 
     async def get_sources(self, include_full_text: bool = False) -> List["Source"]:
         try:
@@ -304,6 +326,40 @@ class Notebook(ObjectModel):
             raise DatabaseOperationError(f"Failed to delete notebook: {e}")
 
 
+class ProjectMember(ObjectModel):
+    table_name: ClassVar[str] = "project_member"
+    project: str
+    user: str
+    role: str = "member"
+    status: str = "active"
+
+    @classmethod
+    async def get_for_project(cls, project_id: str) -> List["ProjectMember"]:
+        try:
+            rows = await repo_query(
+                "SELECT * FROM project_member WHERE project = $project",
+                {"project": ensure_record_id(project_id)},
+            )
+            return [cls(**row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error fetching members for project {project_id}: {e}")
+            logger.exception(e)
+            raise DatabaseOperationError(e)
+
+    @classmethod
+    async def get_for_user(cls, user_id: str) -> List["ProjectMember"]:
+        try:
+            rows = await repo_query(
+                "SELECT * FROM project_member WHERE user = $user",
+                {"user": ensure_record_id(user_id)},
+            )
+            return [cls(**row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error fetching project memberships for user {user_id}: {e}")
+            logger.exception(e)
+            raise DatabaseOperationError(e)
+
+
 class Asset(BaseModel):
     file_path: Optional[str] = None
     url: Optional[str] = None
@@ -515,7 +571,7 @@ class Source(ObjectModel):
     async def add_to_notebook(self, notebook_id: str) -> Any:
         if not notebook_id:
             raise InvalidInputError("Notebook ID must be provided")
-        await Notebook.get(notebook_id)  # raises NotFoundError if invalid/missing
+        await Project.get(notebook_id)  # raises NotFoundError if invalid/missing
         return await self.relate("reference", notebook_id)
 
     async def vectorize(self) -> str:
@@ -720,7 +776,7 @@ class Note(ObjectModel):
     async def add_to_notebook(self, notebook_id: str) -> Any:
         if not notebook_id:
             raise InvalidInputError("Notebook ID must be provided")
-        await Notebook.get(notebook_id)  # raises NotFoundError if invalid/missing
+        await Project.get(notebook_id)  # raises NotFoundError if invalid/missing
         return await self.relate("artifact", notebook_id)
 
     def get_context(
@@ -826,3 +882,9 @@ async def vector_search(
         logger.error(f"Error performing vector search: {str(e)}")
         logger.exception(e)
         raise DatabaseOperationError(e)
+
+
+# Back-compat alias: the physical table stays `notebook`; the ~22 modules that
+# still `from open_notebook.domain.notebook import Notebook` resolve to Project.
+# Removed in a later cosmetic cleanup (out of scope for P3).
+Notebook = Project
