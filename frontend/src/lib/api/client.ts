@@ -94,7 +94,7 @@ export async function refreshAccessToken(): Promise<string | null> {
     blob.state = {
       ...(blob.state || {}),
       token,
-      user: data.user,
+      ...(data.user ? { user: data.user } : {}),
       isAuthenticated: true,
     }
     if (blob.version === undefined) blob.version = 0
