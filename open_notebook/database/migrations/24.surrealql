@@ -1,0 +1,20 @@
+-- P7.1 brain schema: entity nodes + mentions/part_of edges (workspace-scoped)
+DEFINE TABLE IF NOT EXISTS entity SCHEMALESS;
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE entity TYPE record<workspace>;
+DEFINE FIELD IF NOT EXISTS kind ON TABLE entity TYPE string ASSERT $value IN ['domain', 'topic', 'person', 'decision'];
+DEFINE FIELD IF NOT EXISTS name ON TABLE entity TYPE string;
+DEFINE FIELD IF NOT EXISTS normalized_name ON TABLE entity TYPE string;
+DEFINE FIELD IF NOT EXISTS embedding ON TABLE entity TYPE option<array<float>>;
+DEFINE FIELD IF NOT EXISTS description ON TABLE entity TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS salience ON TABLE entity TYPE float DEFAULT 0;
+DEFINE INDEX IF NOT EXISTS idx_entity_workspace ON TABLE entity FIELDS workspace;
+DEFINE INDEX IF NOT EXISTS idx_entity_dedup ON TABLE entity FIELDS workspace, kind, normalized_name;
+
+DEFINE TABLE IF NOT EXISTS mentions SCHEMALESS TYPE RELATION FROM source TO entity;
+DEFINE FIELD IF NOT EXISTS confidence ON TABLE mentions TYPE float;
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE mentions TYPE record<workspace>;
+DEFINE INDEX IF NOT EXISTS idx_mentions_workspace ON TABLE mentions FIELDS workspace;
+
+DEFINE TABLE IF NOT EXISTS part_of SCHEMALESS TYPE RELATION FROM entity TO entity;
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE part_of TYPE record<workspace>;
+DEFINE INDEX IF NOT EXISTS idx_part_of_workspace ON TABLE part_of FIELDS workspace;
