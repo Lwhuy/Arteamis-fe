@@ -133,7 +133,10 @@ async def google_callback(code: str, state: str, request: Request):
         email=email,
         display_name=info.get("name"),
     )
-    resp = RedirectResponse(f"{cfg.frontend_url}/notebooks")
+    # /projects is the P3 rename of /notebooks (P3 Task 8 retired the
+    # /notebooks router+route); redirecting here keeps Google sign-in
+    # landing on the live dashboard route instead of a dead page.
+    resp = RedirectResponse(f"{cfg.frontend_url}/projects")
     resp.delete_cookie(_STATE_COOKIE, path="/")
     _set_refresh_cookie(resp, user.id or "")
     return resp
