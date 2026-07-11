@@ -1,8 +1,8 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from surrealdb import RecordID
 from fastapi.testclient import TestClient
+from surrealdb import RecordID
 
 from api.source_permissions import PermissionContext, get_permission_context
 
