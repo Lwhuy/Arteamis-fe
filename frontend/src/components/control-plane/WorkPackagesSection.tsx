@@ -3,6 +3,7 @@ import { useWorkPackages, useUpdateWorkPackageStatus } from '@/lib/hooks/use-gov
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { cn } from '@/lib/utils';
 import type { WorkPackage } from '@/lib/api/governance';
+import { TraceSection } from './TraceSection';
 
 const NEXT_STATUS: Record<WorkPackage['status'], WorkPackage['status'] | null> = {
   open: 'running',
@@ -66,6 +67,21 @@ export function WorkPackagesSection() {
                 )}
               </button>
             )}
+            <div className="mt-3 border-t border-border pt-3">
+              {/*
+                NOTE: `WorkPackage` (frontend/src/lib/api/governance.ts) does not
+                currently expose which belief a work package traces back to.
+                `executes_ids` is accepted on POST /work-packages and persisted
+                as a `work_package->executes->belief` graph edge (see
+                api/governance_service.py::create_work_package), but no read
+                endpoint (GET /work-packages, GET /work-packages/{id}) returns
+                it back out, so it cannot be resolved here even one hop away.
+                `beliefId` is left empty until that read-side gap is closed on
+                the backend — see p85-task-8-report.md for details. TraceSection
+                itself is otherwise fully wired to this work package.
+              */}
+              <TraceSection workPackageId={wp.id} beliefId="" />
+            </div>
           </div>
         );
       })}

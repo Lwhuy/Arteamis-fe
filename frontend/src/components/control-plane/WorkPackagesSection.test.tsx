@@ -8,6 +8,10 @@ vi.mock('@/lib/hooks/use-governance', () => ({
     isLoading: false,
   }),
   useUpdateWorkPackageStatus: () => ({ mutate: updateStatus, isPending: false }),
+  // TraceSection (rendered inside each work-package card) pulls these too.
+  useTracesForWorkPackage: () => ({ data: [], isLoading: false }),
+  useRecordTrace: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateLearningProposal: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { WorkPackagesSection } from './WorkPackagesSection';
@@ -18,5 +22,11 @@ describe('WorkPackagesSection', () => {
     expect(screen.getByText('Draft SMB outreach plan')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'controlPlane.workPackage.startAction' }));
     expect(updateStatus).toHaveBeenCalledWith({ id: 'work_package:1', status: 'running' });
+  });
+
+  it('renders the Trace & Learning section for the work package (loop closes)', () => {
+    render(<WorkPackagesSection />);
+    expect(screen.getByText('controlPlane.trace.title')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('controlPlane.trace.summaryPlaceholder')).toBeInTheDocument();
   });
 });
