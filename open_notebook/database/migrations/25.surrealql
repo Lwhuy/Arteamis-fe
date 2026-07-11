@@ -1,0 +1,11 @@
+-- Migration 25: Brain semantic relationship layer (P7.2).
+-- Adds the `relates` edge (source -> source) carrying the four semantic
+-- relationship types classified by the brain worker. Workspace-scoped.
+
+DEFINE TABLE IF NOT EXISTS relates SCHEMAFULL TYPE RELATION IN source OUT source;
+DEFINE FIELD IF NOT EXISTS type ON TABLE relates TYPE string ASSERT $value IN ["supersedes", "disagrees", "complements", "agrees"];
+DEFINE FIELD IF NOT EXISTS confidence ON TABLE relates TYPE float;
+DEFINE FIELD IF NOT EXISTS rationale ON TABLE relates TYPE string;
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE relates TYPE record<workspace>;
+DEFINE FIELD IF NOT EXISTS created ON TABLE relates TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS idx_relates_workspace ON TABLE relates FIELDS workspace;
