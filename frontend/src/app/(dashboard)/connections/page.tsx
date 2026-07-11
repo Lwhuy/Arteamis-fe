@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { AppShell } from '@/components/layout/AppShell'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { ConnectorCard, ConnectedSourceCard, ImportItemsDialog } from '@/components/connectors'
@@ -14,6 +16,20 @@ export default function ConnectionsPage() {
   const startConnect = useStartConnect()
   const disconnect = useDisconnect()
   const [manage, setManage] = useState<{ provider: string; connection: ConnectionPublic } | null>(null)
+  const params = useSearchParams()
+  const router = useRouter()
+
+  useEffect(() => {
+    const connected = params.get('connected')
+    const error = params.get('error')
+    if (connected) {
+      toast.success(t('connections.connectedToast'))
+      router.replace('/connections')
+    } else if (error) {
+      toast.error(t('connections.connectDisabledHint'))
+      router.replace('/connections')
+    }
+  }, [params, router, t])
 
   if (isLoading) return <AppShell><LoadingSpinner /></AppShell>
 
