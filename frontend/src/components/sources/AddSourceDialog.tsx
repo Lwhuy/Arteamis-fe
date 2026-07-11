@@ -18,7 +18,7 @@ import { WizardContainer, WizardStep } from '@/components/ui/wizard-container'
 import { SourceTypeStep, parseAndValidateUrls } from './steps/SourceTypeStep'
 import { NotebooksStep } from './steps/NotebooksStep'
 import { ProcessingStep } from './steps/ProcessingStep'
-import { useProjects } from '@/lib/hooks/use-projects'
+import { useProjects, useProject } from '@/lib/hooks/use-projects'
 import { useTransformations } from '@/lib/hooks/use-transformations'
 import { useCreateSource } from '@/lib/hooks/use-sources'
 import { useSettings } from '@/lib/hooks/use-settings'
@@ -120,6 +120,11 @@ export function AddSourceDialog({
   const { data: notebooks = [], isLoading: notebooksLoading } = useProjects()
   const { data: transformations = [], isLoading: transformationsLoading } = useTransformations()
   const { data: settings } = useSettings()
+  // The dialog's default notebook (when opened from a project page) is the
+  // "target project" for a new source: its own default_source_scope, when
+  // set, is a better default than the hardcoded 'project' fallback.
+  const { data: targetProject } = useProject(defaultNotebookId ?? '')
+  const defaultScope = (targetProject?.default_source_scope ?? 'project') as 'personal' | 'project' | 'company'
 
   // Form setup
   const {
@@ -137,7 +142,7 @@ export function AddSourceDialog({
       embed: settings?.default_embedding_option === 'always' || settings?.default_embedding_option === 'ask',
       async_processing: true,
       transformations: [],
-      scope: 'project',
+      scope: defaultScope,
     },
   })
 
@@ -159,10 +164,10 @@ export function AddSourceDialog({
         embed: embedValue,
         async_processing: true,
         transformations: [],
-        scope: 'project',
+        scope: defaultScope,
       })
     }
-  }, [settings, transformations, defaultNotebookId, reset])
+  }, [settings, transformations, defaultNotebookId, reset, defaultScope])
 
   // Cleanup effect
   useEffect(() => {

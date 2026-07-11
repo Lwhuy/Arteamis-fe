@@ -193,11 +193,16 @@ export const useAuthStore = create<AuthState>()(
         applyToken: (res: TokenResponse) => {
           // The single mutation shared by workspace create + switch: swap the
           // stored Bearer to the workspace-scoped access token (apiClient reads
-          // state.token).
+          // state.token). Also derive workspaceName/workspaceKind for the new
+          // active workspace from the already-loaded memberships list — the
+          // response itself only carries the id, not the display name/kind.
+          const active = get().memberships.find((m) => m.workspace_id === res.active_workspace_id)
           set({
             token: res.access_token,
             activeWorkspaceId: res.active_workspace_id,
             role: res.role as 'owner' | 'admin' | 'member',
+            workspaceName: active ? active.name : null,
+            workspaceKind: active ? active.kind : null,
           })
         },
 
@@ -210,11 +215,19 @@ export const useAuthStore = create<AuthState>()(
             memberships,
             activeWorkspaceId,
             role: active ? (active.role as 'owner' | 'admin' | 'member') : null,
+            workspaceName: active ? active.name : null,
+            workspaceKind: active ? active.kind : null,
           })
         },
 
         setActiveWorkspace: (workspaceId: string, role: string) => {
-          set({ activeWorkspaceId: workspaceId, role: role as 'owner' | 'admin' | 'member' })
+          const active = get().memberships.find((m) => m.workspace_id === workspaceId)
+          set({
+            activeWorkspaceId: workspaceId,
+            role: role as 'owner' | 'admin' | 'member',
+            workspaceName: active ? active.name : null,
+            workspaceKind: active ? active.kind : null,
+          })
         },
 
         setWorkspaceContext: ({ workspaceName, workspaceKind, role }) => {
