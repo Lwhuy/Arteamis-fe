@@ -80,6 +80,22 @@ async def test_login_unknown_email_raises_same_error():
             await auth_service.login("nobody@b.com", "whatever")
 
 
+@pytest.mark.asyncio
+async def test_login_unknown_email_runs_dummy_verify_for_timing():
+    """Unknown-email path must pay the same argon2 cost as wrong-password,
+    or response latency leaks whether an account exists (user enumeration)."""
+    from api import auth_service
+
+    dummy_verify = AsyncMock(return_value=False)
+    with patch.object(User, "get_by_email", new=AsyncMock(return_value=None)), patch.object(
+        User, "verify_password", new=dummy_verify
+    ):
+        with pytest.raises(AuthenticationError):
+            await auth_service.login("nobody@b.com", "whatever")
+
+    dummy_verify.assert_awaited_once_with("whatever")
+
+
 def test_build_session_payload_shape():
     from api import auth_service
     from api.security import decode_identity_token
