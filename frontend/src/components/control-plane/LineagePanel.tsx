@@ -3,6 +3,7 @@ import { FileText } from 'lucide-react';
 import { useBelief } from '@/lib/hooks/use-governance';
 import { useArtifact } from '@/lib/hooks/use-artifact';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { CreateDecisionButton } from './CreateDecisionButton';
 
 interface LineageSource {
   id: string;
@@ -43,6 +44,7 @@ export function LineagePanel({ id }: { id: string }) {
             {s.locator ? <span className="text-xs text-muted-foreground">{s.locator}</span> : null}
           </button>
         ))}
+        <CreateDecisionButton beliefId={belief.id} beliefTitle={belief.title} />
       </div>
 
       <div className="mb-4">

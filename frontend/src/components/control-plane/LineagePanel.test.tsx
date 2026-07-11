@@ -8,6 +8,7 @@ vi.mock('@/lib/hooks/use-governance', () => ({
     provenance: [{ action: 'proposal.accepted', actor: 'user:1' }],
     derived_work: [], contradictions: [],
   }, isLoading: false }),
+  useCreateDecision: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { LineagePanel } from './LineagePanel';
