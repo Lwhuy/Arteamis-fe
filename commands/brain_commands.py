@@ -96,57 +96,73 @@ async def extract_source_entities_command(
     source_id = input_data.source_id
     workspace_id = input_data.workspace_id
 
-    source = await Source.get(source_id)
-    if not source:
-        raise ValueError(f"Source '{source_id}' not found")
-    if not source.full_text or not source.full_text.strip():
-        raise ValueError(f"Source '{source_id}' has no text to extract")
+    try:
+        source = await Source.get(source_id)
+        if not source:
+            raise ValueError(f"Source '{source_id}' not found")
+        if not source.full_text or not source.full_text.strip():
+            raise ValueError(f"Source '{source_id}' has no text to extract")
 
-    extraction = await _run_extraction_llm(source.title or "", source.full_text)
+        extraction = await _run_extraction_llm(source.title or "", source.full_text)
 
-    # Domain root from the first path segment (if any).
-    domain_id: Optional[str] = None
-    domain_name = (
-        extraction.domain_path.split(".")[0].strip() if extraction.domain_path else ""
-    )
-    if domain_name:
-        domain_entity = await upsert_entity_dedup(
-            workspace=workspace_id, kind="domain", name=domain_name
+        # Domain root from the first path segment (if any).
+        domain_id: Optional[str] = None
+        domain_name = (
+            extraction.domain_path.split(".")[0].strip()
+            if extraction.domain_path
+            else ""
         )
-        assert domain_entity.id is not None
-        domain_id = domain_entity.id
-
-    entities_created = 0
-    for extracted in extraction.entities:
-        entity = await upsert_entity_dedup(
-            workspace=workspace_id,
-            kind=extracted.kind,
-            name=extracted.name,
-            description=extracted.description,
-        )
-        assert entity.id is not None
-        await relate_mention(
-            source_id=source_id,
-            entity_id=entity.id,
-            workspace=workspace_id,
-            confidence=1.0,
-        )
-        if extracted.kind == "topic" and domain_id is not None:
-            await relate_part_of(
-                topic_id=entity.id,
-                domain_id=domain_id,
-                workspace=workspace_id,
+        if domain_name:
+            domain_entity = await upsert_entity_dedup(
+                workspace=workspace_id, kind="domain", name=domain_name
             )
-        entities_created += 1
+            assert domain_entity.id is not None
+            domain_id = domain_entity.id
 
-    processing_time = time.time() - start_time
-    logger.info(
-        f"Extracted {entities_created} entities from {source_id} "
-        f"(workspace={workspace_id}) in {processing_time:.2f}s"
-    )
-    return ExtractSourceEntitiesOutput(
-        success=True,
-        source_id=source_id,
-        entities_created=entities_created,
-        processing_time=processing_time,
-    )
+        entities_created = 0
+        for extracted in extraction.entities:
+            entity = await upsert_entity_dedup(
+                workspace=workspace_id,
+                kind=extracted.kind,
+                name=extracted.name,
+                description=extracted.description,
+            )
+            assert entity.id is not None
+            await relate_mention(
+                source_id=source_id,
+                entity_id=entity.id,
+                workspace=workspace_id,
+                confidence=1.0,
+            )
+            if extracted.kind == "topic" and domain_id is not None:
+                await relate_part_of(
+                    topic_id=entity.id,
+                    domain_id=domain_id,
+                    workspace=workspace_id,
+                )
+            entities_created += 1
+
+        processing_time = time.time() - start_time
+        logger.info(
+            f"Extracted {entities_created} entities from {source_id} "
+            f"(workspace={workspace_id}) in {processing_time:.2f}s"
+        )
+        return ExtractSourceEntitiesOutput(
+            success=True,
+            source_id=source_id,
+            entities_created=entities_created,
+            processing_time=processing_time,
+        )
+    except ValueError as e:
+        # Validation errors are permanent failures - don't retry (stop_on
+        # already prevents pointless retries). Log per-source so extraction
+        # failures are visible without blocking ingest, then re-raise so
+        # surreal-commands marks the job as `failed`.
+        logger.error(f"Entity extraction failed for source {source_id} (permanent): {e}")
+        raise
+    except Exception as e:
+        # Transient failure - will be retried (surreal-commands logs final failure)
+        logger.debug(
+            f"Transient error extracting entities for source {source_id}: {e}"
+        )
+        raise
