@@ -1069,5 +1069,17 @@ export const deDE = {
       complements: "Complements",
       agrees: "Agrees",
     },
+    detail: {
+      empty: "Select a node to see its details",
+      kind: {
+        domain: "Domain",
+        topic: "Topic",
+        person: "Person",
+        decision: "Decision",
+        source: "Source",
+      },
+      salience: "Salience",
+      viewSource: "View source",
+    },
   },
 }
