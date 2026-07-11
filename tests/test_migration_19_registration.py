@@ -8,8 +8,8 @@ def test_migration_19_is_registered_in_both_lists():
     from open_notebook.database.async_migrate import AsyncMigrationManager
 
     manager = AsyncMigrationManager()
-    assert len(manager.up_migrations) == 19
-    assert len(manager.down_migrations) == 19
+    assert len(manager.up_migrations) == 20
+    assert len(manager.down_migrations) == 20
 
 
 def test_migration_19_defines_identity_tables():
