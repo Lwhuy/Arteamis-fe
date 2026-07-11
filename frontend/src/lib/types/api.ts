@@ -36,6 +36,8 @@ export interface SourceListResponse {
   command_id?: string
   status?: string
   processing_info?: Record<string, unknown>
+  scope: 'personal' | 'project' | 'company'
+  owner?: string | null
 }
 
 export interface SourceDetailResponse extends SourceListResponse {
@@ -109,6 +111,7 @@ export interface CreateSourceRequest {
   delete_source?: boolean
   // New async processing support
   async_processing?: boolean
+  scope?: 'personal' | 'project' | 'company'
 }
 
 export interface UpdateNoteRequest {
@@ -122,6 +125,7 @@ export interface UpdateSourceRequest {
   type?: 'link' | 'upload' | 'text'
   url?: string
   content?: string
+  scope?: 'personal' | 'project' | 'company'
 }
 
 export interface APIError {

@@ -8,6 +8,8 @@ import { sourcesApi } from '@/lib/api/sources'
 import { insightsApi, SourceInsightResponse } from '@/lib/api/insights'
 import { transformationsApi } from '@/lib/api/transformations'
 import { embeddingApi } from '@/lib/api/embedding'
+import { useUpdateSource } from '@/lib/hooks/use-sources'
+import { useAuthStore } from '@/lib/stores/auth-store'
 import { SourceDetailResponse } from '@/lib/types/api'
 import { Transformation } from '@/lib/types/transformations'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
@@ -59,11 +61,15 @@ import {
   Database,
   AlertCircle,
   MessageSquare,
+  Lock,
+  Users,
+  Building2,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { getDateLocale } from '@/lib/utils/date-locale'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/hooks/use-translation'
+import { cn } from '@/lib/utils'
 import { SourceInsightDialog } from '@/components/source/SourceInsightDialog'
 import { NotebookAssociations } from '@/components/source/NotebookAssociations'
 
@@ -93,6 +99,8 @@ export function SourceDetailContent({
 }: SourceDetailContentProps) {
   const { t, language } = useTranslation()
   const queryClient = useQueryClient()
+  const updateSource = useUpdateSource()
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null)
   const [source, setSource] = useState<SourceDetailResponse | null>(null)
   const [insights, setInsights] = useState<SourceInsightResponse[]>([])
   const [transformations, setTransformations] = useState<Transformation[]>([])
@@ -232,6 +240,22 @@ export function SourceDetailContent({
     } catch (err) {
       console.error('Failed to update source title:', err)
       toast.error(t('common.error'))
+      await fetchSource()
+    }
+  }
+
+  const canEditScope = !!currentUserId && source?.owner === currentUserId
+
+  const handleUpdateScope = async (scope: 'personal' | 'project' | 'company') => {
+    if (!source || source.scope === scope) return
+
+    try {
+      await updateSource.mutateAsync({ id: sourceId, data: { scope } })
+      setSource({ ...source, scope })
+      toast.success(t('sources.visibilityChanged'))
+    } catch (err) {
+      console.error('Failed to update source scope:', err)
+      toast.error(t('sources.visibilityForbidden'))
       await fetchSource()
     }
   }
@@ -420,6 +444,40 @@ export function SourceDetailContent({
             <Badge variant="secondary" className="text-sm">
               {getSourceType()}
             </Badge>
+
+            {canEditScope ? (
+              <div className="flex items-center gap-1" role="radiogroup" aria-label={t('sources.visibilityLabel')}>
+                {(['personal', 'project', 'company'] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={source.scope === value}
+                    onClick={() => handleUpdateScope(value)}
+                    className={cn(
+                      'flex items-center gap-1 rounded-md border px-2 py-1 text-xs',
+                      source.scope === value ? 'border-primary bg-primary/5' : 'border-input hover:bg-muted',
+                    )}
+                  >
+                    {value === 'personal' && <Lock className="h-3 w-3" />}
+                    {value === 'project' && <Users className="h-3 w-3" />}
+                    {value === 'company' && <Building2 className="h-3 w-3" />}
+                    {value === 'personal' && t('sources.visibilityPersonal')}
+                    {value === 'project' && t('sources.visibilityProject')}
+                    {value === 'company' && t('sources.visibilityCompany')}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <Badge variant="outline" className="text-sm flex items-center gap-1">
+                {source.scope === 'personal' && <Lock className="h-3 w-3" />}
+                {source.scope === 'project' && <Users className="h-3 w-3" />}
+                {source.scope === 'company' && <Building2 className="h-3 w-3" />}
+                {source.scope === 'personal' && t('sources.visibilityPersonal')}
+                {source.scope === 'project' && t('sources.visibilityProject')}
+                {source.scope === 'company' && t('sources.visibilityCompany')}
+              </Badge>
+            )}
 
             {/* Chat with source button - only in modal */}
             {showChatButton && onChatClick && (

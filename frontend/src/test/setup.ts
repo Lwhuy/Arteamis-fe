@@ -27,13 +27,20 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 })
 
-// Mock @/lib/hooks/use-translation with standard t() function
+// Mock @/lib/hooks/use-translation with standard t() function.
+// `t` (and the returned object's other members) must keep a stable identity
+// across renders, just like the real hook's memoized return value (backed by
+// react-i18next's own stable `t` reference) - otherwise any component whose
+// effects/callbacks depend on `t` re-fires on every render and loops forever
+// in tests, which never happens in the real app.
+const stableT = (key: string) => key
+const stableSetLanguage = vi.fn()
 vi.mock('../lib/hooks/use-translation', () => {
   return {
     useTranslation: () => ({
-      t: (key: string) => key,
+      t: stableT,
       language: 'en-US',
-      setLanguage: vi.fn(),
+      setLanguage: stableSetLanguage,
     }),
   }
 })

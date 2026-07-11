@@ -103,6 +103,7 @@ export function AddExistingSourceDialog({
         insights_count: 0,
         created: r.created,
         updated: r.updated,
+        scope: 'project' as const,
       })) as SourceListResponse[]
 
       setFilteredSources(sources)
