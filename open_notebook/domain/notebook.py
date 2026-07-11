@@ -50,7 +50,11 @@ class Project(ObjectModel):
             data["promoted_from"] = ensure_record_id(data["promoted_from"])
         return data
 
-    async def get_sources(self, include_full_text: bool = False) -> List["Source"]:
+    async def get_sources(
+        self,
+        include_full_text: bool = False,
+        viewer_source_ids: Optional[set] = None,
+    ) -> List["Source"]:
         try:
             source_projection = "" if include_full_text else " omit source.full_text"
             srcs = await repo_query(
@@ -62,7 +66,11 @@ class Project(ObjectModel):
             """,
                 {"id": ensure_record_id(self.id)},
             )
-            return [Source(**src["source"]) for src in srcs] if srcs else []
+            sources = [Source(**src["source"]) for src in srcs] if srcs else []
+            if viewer_source_ids is not None:
+                allowed = {str(s) for s in viewer_source_ids}
+                sources = [s for s in sources if str(s.id) in allowed]
+            return sources
         except Exception as e:
             logger.error(f"Error fetching sources for notebook {self.id}: {str(e)}")
             logger.exception(e)
