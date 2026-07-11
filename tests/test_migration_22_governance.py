@@ -1,5 +1,6 @@
 from pathlib import Path
 
+
 def test_migration_22_defines_governance_tables():
     up = Path("open_notebook/database/migrations/22.surrealql").read_text()
     for t in ["DEFINE TABLE proposal", "DEFINE TABLE belief", "DEFINE TABLE audit_event",

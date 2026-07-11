@@ -1,5 +1,11 @@
 import pytest
-from open_notebook.domain.governance import Proposal, Belief, CLAIM_TYPES, PROPOSAL_STATUSES
+
+from open_notebook.domain.governance import (
+    CLAIM_TYPES,
+    PROPOSAL_STATUSES,
+    Belief,
+    Proposal,
+)
 
 
 def test_proposal_defaults():
