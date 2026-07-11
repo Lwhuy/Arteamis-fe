@@ -1,0 +1,23 @@
+-- Migration 24: work_package table + executes edge (Handoff, P8.4).
+-- A work_package turns an accepted decision/belief into a governed unit of
+-- work: a human or an agent is assigned, and — for agent assignees — an
+-- agent_brief records objective/allowed_context/budget/approval_gate so the
+-- brief can be reviewed before any agent actually runs. Agent execution
+-- itself is out of scope for this migration/plan: work_package only
+-- *records* the handoff. Mirrors migration 20-23's workspace-ready idiom
+-- (option<record<workspace>>, nullable, FLEXIBLE).
+
+DEFINE TABLE work_package SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS workspace     ON TABLE work_package FLEXIBLE TYPE option<record<workspace>>;
+DEFINE FIELD IF NOT EXISTS title         ON TABLE work_package TYPE string;
+DEFINE FIELD IF NOT EXISTS assignee_kind ON TABLE work_package TYPE string DEFAULT 'human' ASSERT $value IN ['human','agent'];
+DEFINE FIELD IF NOT EXISTS assignee      ON TABLE work_package TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS status        ON TABLE work_package TYPE string DEFAULT 'open' ASSERT $value IN ['open','running','done'];
+DEFINE FIELD IF NOT EXISTS agent_brief   ON TABLE work_package FLEXIBLE TYPE option<object>;
+DEFINE FIELD IF NOT EXISTS created       ON work_package DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated       ON work_package DEFAULT time::now() VALUE time::now();
+
+-- edge: a work_package executes a decision or a belief.
+DEFINE TABLE IF NOT EXISTS executes
+TYPE RELATION
+FROM work_package TO decision|belief;
