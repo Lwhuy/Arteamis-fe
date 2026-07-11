@@ -1,6 +1,6 @@
 from surrealdb import RecordID
 
-from open_notebook.domain.governance import AuditEvent, Decision, Proposal, Rule
+from open_notebook.domain.governance import AuditEvent, Decision, Proposal, Rule, WorkPackage
 
 
 def test_proposal_author_converted_to_record_id():
@@ -48,3 +48,18 @@ def test_decision_and_rule_have_no_direct_record_link_fields():
     assert r._prepare_save_data() == {
         k: v for k, v in r.model_dump().items() if v is not None
     }
+
+
+def test_work_package_assignee_is_left_as_plain_string():
+    """CRITICAL LESSON (was a Critical bug in P8.2): every record<> link
+    field needs `_prepare_save_data` + `ensure_record_id`, or SurrealDB
+    stores a bare string that graph traversal can't follow.
+    `WorkPackage.assignee` is deliberately a plain string (not
+    `record<user>` — a work package can be assigned to an "agent" that has
+    no user record at all), so it must NOT be converted to a RecordID. This
+    confirms the override was correctly *omitted*, not forgotten.
+    """
+    wp = WorkPackage(title="x", assignee_kind="human", assignee="user:1")
+    data = wp._prepare_save_data()
+    assert data["assignee"] == "user:1"
+    assert not isinstance(data["assignee"], RecordID)

@@ -8,6 +8,8 @@ from open_notebook.domain.base import ObjectModel
 CLAIM_TYPES = ["fact", "inference", "assumption", "recommendation", "preference"]
 PROPOSAL_STATUSES = ["pending", "accepted", "changes_requested", "rejected"]
 PROPOSAL_KINDS = ["belief", "decision", "rule", "learning"]
+ASSIGNEE_KINDS = ["human", "agent"]
+WORK_PACKAGE_STATUSES = ["open", "running", "done"]
 
 
 class Proposal(ObjectModel):
@@ -94,5 +96,34 @@ class Rule(ObjectModel):
     @classmethod
     def _status(cls, v: str) -> str:
         if v not in DECISION_RULE_STATUSES:
+            raise ValueError(f"invalid status {v}")
+        return v
+
+
+class WorkPackage(ObjectModel):
+    table_name: ClassVar[str] = "work_package"
+    title: str
+    assignee_kind: str = "human"
+    # NOTE: plain string, not record<user> — a work package can be assigned
+    # to an "agent" that has no user record. See the CRITICAL LESSON note in
+    # this file's docstring-equivalent (Global Constraints of the P8.4 plan)
+    # and tests/test_governance_record_links.py::
+    # test_work_package_assignee_is_left_as_plain_string for why this does
+    # NOT get a _prepare_save_data override like Proposal.author does.
+    assignee: Optional[str] = None
+    status: str = "open"
+    agent_brief: Optional[Dict[str, Any]] = None
+
+    @field_validator("assignee_kind")
+    @classmethod
+    def _assignee_kind(cls, v: str) -> str:
+        if v not in ASSIGNEE_KINDS:
+            raise ValueError(f"invalid assignee_kind {v}")
+        return v
+
+    @field_validator("status")
+    @classmethod
+    def _status(cls, v: str) -> str:
+        if v not in WORK_PACKAGE_STATUSES:
             raise ValueError(f"invalid status {v}")
         return v

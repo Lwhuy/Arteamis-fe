@@ -1,13 +1,16 @@
 import pytest
 
 from open_notebook.domain.governance import (
+    ASSIGNEE_KINDS,
     CLAIM_TYPES,
     DECISION_RULE_STATUSES,
     PROPOSAL_STATUSES,
+    WORK_PACKAGE_STATUSES,
     Belief,
     Decision,
     Proposal,
     Rule,
+    WorkPackage,
 )
 
 
@@ -52,3 +55,40 @@ def test_rule_defaults():
 
 def test_decision_rule_status_constant():
     assert "active" in DECISION_RULE_STATUSES and "superseded" in DECISION_RULE_STATUSES
+
+
+def test_work_package_defaults():
+    wp = WorkPackage(title="Draft SMB outreach plan")
+    assert wp.assignee_kind == "human"
+    assert wp.status == "open"
+    assert wp.agent_brief is None
+
+
+def test_work_package_rejects_bad_assignee_kind():
+    with pytest.raises(Exception):
+        WorkPackage(title="x", assignee_kind="robot")
+
+
+def test_work_package_rejects_bad_status():
+    with pytest.raises(Exception):
+        WorkPackage(title="x", status="paused")
+
+
+def test_work_package_accepts_agent_brief_dict():
+    wp = WorkPackage(
+        title="Summarize Q3 churn",
+        assignee_kind="agent",
+        assignee="research-agent",
+        agent_brief={
+            "objective": "Summarize churn drivers",
+            "allowed_context": ["belief:1", "source:9"],
+            "budget": "30 min",
+            "approval_gate": True,
+        },
+    )
+    assert wp.agent_brief["objective"] == "Summarize churn drivers"
+
+
+def test_work_package_status_and_assignee_kind_constants():
+    assert WORK_PACKAGE_STATUSES == ["open", "running", "done"]
+    assert ASSIGNEE_KINDS == ["human", "agent"]
