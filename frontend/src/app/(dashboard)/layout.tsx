@@ -10,6 +10,9 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { ModalProvider } from '@/components/providers/ModalProvider'
 import { CreateDialogsProvider } from '@/lib/hooks/use-create-dialogs'
 import { CommandPalette } from '@/components/common/CommandPalette'
+import { useRole } from '@/lib/hooks/use-role'
+import { useToast } from '@/lib/hooks/use-toast'
+import { useTranslation } from '@/lib/hooks/use-translation'
 
 export default function DashboardLayout({
   children,
@@ -20,6 +23,9 @@ export default function DashboardLayout({
   const memberships = useAuthStore((s) => s.memberships)
   const activeWorkspaceId = useAuthStore((s) => s.activeWorkspaceId)
   const setActiveWorkspace = useAuthStore((s) => s.setActiveWorkspace)
+  const { workspaceId } = useRole()
+  const { toast } = useToast()
+  const { t } = useTranslation()
   const router = useRouter()
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false)
 
@@ -48,9 +54,20 @@ export default function DashboardLayout({
       // list is never empty and onboarding must never be a forced gate.
       if (!activeWorkspaceId && memberships.length > 0) {
         setActiveWorkspace(memberships[0].workspace_id, memberships[0].role)
+      } else if (workspaceId == null) {
+        // Defense-in-depth backstop: because signup auto-provisions a personal
+        // workspace, an authenticated user without an active workspace should
+        // be unreachable in normal operation (the branch above already
+        // recovers a persisted-but-unset active workspace whenever
+        // memberships are available). There is intentionally no "has a
+        // company" gate here - every workspace, personal or company,
+        // satisfies this check. This keeps a user without an active
+        // workspace out of scoped screens before a scoped API call can 403.
+        toast({ title: t('roles.noWorkspace') })
+        router.push('/onboarding')
       }
     }
-  }, [isAuthenticated, isLoading, memberships, activeWorkspaceId, setActiveWorkspace, router])
+  }, [isAuthenticated, isLoading, memberships, activeWorkspaceId, setActiveWorkspace, workspaceId, toast, t, router])
 
   // Show loading spinner during initial auth check or while loading
   if (isLoading || !hasCheckedAuth) {

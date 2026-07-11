@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useSwitchWorkspace } from '@/lib/hooks/use-workspaces'
 import { useTranslation } from '@/lib/hooks/use-translation'
+import { RoleGate } from '@/components/common/RoleGate'
 
 export function WorkspaceSwitcher() {
   const { t } = useTranslation()
@@ -48,6 +49,14 @@ export function WorkspaceSwitcher() {
           </button>
         )
       })}
+      <RoleGate allow={['owner', 'admin']} requireCompanyWorkspace>
+        <a
+          href="/settings/members"
+          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent"
+        >
+          {t('workspace.manageMembers')}
+        </a>
+      </RoleGate>
       {!memberships.some((m) => m.kind === 'company') && (
         <p className="px-3 pt-1 text-[11px] text-muted-foreground">
           {t('workspace.createCompanyBanner')}

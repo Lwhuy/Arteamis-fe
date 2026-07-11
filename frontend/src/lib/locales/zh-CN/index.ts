@@ -225,6 +225,7 @@ export const zhCN = {
     process: "处理",
     create: "创作",
     manage: "管理",
+    manageMembers: "管理成员",
     sources: "来源",
     notebooks: "笔记本",
     projects: "项目",
@@ -1051,5 +1052,14 @@ export const zhCN = {
     personalLabel: "个人",
     addCompanyCta: "创建公司",
     createCompanyBanner: "您还没有创建公司。",
+    manageMembers: "管理成员",
+  },
+  roles: {
+    owner: "所有者",
+    admin: "管理员",
+    member: "成员",
+    adminOnly: "只有管理员可以执行此操作",
+    noWorkspace: "请选择一个工作区以继续",
+    accessDenied: "您无权访问此页面",
   },
 }

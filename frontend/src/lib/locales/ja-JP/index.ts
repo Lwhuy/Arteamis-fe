@@ -225,6 +225,7 @@ export const jaJP = {
     process: "処理",
     create: "作成",
     manage: "管理",
+    manageMembers: "メンバーを管理",
     sources: "ソース",
     notebooks: "ノートブック",
     projects: "プロジェクト",
@@ -1051,5 +1052,14 @@ export const jaJP = {
     personalLabel: "個人",
     addCompanyCta: "会社を作成",
     createCompanyBanner: "まだ会社を作成していません。",
+    manageMembers: "メンバーを管理",
+  },
+  roles: {
+    owner: "オーナー",
+    admin: "管理者",
+    member: "メンバー",
+    adminOnly: "この操作は管理者のみ実行できます",
+    noWorkspace: "続行するにはワークスペースを選択してください",
+    accessDenied: "このページにアクセスする権限がありません",
   },
 }
