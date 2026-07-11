@@ -43,3 +43,7 @@ __all__ = [
     "BaseConnector", "ConnectorItem", "ImportedDoc", "TokenSet",
     "CONNECTOR_REGISTRY", "COMING_SOON", "get_connector", "_register",
 ]
+
+# Import adapters for their registration side effects. Kept at the bottom to
+# avoid a circular import (adapters import from this module).
+from open_notebook.domain.connectors import gdrive  # noqa: E402,F401
