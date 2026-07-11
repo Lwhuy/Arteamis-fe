@@ -24,6 +24,24 @@ describe('auth-store workspace slice', () => {
     expect(s.role).toBe('owner')
   })
 
+  it('applyToken derives workspaceName/workspaceKind for the new active workspace from memberships', () => {
+    useAuthStore.setState({
+      memberships: [
+        { workspace_id: 'workspace:p1', name: 'Personal', slug: 'personal-1', kind: 'personal', role: 'owner' },
+        { workspace_id: 'workspace:acme', name: 'Acme', slug: 'acme', kind: 'company', role: 'member' },
+      ],
+    })
+    useAuthStore.getState().applyToken({
+      access_token: 'scoped-token',
+      token_type: 'bearer',
+      active_workspace_id: 'workspace:acme',
+      role: 'member',
+    })
+    const s = useAuthStore.getState()
+    expect(s.workspaceName).toBe('Acme')
+    expect(s.workspaceKind).toBe('company')
+  })
+
   it('setSession stores memberships and the given activeWorkspaceId (always the personal workspace on login)', () => {
     useAuthStore.getState().setSession({
       memberships: [
@@ -36,6 +54,23 @@ describe('auth-store workspace slice', () => {
     expect(s.memberships).toHaveLength(2)
     expect(s.activeWorkspaceId).toBe('workspace:p1')
     expect(s.role).toBe('owner')
+    expect(s.workspaceName).toBe('Personal')
+    expect(s.workspaceKind).toBe('personal')
+  })
+
+  it('setActiveWorkspace derives workspaceName/workspaceKind for the newly-active workspace', () => {
+    useAuthStore.setState({
+      memberships: [
+        { workspace_id: 'workspace:p1', name: 'Personal', slug: 'personal-1', kind: 'personal', role: 'owner' },
+        { workspace_id: 'workspace:acme', name: 'Acme', slug: 'acme', kind: 'company', role: 'admin' },
+      ],
+    })
+    useAuthStore.getState().setActiveWorkspace('workspace:acme', 'admin')
+    const s = useAuthStore.getState()
+    expect(s.activeWorkspaceId).toBe('workspace:acme')
+    expect(s.role).toBe('admin')
+    expect(s.workspaceName).toBe('Acme')
+    expect(s.workspaceKind).toBe('company')
   })
 
   it('hasCompany is false when only the personal workspace is present', () => {
