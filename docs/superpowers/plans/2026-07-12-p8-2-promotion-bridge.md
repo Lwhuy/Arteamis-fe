@@ -15,7 +15,7 @@
 - **Promotion is the only private→company bridge.** Nothing becomes a belief except via `proposal → accept`. No endpoint writes a belief directly.
 - **Async-first / data discipline:** HTTP via `apiClient`; TanStack hooks in `lib/hooks/`; broad invalidation + toast. Every governance write appends an `audit_event`.
 - **i18n test-enforced:** new strings → `t()`, keys in all 14 locales, referenced in source.
-- **Migrations hard-coded:** add `21.surrealql` + `21_down.surrealql`, register both in `open_notebook/database/async_migrate.py`.
+- **Migrations hard-coded:** add `22.surrealql` + `22_down.surrealql`, register both in `open_notebook/database/async_migrate.py`.
 - **Router registration:** add the router in `api/main.py` (`app.include_router(governance.router, prefix="/api", ...)`) and import it in `api/routers/__init__.py`, matching the existing router registration block.
 - Backend: `uv run pytest tests/`, `ruff check . --fix`. Frontend (`frontend/`): `npm run test`, `npm run lint`, `npm run build`.
 
@@ -24,10 +24,10 @@
 ### Task 1: Migration 21 — governance tables + edges
 
 **Files:**
-- Create: `open_notebook/database/migrations/21.surrealql`
-- Create: `open_notebook/database/migrations/21_down.surrealql`
+- Create: `open_notebook/database/migrations/22.surrealql`
+- Create: `open_notebook/database/migrations/22_down.surrealql`
 - Modify: `open_notebook/database/async_migrate.py` (register both)
-- Test: `tests/test_migration_21_governance.py`
+- Test: `tests/test_migration_22_governance.py`
 
 **Interfaces:**
 - Produces tables `proposal`, `belief`, `audit_event` and edges `derived_from`, `promotes_to`.
@@ -35,32 +35,32 @@
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/test_migration_21_governance.py
+# tests/test_migration_22_governance.py
 from pathlib import Path
 
-def test_migration_21_defines_governance_tables():
-    up = Path("open_notebook/database/migrations/21.surrealql").read_text()
+def test_migration_22_defines_governance_tables():
+    up = Path("open_notebook/database/migrations/22.surrealql").read_text()
     for t in ["DEFINE TABLE proposal", "DEFINE TABLE belief", "DEFINE TABLE audit_event",
               "DEFINE TABLE derived_from", "DEFINE TABLE promotes_to"]:
         assert t in up, t
     assert "workspace" in up  # workspace-ready
-    down = Path("open_notebook/database/migrations/21_down.surrealql").read_text()
+    down = Path("open_notebook/database/migrations/22_down.surrealql").read_text()
     assert "REMOVE TABLE proposal" in down and "REMOVE TABLE belief" in down
 
-def test_migration_21_registered():
+def test_migration_22_registered():
     src = Path("open_notebook/database/async_migrate.py").read_text()
-    assert "21.surrealql" in src and "21_down.surrealql" in src
+    assert "22.surrealql" in src and "22_down.surrealql" in src
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest tests/test_migration_21_governance.py -v`
+Run: `uv run pytest tests/test_migration_22_governance.py -v`
 Expected: FAIL.
 
 - [ ] **Step 3: Write the migration + register**
 
 ```surql
--- open_notebook/database/migrations/21.surrealql
+-- open_notebook/database/migrations/22.surrealql
 DEFINE TABLE proposal SCHEMAFULL;
 DEFINE FIELD workspace   ON proposal FLEXIBLE TYPE option<record<workspace>>;
 DEFINE FIELD author      ON proposal TYPE record<user>;
@@ -99,7 +99,7 @@ DEFINE TABLE promotes_to SCHEMAFULL TYPE RELATION;
 ```
 
 ```surql
--- open_notebook/database/migrations/21_down.surrealql
+-- open_notebook/database/migrations/22_down.surrealql
 REMOVE TABLE promotes_to;
 REMOVE TABLE derived_from;
 REMOVE TABLE audit_event;
@@ -107,24 +107,24 @@ REMOVE TABLE belief;
 REMOVE TABLE proposal;
 ```
 
-Register `"21.surrealql"` / `"21_down.surrealql"` in `AsyncMigrationManager.__init__`.
+Register `"22.surrealql"` / `"22_down.surrealql"` in `AsyncMigrationManager.__init__`.
 
 > Verify the `DEFINE TABLE ... TYPE RELATION` idiom against how existing edge tables (`reference`, `artifact`, `refers_to`) are defined in earlier migrations, and copy that exact syntax (SurrealDB version-specific).
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest tests/test_migration_21_governance.py -v`
+Run: `uv run pytest tests/test_migration_22_governance.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Apply + smoke**
 
-Run: `make database && make api`; confirm logs advance to migration 21 without error.
+Run: `make database && make api`; confirm logs advance to migration 22 without error.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add open_notebook/database/migrations/21.surrealql open_notebook/database/migrations/21_down.surrealql open_notebook/database/async_migrate.py tests/test_migration_21_governance.py
-git commit -m "feat(governance): migration 21 - proposal/belief/audit tables + edges"
+git add open_notebook/database/migrations/22.surrealql open_notebook/database/migrations/22_down.surrealql open_notebook/database/async_migrate.py tests/test_migration_22_governance.py
+git commit -m "feat(governance): migration 22 - proposal/belief/audit tables + edges"
 ```
 
 ---
