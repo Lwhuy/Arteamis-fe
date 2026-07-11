@@ -15,13 +15,19 @@ from surrealdb import RecordID
 
 from api.governance_service import (
     accept_proposal,
+    create_decision,
     create_proposal,
+    create_rule,
     get_belief_lineage,
+    get_decision,
     get_proposal,
+    get_rule,
+    list_decisions,
     list_proposals,
+    list_rules,
     request_changes,
 )
-from open_notebook.domain.governance import Belief, Proposal
+from open_notebook.domain.governance import Belief, Decision, Proposal, Rule
 
 pytestmark = pytest.mark.asyncio
 
@@ -201,3 +207,104 @@ async def test_get_belief_lineage_returns_sources_and_provenance(
     assert any(e["action"] == "proposal.accepted" for e in lineage["provenance"])
     assert lineage["derived_work"] == []
     assert lineage["contradictions"] == []
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_relate", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
+async def test_create_decision_saves_active_links_beliefs_and_audits(
+    mock_create, mock_relate
+):
+    mock_create.side_effect = [
+        [{"id": "decision:1", "status": "active"}],  # decision.save()
+        [{"id": "audit_event:1"}],  # AuditEvent().save()
+    ]
+
+    decision = await create_decision(
+        "user:1",
+        title="Ship SMB pricing",
+        rationale="Belief-backed: SMBs convert faster on tiered pricing",
+        belief_ids=["belief:1", "belief:2"],
+    )
+
+    assert isinstance(decision, Decision)
+    assert decision.status == "active"
+    assert decision.id == "decision:1"
+    mock_relate.assert_any_await("decision:1", "supports", "belief:1", {})
+    mock_relate.assert_any_await("decision:1", "supports", "belief:2", {})
+
+    audit_data = mock_create.await_args_list[1].args[1]
+    assert audit_data["action"] == "decision.created"
+    assert audit_data["meta"] == {"belief_ids": ["belief:1", "belief:2"]}
+
+
+@pytest.mark.asyncio
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_list_decisions_filters_by_status_in_python(mock_query):
+    mock_query.return_value = [
+        {"id": "decision:1", "title": "a", "status": "active"},
+        {"id": "decision:2", "title": "b", "status": "superseded"},
+    ]
+    result = await list_decisions(status="active")
+    assert len(result) == 1
+    assert result[0].id == "decision:1"
+
+
+@pytest.mark.asyncio
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_get_decision_returns_decision(mock_query):
+    mock_query.return_value = [{"id": "decision:1", "title": "a", "status": "active"}]
+    decision = await get_decision("decision:1")
+    assert isinstance(decision, Decision)
+    assert decision.title == "a"
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_relate", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
+async def test_create_rule_saves_active_links_beliefs_and_audits(
+    mock_create, mock_relate
+):
+    mock_create.side_effect = [
+        [{"id": "rule:1", "status": "active"}],  # rule.save()
+        [{"id": "audit_event:1"}],  # AuditEvent().save()
+    ]
+
+    rule = await create_rule(
+        "user:1",
+        title="Always cite two sources",
+        statement="Every Company Belief needs at least two independent sources.",
+        belief_ids=["belief:3"],
+    )
+
+    assert isinstance(rule, Rule)
+    assert rule.status == "active"
+    assert rule.id == "rule:1"
+    mock_relate.assert_awaited_once_with("rule:1", "supports", "belief:3", {})
+
+    audit_data = mock_create.await_args_list[1].args[1]
+    assert audit_data["action"] == "rule.created"
+    assert audit_data["meta"] == {"belief_ids": ["belief:3"]}
+
+
+@pytest.mark.asyncio
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_list_rules_filters_by_status_in_python(mock_query):
+    mock_query.return_value = [
+        {"id": "rule:1", "title": "a", "statement": "s1", "status": "active"},
+        {"id": "rule:2", "title": "b", "statement": "s2", "status": "superseded"},
+    ]
+    result = await list_rules(status="active")
+    assert len(result) == 1
+    assert result[0].id == "rule:1"
+
+
+@pytest.mark.asyncio
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_get_rule_returns_rule(mock_query):
+    mock_query.return_value = [
+        {"id": "rule:1", "title": "a", "statement": "s1", "status": "active"}
+    ]
+    rule = await get_rule("rule:1")
+    assert isinstance(rule, Rule)
+    assert rule.title == "a"

@@ -18,7 +18,7 @@ governance domain objects goes through the ObjectModel classmethods
 from typing import Any, Optional
 
 from open_notebook.database.repository import repo_query, repo_relate
-from open_notebook.domain.governance import AuditEvent, Belief, Proposal
+from open_notebook.domain.governance import AuditEvent, Belief, Decision, Proposal, Rule
 
 
 async def _audit(
@@ -164,3 +164,63 @@ async def get_belief_lineage(belief_id: str) -> dict[str, Any]:
         "derived_work": [],
         "contradictions": [],
     }
+
+
+async def create_decision(
+    actor: str,
+    *,
+    title: str,
+    rationale: str,
+    belief_ids: list[str],
+) -> Decision:
+    """Record a decision and link it to the accepted beliefs that justify it.
+
+    Decisions are promotion-only: belief_ids must reference existing (already
+    accepted) Belief records — this function never creates a belief.
+    """
+    decision = Decision(title=title, rationale=rationale, status="active")
+    await decision.save()
+    for belief_id in belief_ids:
+        await repo_relate(decision.id, "supports", belief_id, {})
+    await _audit(actor, "decision.created", decision.id, {"belief_ids": belief_ids})
+    return decision
+
+
+async def list_decisions(*, status: Optional[str] = None) -> list[Decision]:
+    """List decisions, optionally filtered by status (filtered in Python,
+    same reasoning as list_proposals: Decision.get_all() has no WHERE)."""
+    decisions = await Decision.get_all()
+    if status is not None:
+        decisions = [d for d in decisions if d.status == status]
+    return decisions
+
+
+async def get_decision(decision_id: str) -> Decision:
+    return await Decision.get(decision_id)
+
+
+async def create_rule(
+    actor: str,
+    *,
+    title: str,
+    statement: str,
+    belief_ids: list[str],
+) -> Rule:
+    """Record a rule and link it to the accepted beliefs that justify it."""
+    rule = Rule(title=title, statement=statement, status="active")
+    await rule.save()
+    for belief_id in belief_ids:
+        await repo_relate(rule.id, "supports", belief_id, {})
+    await _audit(actor, "rule.created", rule.id, {"belief_ids": belief_ids})
+    return rule
+
+
+async def list_rules(*, status: Optional[str] = None) -> list[Rule]:
+    rules = await Rule.get_all()
+    if status is not None:
+        rules = [r for r in rules if r.status == status]
+    return rules
+
+
+async def get_rule(rule_id: str) -> Rule:
+    return await Rule.get(rule_id)
