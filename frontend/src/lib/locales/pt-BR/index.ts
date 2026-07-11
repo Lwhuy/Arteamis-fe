@@ -1052,4 +1052,19 @@ export const ptBR = {
     addCompanyCta: "Criar uma empresa",
     createCompanyBanner: "Você ainda não criou uma empresa.",
   },
+  intelligence: {
+    legend: {
+      title: "Key",
+      nodes: "Nodes",
+      relationships: "Relationships",
+      domain: "Domain",
+      topic: "Topic",
+      person: "Person",
+      source: "Source",
+      supersedes: "Supersedes",
+      disagrees: "Disagrees",
+      complements: "Complements",
+      agrees: "Agrees",
+    },
+  },
 }

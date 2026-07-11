@@ -1053,4 +1053,19 @@ export const bnIN = {
     addCompanyCta: "কোম্পানি তৈরি করুন",
     createCompanyBanner: "আপনি এখনও কোনো কোম্পানি তৈরি করেননি।",
   },
+  intelligence: {
+    legend: {
+      title: "Key",
+      nodes: "Nodes",
+      relationships: "Relationships",
+      domain: "Domain",
+      topic: "Topic",
+      person: "Person",
+      source: "Source",
+      supersedes: "Supersedes",
+      disagrees: "Disagrees",
+      complements: "Complements",
+      agrees: "Agrees",
+    },
+  },
 }

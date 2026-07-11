@@ -1052,4 +1052,19 @@ export const ruRU = {
     addCompanyCta: "Создать компанию",
     createCompanyBanner: "Вы ещё не создали компанию.",
   },
+  intelligence: {
+    legend: {
+      title: "Key",
+      nodes: "Nodes",
+      relationships: "Relationships",
+      domain: "Domain",
+      topic: "Topic",
+      person: "Person",
+      source: "Source",
+      supersedes: "Supersedes",
+      disagrees: "Disagrees",
+      complements: "Complements",
+      agrees: "Agrees",
+    },
+  },
 }

@@ -1052,4 +1052,19 @@ export const zhTW = {
     addCompanyCta: "建立公司",
     createCompanyBanner: "您尚未建立公司。",
   },
+  intelligence: {
+    legend: {
+      title: "Key",
+      nodes: "Nodes",
+      relationships: "Relationships",
+      domain: "Domain",
+      topic: "Topic",
+      person: "Person",
+      source: "Source",
+      supersedes: "Supersedes",
+      disagrees: "Disagrees",
+      complements: "Complements",
+      agrees: "Agrees",
+    },
+  },
 }
