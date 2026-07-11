@@ -735,3 +735,49 @@ class NotebookDeleteResponse(BaseModel):
     unlinked_sources: int = Field(
         ..., description="Number of sources unlinked from notebook"
     )
+
+
+# --- Connectors ---
+class ConnectionPublic(BaseModel):
+    id: Optional[str] = None
+    provider: str
+    account_label: str
+    status: str
+    created: Optional[str] = None
+
+
+class ConnectorResponse(BaseModel):
+    provider: str
+    display_name: str
+    description: str
+    status: str  # connected | configured | available | coming_soon
+    connections: List[ConnectionPublic] = []
+
+
+class AuthorizeResponse(BaseModel):
+    authorize_url: str
+
+
+class ConnectorItemResponse(BaseModel):
+    id: str
+    kind: str
+    title: str
+    subtitle: Optional[str] = None
+    mime: Optional[str] = None
+    modified_at: Optional[str] = None
+
+
+class ImportRequest(BaseModel):
+    connection_id: str
+    item_ids: List[str]
+    notebooks: Optional[List[str]] = None
+
+
+class ImportFailure(BaseModel):
+    item_id: str
+    error: str
+
+
+class ImportResponse(BaseModel):
+    accepted: List[str]
+    failed: List[ImportFailure]

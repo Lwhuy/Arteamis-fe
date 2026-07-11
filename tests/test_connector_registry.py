@@ -1,6 +1,6 @@
 import pytest
 
-from open_notebook.domain.connectors import get_connector, COMING_SOON
+from open_notebook.domain.connectors import COMING_SOON, get_connector
 
 
 def test_get_unknown_provider_raises():

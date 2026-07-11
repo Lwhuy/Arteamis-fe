@@ -51,6 +51,11 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path in self.excluded_paths:
             return await call_next(request)
 
+        # OAuth provider callbacks arrive without a Bearer token; the CSRF state
+        # (validated in connectors_service) is the protection here.
+        if request.url.path.startswith("/api/connectors/") and request.url.path.endswith("/callback"):
+            return await call_next(request)
+
         if request.method == "OPTIONS":
             return await call_next(request)
 
