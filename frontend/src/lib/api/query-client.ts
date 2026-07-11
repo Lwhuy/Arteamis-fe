@@ -35,4 +35,6 @@ export const QUERY_KEYS = {
   workspaces: ['workspaces'] as const,
   projects: ['projects'] as const,
   project: (id: string) => ['projects', id] as const,
+  invitations: (workspaceId: string) => ['invitations', workspaceId] as const,
+  members: (workspaceId: string) => ['members', workspaceId] as const,
 }
