@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from api.deps import get_auth_context
 from api.security import AuthContext
+from api.source_permissions import PermissionContext, get_permission_context
 from open_notebook.domain.notebook import Source
 
 
@@ -14,11 +15,18 @@ def _ctx():
     return AuthContext(user_id="user:1", workspace_id="workspace:a", role="member")
 
 
+def _perm_ctx():
+    return PermissionContext(
+        user_id="user:1", workspace_id="workspace:a", workspace_role="member"
+    )
+
+
 @pytest.fixture
 def client():
     from api.main import app
 
     app.dependency_overrides[get_auth_context] = _ctx
+    app.dependency_overrides[get_permission_context] = _perm_ctx
     c = TestClient(app)
     yield c
     app.dependency_overrides.clear()
@@ -86,7 +94,7 @@ class TestRecentlyViewedApi:
         assert "last_viewed_at = time::now()" in mock_repo_query.await_args_list[1].args[0]
 
     @patch("api.routers.sources.Source.get_embedded_chunks", new_callable=AsyncMock)
-    @patch("api.routers.sources.Source.get", new_callable=AsyncMock)
+    @patch("api.routers.sources.require_view_source", new_callable=AsyncMock)
     @patch("api.routers.sources.repo_query", new_callable=AsyncMock)
     def test_get_source_stamps_last_viewed_at(self, mock_repo_query, mock_get_source, mock_chunks, client):
         mock_get_source.return_value = Source(

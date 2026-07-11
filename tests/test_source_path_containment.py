@@ -17,6 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.routers.sources import _is_source_file_available, _resolve_source_file
+from api.source_permissions import PermissionContext, get_permission_context
 from open_notebook.config import UPLOADS_FOLDER
 from open_notebook.domain.notebook import Asset, Source
 
@@ -31,11 +32,19 @@ def make_source(file_path=None, **overrides):
     return Source(**defaults)
 
 
+def _ctx():
+    return PermissionContext(
+        user_id="user:1", workspace_id="workspace:w1", workspace_role="owner"
+    )
+
+
 @pytest.fixture
 def client():
     from api.main import app
 
-    return TestClient(app)
+    app.dependency_overrides[get_permission_context] = _ctx
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class TestIsSourceFileAvailableRejectsSiblingDirectoryBypass:
@@ -109,12 +118,13 @@ class TestResolveSourceFileRejectsSiblingDirectoryBypass:
 
         source = make_source(file_path=str(evil_file))
         with patch(
-            "api.routers.sources.Source.get", new=AsyncMock(return_value=source)
+            "api.routers.sources.require_view_source",
+            new=AsyncMock(return_value=source),
         ):
             from fastapi import HTTPException
 
             with pytest.raises(HTTPException) as exc_info:
-                await _resolve_source_file("source:test123")
+                await _resolve_source_file("source:test123", _ctx())
             assert exc_info.value.status_code == 403
 
     @pytest.mark.asyncio
@@ -130,9 +140,12 @@ class TestResolveSourceFileRejectsSiblingDirectoryBypass:
 
         source = make_source(file_path=str(legit_file))
         with patch(
-            "api.routers.sources.Source.get", new=AsyncMock(return_value=source)
+            "api.routers.sources.require_view_source",
+            new=AsyncMock(return_value=source),
         ):
-            resolved_path, filename = await _resolve_source_file("source:test123")
+            resolved_path, filename = await _resolve_source_file(
+                "source:test123", _ctx()
+            )
 
         assert filename == "document.pdf"
         assert resolved_path == str(legit_file.resolve())
@@ -155,7 +168,8 @@ class TestDownloadEndpointRejectsSiblingDirectoryBypass:
 
         source = make_source(file_path=str(evil_file))
         with patch(
-            "api.routers.sources.Source.get", new=AsyncMock(return_value=source)
+            "api.routers.sources.require_view_source",
+            new=AsyncMock(return_value=source),
         ):
             response = client.get("/api/sources/source:test123/download")
 
