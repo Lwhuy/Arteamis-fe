@@ -4,6 +4,7 @@ import axios from 'axios'
 import { apiClient } from '@/lib/api/client'
 import { getApiUrl } from '@/lib/config'
 import type { AuthUser, SessionPayload } from '@/lib/types/auth'
+import { Membership, TokenResponse } from '@/lib/types/api'
 
 interface AuthState {
   isAuthenticated: boolean
@@ -15,6 +16,9 @@ interface AuthState {
   isCheckingAuth: boolean
   hasHydrated: boolean
   authRequired: boolean | null
+  memberships: Membership[]
+  activeWorkspaceId: string | null
+  role: string | null
   setHasHydrated: (state: boolean) => void
   checkAuthRequired: () => Promise<boolean>
   register: (email: string, password: string, displayName?: string) => Promise<boolean>
@@ -24,6 +28,10 @@ interface AuthState {
   fetchMe: () => Promise<boolean>
   logout: () => Promise<void>
   checkAuth: () => Promise<boolean>
+  applyToken: (res: TokenResponse) => void
+  setSession: (payload: { memberships: Membership[]; activeWorkspaceId: string | null }) => void
+  setActiveWorkspace: (workspaceId: string, role: string) => void
+  hasCompany: () => boolean
 }
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -67,6 +75,9 @@ export const useAuthStore = create<AuthState>()(
         isCheckingAuth: false,
         hasHydrated: false,
         authRequired: null,
+        memberships: [],
+        activeWorkspaceId: null,
+        role: null,
 
         setHasHydrated: (state: boolean) => set({ hasHydrated: state }),
 
@@ -169,6 +180,35 @@ export const useAuthStore = create<AuthState>()(
           }
           return await get().fetchMe()
         },
+
+        applyToken: (res: TokenResponse) => {
+          // The single mutation shared by workspace create + switch: swap the
+          // stored Bearer to the workspace-scoped access token (apiClient reads
+          // state.token).
+          set({
+            token: res.access_token,
+            activeWorkspaceId: res.active_workspace_id,
+            role: res.role,
+          })
+        },
+
+        setSession: ({ memberships, activeWorkspaceId }) => {
+          // The backend's session payload always names the active workspace
+          // (the caller's personal workspace on every fresh login — see the P2
+          // spec's stated default) — trust it rather than re-deriving here.
+          const active = memberships.find((m) => m.workspace_id === activeWorkspaceId)
+          set({
+            memberships,
+            activeWorkspaceId,
+            role: active ? active.role : null,
+          })
+        },
+
+        setActiveWorkspace: (workspaceId: string, role: string) => {
+          set({ activeWorkspaceId: workspaceId, role })
+        },
+
+        hasCompany: () => get().memberships.some((m) => m.kind === 'company'),
       }
     },
     {
@@ -177,6 +217,9 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         user: state.user,
         isAuthenticated: state.isAuthenticated,
+        memberships: state.memberships,
+        activeWorkspaceId: state.activeWorkspaceId,
+        role: state.role,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true)
