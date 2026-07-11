@@ -5,7 +5,7 @@ from ai_prompter import Prompter
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
 from pydantic import BaseModel, Field
-from surreal_commands import CommandInput, CommandOutput, command
+from surreal_commands import CommandInput, CommandOutput, command, submit_command
 
 from open_notebook.ai.provision import provision_langchain_model
 from open_notebook.database.repository import ensure_record_id, repo_query
@@ -149,6 +149,23 @@ async def extract_source_entities_command(
             f"Extracted {entities_created} entities from {source_id} "
             f"(workspace={workspace_id}) in {processing_time:.2f}s"
         )
+
+        # P7.2: chain relationship classification once entities are
+        # extracted. Fire-and-forget; a failure to submit must not
+        # break successful extraction (it's best-effort -- rebuild_brain
+        # and future retries can always (re)trigger classification).
+        try:
+            submit_command(
+                "open_notebook",
+                "classify_relationships",
+                {"source_id": source_id, "workspace_id": workspace_id},
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to submit classify_relationships for source "
+                f"{source_id}: {e}"
+            )
+
         return ExtractSourceEntitiesOutput(
             success=True,
             source_id=source_id,
@@ -354,3 +371,102 @@ async def classify_relationships_command(
             f"Transient error classifying relationships for source {source_id}: {e}"
         )
         raise
+
+
+class RebuildBrainInput(CommandInput):
+    """Input for the workspace-level rebuild orchestration command."""
+
+    workspace_id: str
+    mode: Literal["incremental", "full"] = "incremental"
+
+
+class RebuildBrainOutput(CommandOutput):
+    """Output from the rebuild_brain command."""
+
+    success: bool
+    workspace_id: str
+    sources_processed: int = 0
+    processing_time: float
+    error_message: Optional[str] = None
+
+
+async def _workspace_source_ids_to_process(workspace_id: str, mode: str) -> List[str]:
+    """Resolve the (deduped) source ids to (re)process for a workspace rebuild.
+
+    A `source` row has no `workspace` field of its own (see commit 36a5775 /
+    api/source_permissions.py) -- its workspace is derived via the
+    `reference` edge, exactly like `_workspace_source_ids` above. This MUST
+    stay reference-scoped (never `source.workspace`) so brain rebuilds
+    respect the same tenant boundary as everything else in this module.
+
+    Incremental mode further restricts to sources with no outgoing
+    `mentions` edge yet (i.e. never extracted into the brain); full mode
+    returns every source referenced within the workspace.
+    """
+    params = {"workspace": ensure_record_id(workspace_id)}
+    if mode == "incremental":
+        sql = (
+            "SELECT VALUE in FROM reference "
+            "WHERE out.workspace = $workspace AND array::len(in->mentions) = 0"
+        )
+    else:
+        sql = "SELECT VALUE in FROM reference WHERE out.workspace = $workspace"
+
+    rows = await repo_query(sql, params)
+
+    seen: set = set()
+    ordered_ids: List[str] = []
+    for rid in rows or []:
+        if rid is None:
+            continue
+        sid = str(rid)
+        if sid not in seen:
+            seen.add(sid)
+            ordered_ids.append(sid)
+    return ordered_ids
+
+
+@command("rebuild_brain", app="open_notebook", retry=None)
+async def rebuild_brain_command(
+    input_data: RebuildBrainInput,
+) -> RebuildBrainOutput:
+    """Orchestrate brain (re)build across a workspace.
+
+    Incremental (default) processes only sources that have no extracted
+    entities yet (no outgoing `mentions` edge); full reprocesses every
+    source referenced within the workspace. For each source, submits
+    extract_source_entities then classify_relationships (extract also
+    chains classify on completion; relate_sources dedup makes the overlap
+    idempotent). Fire-and-forget; returns after submitting.
+    """
+    start_time = time.time()
+    try:
+        source_ids = await _workspace_source_ids_to_process(
+            input_data.workspace_id, input_data.mode
+        )
+
+        processed = 0
+        for source_id in source_ids:
+            payload = {
+                "source_id": source_id,
+                "workspace_id": input_data.workspace_id,
+            }
+            submit_command("open_notebook", "extract_source_entities", payload)
+            submit_command("open_notebook", "classify_relationships", payload)
+            processed += 1
+
+        return RebuildBrainOutput(
+            success=True,
+            workspace_id=input_data.workspace_id,
+            sources_processed=processed,
+            processing_time=time.time() - start_time,
+        )
+    except Exception as e:
+        logger.error(f"rebuild_brain failed for {input_data.workspace_id}: {e}")
+        logger.exception(e)
+        return RebuildBrainOutput(
+            success=False,
+            workspace_id=input_data.workspace_id,
+            processing_time=time.time() - start_time,
+            error_message=str(e),
+        )

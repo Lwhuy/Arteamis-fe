@@ -10,7 +10,7 @@ the caller's own workspace before classifying or relating them -- `relates`
 edges must never cross workspaces.
 """
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from surreal_commands import registry
@@ -237,3 +237,121 @@ async def test_classify_relationships_missing_text_raises_valueerror(monkeypatch
                 source_id="source:s1", workspace_id="ws:1", top_k=5
             )
         )
+
+
+# --- rebuild_brain (P7.2 task 4) -------------------------------------------
+#
+# Sources have no `workspace` field of their own (see commit 36a5775 /
+# api/source_permissions.py): workspace membership is derived via the
+# `reference` edge, exactly like `_workspace_source_ids` above
+# (`SELECT VALUE in FROM reference WHERE out.workspace = $workspace`).
+# rebuild_brain MUST use that same reference-edge scoping -- never
+# `source.workspace` -- to enumerate a workspace's sources.
+
+
+def test_rebuild_brain_is_registered():
+    assert "rebuild_brain" in registry.list_commands()["open_notebook"]
+
+
+@pytest.mark.asyncio
+async def test_rebuild_brain_full_submits_extract_and_classify_per_source(monkeypatch):
+    monkeypatch.setattr(
+        brain_commands,
+        "repo_query",
+        AsyncMock(return_value=["source:1", "source:2"]),
+    )
+    submit = MagicMock()
+    monkeypatch.setattr(brain_commands, "submit_command", submit)
+
+    result = await brain_commands.rebuild_brain_command(
+        brain_commands.RebuildBrainInput(workspace_id="ws:1", mode="full")
+    )
+
+    assert result.success is True
+    assert result.sources_processed == 2
+    submitted = [(c.args[1], c.args[2]) for c in submit.call_args_list]
+    assert (
+        "extract_source_entities",
+        {"source_id": "source:1", "workspace_id": "ws:1"},
+    ) in submitted
+    assert (
+        "classify_relationships",
+        {"source_id": "source:1", "workspace_id": "ws:1"},
+    ) in submitted
+    assert (
+        "extract_source_entities",
+        {"source_id": "source:2", "workspace_id": "ws:1"},
+    ) in submitted
+
+
+@pytest.mark.asyncio
+async def test_rebuild_brain_full_uses_reference_edge_not_source_workspace(
+    monkeypatch,
+):
+    query = AsyncMock(return_value=["source:1"])
+    monkeypatch.setattr(brain_commands, "repo_query", query)
+    monkeypatch.setattr(brain_commands, "submit_command", MagicMock())
+
+    await brain_commands.rebuild_brain_command(
+        brain_commands.RebuildBrainInput(workspace_id="ws:1", mode="full")
+    )
+
+    sql, params = query.await_args.args
+    assert "SELECT VALUE in FROM reference" in sql
+    assert "out.workspace = $workspace" in sql
+    assert "source.workspace" not in sql
+    assert params["workspace"] == ensure_record_id("ws:1")
+
+
+@pytest.mark.asyncio
+async def test_rebuild_brain_incremental_filters_unbuilt_sources(monkeypatch):
+    query = AsyncMock(return_value=[])
+    monkeypatch.setattr(brain_commands, "repo_query", query)
+    monkeypatch.setattr(brain_commands, "submit_command", MagicMock())
+
+    result = await brain_commands.rebuild_brain_command(
+        brain_commands.RebuildBrainInput(workspace_id="ws:1", mode="incremental")
+    )
+
+    assert result.success is True
+    assert result.sources_processed == 0
+    sql = query.await_args.args[0]
+    assert "->mentions" in sql  # only sources without extracted entities
+    assert "workspace = $workspace" in sql
+
+
+@pytest.mark.asyncio
+async def test_rebuild_brain_deduplicates_source_ids(monkeypatch):
+    """A source referenced by more than one notebook/project must only be
+    processed once."""
+    monkeypatch.setattr(
+        brain_commands,
+        "repo_query",
+        AsyncMock(return_value=["source:1", "source:1", "source:2"]),
+    )
+    submit = MagicMock()
+    monkeypatch.setattr(brain_commands, "submit_command", submit)
+
+    result = await brain_commands.rebuild_brain_command(
+        brain_commands.RebuildBrainInput(workspace_id="ws:1", mode="full")
+    )
+
+    assert result.sources_processed == 2
+    assert submit.call_count == 4  # extract + classify for each of 2 sources
+
+
+@pytest.mark.asyncio
+async def test_rebuild_brain_reports_failure_on_query_error(monkeypatch):
+    monkeypatch.setattr(
+        brain_commands,
+        "repo_query",
+        AsyncMock(side_effect=RuntimeError("db down")),
+    )
+    monkeypatch.setattr(brain_commands, "submit_command", MagicMock())
+
+    result = await brain_commands.rebuild_brain_command(
+        brain_commands.RebuildBrainInput(workspace_id="ws:1", mode="full")
+    )
+
+    assert result.success is False
+    assert result.error_message is not None
