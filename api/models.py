@@ -324,6 +324,12 @@ class SourceCreate(BaseModel):
     async_processing: bool = Field(
         False, description="Whether to process source asynchronously"
     )
+    scope: Optional[Literal["personal", "project", "company"]] = Field(
+        None,
+        description="Source scope: personal, project, or company. Omitted -> "
+        "resolved server-side from the target project's default_source_scope, "
+        "falling back to 'project'.",
+    )
 
     @model_validator(mode="after")
     def validate_notebook_fields(self):
@@ -348,6 +354,9 @@ class SourceCreate(BaseModel):
 class SourceUpdate(BaseModel):
     title: Optional[str] = Field(None, description="Source title")
     topics: Optional[List[str]] = Field(None, description="Source topics")
+    scope: Optional[Literal["personal", "project", "company"]] = Field(
+        None, description="Source scope: personal, project, or company"
+    )
 
 
 class SourceResponse(BaseModel):
@@ -367,6 +376,8 @@ class SourceResponse(BaseModel):
     processing_info: Optional[Dict] = None
     # Notebook associations
     notebooks: Optional[List[str]] = None
+    scope: str = "project"
+    owner: Optional[str] = None
 
 
 class SourceListResponse(BaseModel):
@@ -384,6 +395,8 @@ class SourceListResponse(BaseModel):
     command_id: Optional[str] = None
     status: Optional[str] = None
     processing_info: Optional[Dict[str, Any]] = None
+    scope: str = "project"
+    owner: Optional[str] = None
 
 
 # Context API models
