@@ -528,6 +528,8 @@ export const plPL = {
       sourcesEmpty: "No sources yet. Click “Add source”.",
       reviewEmpty: "Nothing to review yet.",
       brainEmpty: "Accepted beliefs will appear here.",
+      workPackages: "Handoff & Trace",
+      workPackagesEmpty: "No work packages yet.",
     },
     loop: {
       capture: "Capture",
@@ -556,6 +558,14 @@ export const plPL = {
       assigneeKindAgent: "Agent",
       assigneeLabel: "Assignee",
       submit: "Create",
+      assignAction: "Assign",
+      startAction: "Start",
+      completeAction: "Complete",
+      status: {
+        open: "Open",
+        running: "Running",
+        done: "Done",
+      },
       agentBrief: {
         heading: "Agent brief",
         objective: "Objective",

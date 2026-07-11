@@ -5,6 +5,7 @@ import { LoopWidget } from './LoopWidget';
 import { SourcesSection } from './SourcesSection';
 import { ReviewInbox } from './ReviewInbox';
 import { CompanyBrainSection } from './CompanyBrainSection';
+import { WorkPackagesSection } from './WorkPackagesSection';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -34,6 +35,7 @@ export function ContextSidebar() {
           <Section title={t('controlPlane.sidebar.review')}><ReviewInbox /></Section>
           <Section title={t('controlPlane.sidebar.loop')}><LoopWidget currentIndex={3} /></Section>
           <Section title={t('controlPlane.sidebar.brain')}><CompanyBrainSection /></Section>
+          <Section title={t('controlPlane.sidebar.workPackages')}><WorkPackagesSection /></Section>
         </>
       )}
     </aside>

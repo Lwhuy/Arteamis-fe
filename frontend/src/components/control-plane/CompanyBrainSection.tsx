@@ -3,6 +3,7 @@ import { Sparkles, Gavel, ListChecks } from 'lucide-react';
 import { useBeliefs, useDecisions, useRules } from '@/lib/hooks/use-governance';
 import { useArtifact } from '@/lib/hooks/use-artifact';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { CreateWorkPackageButton } from './CreateWorkPackageButton';
 
 export function CompanyBrainSection() {
   const { t } = useTranslation();
@@ -22,12 +23,14 @@ export function CompanyBrainSection() {
           <div className="rounded-lg border border-dashed border-border p-3 text-center text-xs text-muted-foreground">{t('controlPlane.sidebar.brainEmpty')}</div>
         ) : (
           beliefs.map((b) => (
-            <button key={b.id} type="button" onClick={() => openArtifact('belief', b.id)}
-              className="flex items-center gap-2.5 rounded-lg border border-border bg-card p-2.5 text-left hover:border-primary">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="flex-1 truncate text-xs font-semibold text-foreground">{b.title}</span>
-              <span className="text-[10px] text-muted-foreground">{t('controlPlane.brain.view')}</span>
-            </button>
+            <div key={b.id} className="flex items-center gap-1 rounded-lg border border-border bg-card p-2.5 hover:border-primary">
+              <button type="button" onClick={() => openArtifact('belief', b.id)} className="flex flex-1 items-center gap-2.5 text-left">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="flex-1 truncate text-xs font-semibold text-foreground">{b.title}</span>
+                <span className="text-[10px] text-muted-foreground">{t('controlPlane.brain.view')}</span>
+              </button>
+              <CreateWorkPackageButton sourceId={b.id} sourceTitle={b.title} />
+            </div>
           ))
         )}
       </div>
