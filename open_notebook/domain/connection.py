@@ -10,7 +10,7 @@ from typing import ClassVar, List, Optional
 from loguru import logger
 from pydantic import SecretStr
 
-from open_notebook.database.repository import repo_query
+from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.base import ObjectModel
 from open_notebook.utils.encryption import decrypt_value, encrypt_value
 
@@ -94,5 +94,19 @@ class Connection(ObjectModel):
         results = await repo_query(
             "SELECT * FROM connection WHERE provider = $provider ORDER BY created ASC",
             {"provider": provider},
+        )
+        return [cls._from_db_row(r) for r in results]
+
+    @classmethod
+    async def get_by_provider_and_workspace(
+        cls, provider: str, workspace_id: str
+    ) -> List["Connection"]:
+        """Connections for a provider, scoped to a single workspace. Used
+        everywhere connections are listed/resolved for a request so one
+        workspace can never see another's OAuth connections."""
+        results = await repo_query(
+            "SELECT * FROM connection WHERE provider = $provider "
+            "AND workspace = $workspace ORDER BY created ASC",
+            {"provider": provider, "workspace": ensure_record_id(workspace_id)},
         )
         return [cls._from_db_row(r) for r in results]

@@ -6,6 +6,7 @@ from typing import List, Optional
 from loguru import logger
 
 from api.command_service import CommandService
+from api.source_permissions import PermissionContext
 from open_notebook.database.repository import ensure_record_id, repo_delete
 from open_notebook.domain.connection import Connection
 from open_notebook.domain.connectors import (
@@ -48,8 +49,8 @@ def _connection_public(conn: Connection) -> dict:
     }
 
 
-async def _provider_connections(provider: str) -> List[Connection]:
-    return await Connection.get_by_provider(provider)
+async def _provider_connections(provider: str, workspace_id: str) -> List[Connection]:
+    return await Connection.get_by_provider_and_workspace(provider, workspace_id)
 
 
 def list_connectors() -> List[dict]:
@@ -73,29 +74,34 @@ def list_connectors() -> List[dict]:
     return out
 
 
-async def list_connectors_with_connections() -> List[dict]:
+async def list_connectors_with_connections(workspace_id: str) -> List[dict]:
     base = list_connectors()
     for entry in base:
         if entry["status"] == "coming_soon":
             continue
-        conns = await _provider_connections(entry["provider"])
+        conns = await _provider_connections(entry["provider"], workspace_id)
         entry["connections"] = [_connection_public(c) for c in conns]
         if conns:
             entry["status"] = "connected"
     return base
 
 
-def build_authorize_url(provider: str) -> str:
+def build_authorize_url(provider: str, ctx: PermissionContext) -> str:
     adapter = get_connector(provider)
     if not adapter.is_configured():
         raise ValueError(f"{provider} OAuth app is not configured (missing env vars)")
-    state = oauth_state.create_state()
+    state = oauth_state.create_state(ctx.workspace_id, ctx.user_id)
     return adapter.authorize_url(state, redirect_uri_for(provider))
 
 
 async def handle_callback(provider: str, code: str, state: str) -> Connection:
-    if not oauth_state.consume_state(state):
+    """Unauthenticated (provider redirects here with no session/token of ours).
+    Workspace/user attribution comes from the `state` value embedded during
+    `authorize`, not from a request-scoped PermissionContext."""
+    result = oauth_state.consume_state(state)
+    if result is None:
         raise ValueError("Invalid or expired OAuth state")
+    workspace_id, _user_id = result
     adapter = get_connector(provider)
     token = await adapter.exchange_code(code, redirect_uri_for(provider))
     conn = Connection(
@@ -106,14 +112,23 @@ async def handle_callback(provider: str, code: str, state: str) -> Connection:
         token_expires_at=token.expires_at,
         scopes=token.scopes,
         status="connected",
+        workspace=workspace_id,
     )
     await conn.save()
     return conn
 
 
-async def list_items(provider: str, connection_id: str) -> List[dict]:
+def _check_connection_workspace(conn: Connection, ctx: PermissionContext) -> None:
+    if str(conn.workspace) != ctx.workspace_id:
+        raise ValueError("Connection does not belong to the active workspace")
+
+
+async def list_items(
+    provider: str, connection_id: str, ctx: PermissionContext
+) -> List[dict]:
     adapter = get_connector(provider)
     conn = await Connection.get(connection_id)
+    _check_connection_workspace(conn, ctx)
     items = await adapter.list_items(conn)
     return [
         {"id": i.id, "kind": i.kind, "title": i.title, "subtitle": i.subtitle,
@@ -122,7 +137,7 @@ async def list_items(provider: str, connection_id: str) -> List[dict]:
     ]
 
 
-async def _ingest_doc(doc, notebooks: Optional[List[str]]) -> str:
+async def _ingest_doc(doc, notebooks: Optional[List[str]], owner: str, scope: str) -> str:
     """Create a Source from an ImportedDoc and queue async processing, mirroring
     the async path of api/routers/sources.py. Returns the command id.
 
@@ -142,7 +157,10 @@ async def _ingest_doc(doc, notebooks: Optional[List[str]]) -> str:
         asset = None
         content_state = {"content": doc.content or ""}
 
-    source = Source(title=doc.title or "Untitled", topics=[], asset=asset)
+    source = Source(
+        title=doc.title or "Untitled", topics=[], asset=asset,
+        owner=owner, scope=scope,
+    )
     await source.save()
 
     try:
@@ -177,10 +195,11 @@ async def _ingest_doc(doc, notebooks: Optional[List[str]]) -> str:
 
 async def import_items(
     provider: str, connection_id: str, item_ids: List[str],
-    notebooks: Optional[List[str]] = None,
+    notebooks: Optional[List[str]], ctx: PermissionContext,
 ) -> dict:
     adapter = get_connector(provider)
     conn = await Connection.get(connection_id)
+    _check_connection_workspace(conn, ctx)
     all_items = {i.id: i for i in await adapter.list_items(conn)}
     accepted, failed = [], []
     for item_id in item_ids:
@@ -190,7 +209,10 @@ async def import_items(
             continue
         try:
             doc = await adapter.fetch_content(conn, item)
-            await _ingest_doc(doc, notebooks)
+            # Connector imports are private-by-default: owned by the importing
+            # user, scope="personal" (not visible workspace/project-wide until
+            # the user explicitly re-scopes the resulting source).
+            await _ingest_doc(doc, notebooks, owner=ctx.user_id, scope="personal")
             accepted.append(item_id)
         except Exception as e:  # noqa: BLE001
             logger.warning(f"connector import failed for {provider}/{item_id}: {e}")
@@ -198,5 +220,7 @@ async def import_items(
     return {"accepted": accepted, "failed": failed}
 
 
-async def disconnect(connection_id: str) -> None:
+async def disconnect(connection_id: str, ctx: PermissionContext) -> None:
+    conn = await Connection.get(connection_id)
+    _check_connection_workspace(conn, ctx)
     await repo_delete(ensure_record_id(connection_id))
