@@ -1,3 +1,5 @@
+import type { AskStreamEvent } from '@/lib/types/search'
+
 export type BrainNodeKind = 'domain' | 'topic' | 'person' | 'decision' | 'source'
 
 export type BrainEdgeType =
@@ -49,4 +51,8 @@ export interface ForceGraphLink {
 export interface ForceGraphData {
   nodes: ForceGraphNode[]
   links: ForceGraphLink[]
+}
+
+export type BrainAskStreamEvent = AskStreamEvent & {
+  cited_node_ids?: string[]
 }
