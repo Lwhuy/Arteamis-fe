@@ -735,3 +735,38 @@ class NotebookDeleteResponse(BaseModel):
     unlinked_sources: int = Field(
         ..., description="Number of sources unlinked from notebook"
     )
+
+
+# Auth API models (P1)
+from pydantic import EmailStr
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr = Field(..., description="Account email")
+    password: str = Field(..., min_length=8, description="Account password (min 8 chars)")
+    display_name: Optional[str] = Field(None, description="Display name")
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr = Field(..., description="Account email")
+    password: str = Field(..., description="Account password")
+
+
+class AuthUser(BaseModel):
+    id: str
+    email: str
+    display_name: Optional[str] = None
+
+
+class SessionPayload(BaseModel):
+    access_token: str
+    token_type: str
+    needs_onboarding: bool
+    active_workspace_id: Optional[str] = None
+    user: AuthUser
+    memberships: List[Any] = Field(default_factory=list)
+
+
+class MeResponse(BaseModel):
+    user: AuthUser
+    memberships: List[Any] = Field(default_factory=list)
