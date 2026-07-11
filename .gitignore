@@ -147,3 +147,4 @@ specs/
 # Use it for host-specific tweaks like re-exposing the SurrealDB port;
 # see docker-compose.override.yml.example.
 docker-compose.override.yml
+.superpowers/
