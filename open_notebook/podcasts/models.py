@@ -236,6 +236,12 @@ class PodcastEpisode(ObjectModel):
     command: Optional[Union[str, RecordID]] = Field(
         default=None, description="Link to surreal-commands job"
     )
+    workspace: Optional[str] = Field(
+        default=None,
+        description="Owning workspace (P6 rollout, migration 24). NULL on "
+        "episodes generated before migration 24 -- no backfill was possible "
+        "(episode carries no stored link to its source notebook).",
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -318,11 +324,16 @@ class PodcastEpisode(ObjectModel):
         return value
 
     def _prepare_save_data(self) -> dict:
-        """Override to ensure command field is always RecordID format for database"""
+        """Override to ensure command/workspace fields are RecordID format for database"""
         data = super()._prepare_save_data()
 
         # Ensure command field is RecordID format if not None
         if data.get("command") is not None:
             data["command"] = ensure_record_id(data["command"])
+
+        # P6 rollout: stamp workspace as a real RecordID if present (NULL for
+        # episodes created before migration 24 or with no workspace context).
+        if data.get("workspace") is not None:
+            data["workspace"] = ensure_record_id(data["workspace"])
 
         return data

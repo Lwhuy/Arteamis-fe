@@ -7,6 +7,12 @@ before any endpoint streams or deletes it. audio_file is only ever set
 server-side today (from a UUID-named directory under PODCASTS_FOLDER), so
 these are defense-in-depth checks for a currently-unreachable path - these
 tests construct an out-of-root audio_file directly to exercise that defense.
+
+P6 rollout: the episode-fetching endpoints now go through a workspace-scoped
+ScopedRepository (CtxDep) instead of PodcastService.get_episode/list_episodes
+-- these tests override api.deps.get_auth_context and patch
+open_notebook.database.scoping.repo_query (repo.get()/repo.list()'s raw row
+source) accordingly.
 """
 
 import os
@@ -16,7 +22,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from api.deps import get_auth_context
 from api.routers.podcasts import _is_audio_path_contained, _resolve_audio_path
+from api.security import AuthContext
 from open_notebook.config import PODCASTS_FOLDER
 from open_notebook.podcasts.models import PodcastEpisode
 
@@ -31,16 +39,25 @@ def make_episode(audio_file=None, **overrides):
         content="test content",
         audio_file=audio_file,
         command=None,
+        workspace="workspace:a",
     )
     defaults.update(overrides)
     return PodcastEpisode(**defaults)
+
+
+def _row(episode):
+    return episode.model_dump(mode="json")
 
 
 @pytest.fixture
 def client():
     from api.main import app
 
-    return TestClient(app)
+    app.dependency_overrides[get_auth_context] = lambda: AuthContext(
+        user_id="user:1", workspace_id="workspace:a", role="owner"
+    )
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class TestIsAudioPathContained:
@@ -114,8 +131,8 @@ class TestStreamEndpointRejectsOutOfRootAudio:
         episode = make_episode(audio_file=str(evil_file))
 
         with patch(
-            "api.routers.podcasts.PodcastService.get_episode",
-            new=AsyncMock(return_value=episode),
+            "open_notebook.database.scoping.repo_query",
+            new=AsyncMock(return_value=[_row(episode)]),
         ):
             response = client.get("/api/podcasts/episodes/episode:test123/audio")
 
@@ -127,8 +144,8 @@ class TestStreamEndpointRejectsOutOfRootAudio:
         episode = make_episode(audio_file=str(missing))
 
         with patch(
-            "api.routers.podcasts.PodcastService.get_episode",
-            new=AsyncMock(return_value=episode),
+            "open_notebook.database.scoping.repo_query",
+            new=AsyncMock(return_value=[_row(episode)]),
         ):
             response = client.get("/api/podcasts/episodes/episode:test123/audio")
 
@@ -143,8 +160,8 @@ class TestStreamEndpointRejectsOutOfRootAudio:
         try:
             episode = make_episode(audio_file=str(audio_path))
             with patch(
-                "api.routers.podcasts.PodcastService.get_episode",
-                new=AsyncMock(return_value=episode),
+                "open_notebook.database.scoping.repo_query",
+                new=AsyncMock(return_value=[_row(episode)]),
             ):
                 response = client.get("/api/podcasts/episodes/episode:test123/audio")
 
@@ -154,6 +171,17 @@ class TestStreamEndpointRejectsOutOfRootAudio:
             audio_path.unlink(missing_ok=True)
             episode_dir.rmdir()
 
+    def test_returns_404_for_cross_workspace_episode(self, client, tmp_path):
+        """P6 rollout: an episode belonging to another workspace 404s at the
+        repo.get() ownership check, before any audio path is even resolved."""
+        with patch(
+            "open_notebook.database.scoping.repo_query",
+            new=AsyncMock(return_value=[]),  # ownership check finds nothing
+        ):
+            response = client.get("/api/podcasts/episodes/episode:test123/audio")
+
+        assert response.status_code == 404
+
 
 class TestListAndGetOmitAudioUrlWhenOutOfRoot:
     def test_list_episodes_omits_audio_url_for_out_of_root_file(self, client, tmp_path):
@@ -161,11 +189,9 @@ class TestListAndGetOmitAudioUrlWhenOutOfRoot:
         evil_file.write_bytes(b"not yours")
         episode = make_episode(audio_file=str(evil_file))
 
-        with (
-            patch(
-                "api.routers.podcasts.PodcastService.list_episodes",
-                new=AsyncMock(return_value=[episode]),
-            ),
+        with patch(
+            "open_notebook.database.scoping.repo_query",
+            new=AsyncMock(return_value=[_row(episode)]),
         ):
             response = client.get("/api/podcasts/episodes")
 
@@ -180,8 +206,8 @@ class TestListAndGetOmitAudioUrlWhenOutOfRoot:
         episode = make_episode(audio_file=str(evil_file))
 
         with patch(
-            "api.routers.podcasts.PodcastService.get_episode",
-            new=AsyncMock(return_value=episode),
+            "open_notebook.database.scoping.repo_query",
+            new=AsyncMock(return_value=[_row(episode)]),
         ):
             response = client.get("/api/podcasts/episodes/episode:test123")
 
@@ -197,8 +223,8 @@ class TestDeleteAndRetryRefuseOutOfRootUnlink:
 
         with (
             patch(
-                "api.routers.podcasts.PodcastService.get_episode",
-                new=AsyncMock(return_value=episode),
+                "open_notebook.database.scoping.repo_query",
+                new=AsyncMock(return_value=[_row(episode)]),
             ),
             patch.object(PodcastEpisode, "delete", new=AsyncMock(return_value=True)),
         ):
@@ -217,8 +243,8 @@ class TestDeleteAndRetryRefuseOutOfRootUnlink:
         try:
             with (
                 patch(
-                    "api.routers.podcasts.PodcastService.get_episode",
-                    new=AsyncMock(return_value=episode),
+                    "open_notebook.database.scoping.repo_query",
+                    new=AsyncMock(return_value=[_row(episode)]),
                 ),
                 patch.object(
                     PodcastEpisode, "delete", new=AsyncMock(return_value=True)
@@ -233,3 +259,14 @@ class TestDeleteAndRetryRefuseOutOfRootUnlink:
                 for f in episode_dir.iterdir():
                     f.unlink()
                 episode_dir.rmdir()
+
+    def test_delete_cross_workspace_episode_is_404(self, client):
+        """P6 rollout: a caller cannot delete another workspace's episode by
+        guessing its id."""
+        with patch(
+            "open_notebook.database.scoping.repo_query",
+            new=AsyncMock(return_value=[]),  # ownership check finds nothing
+        ):
+            response = client.delete("/api/podcasts/episodes/episode:test123")
+
+        assert response.status_code == 404

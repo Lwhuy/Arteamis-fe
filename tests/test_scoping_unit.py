@@ -8,6 +8,8 @@ import pytest
 
 from open_notebook.database.scoping import (
     GLOBAL_TABLES,
+    INHERITED_WORKSPACE_TABLES,
+    NATIVE_WORKSPACE_TABLES,
     WORKSPACE_SCOPED_TABLES,
     ScopedRepository,
 )
@@ -27,6 +29,23 @@ def test_policy_sets_are_disjoint_and_cover_expected_tables():
     } <= WORKSPACE_SCOPED_TABLES
 
 
+def test_native_and_inherited_tables_partition_workspace_scoped_tables():
+    """The generic get/list/create/update/delete methods only work correctly on
+    tables with a NATIVE `workspace` column. Tables that inherit workspace via
+    a parent (source/note via the reference/artifact edge to notebook;
+    source_insight/source_embedding via their source) must be a disjoint set
+    so `_assert_scoped` can reject them from the generic path fail-closed."""
+    assert NATIVE_WORKSPACE_TABLES.isdisjoint(INHERITED_WORKSPACE_TABLES)
+    assert NATIVE_WORKSPACE_TABLES | INHERITED_WORKSPACE_TABLES == WORKSPACE_SCOPED_TABLES
+    # `episode` (P6 rollout, migration 24) also carries a native `workspace`
+    # column -- optional/NULL on pre-migration rows, which fails closed (not
+    # open) under the generic methods' `WHERE workspace = $workspace_id`.
+    assert NATIVE_WORKSPACE_TABLES == {"notebook", "project_member", "invitation", "episode"}
+    assert INHERITED_WORKSPACE_TABLES == {
+        "source", "note", "chat_session", "source_insight", "source_embedding",
+    }
+
+
 @pytest.mark.asyncio
 async def test_list_rejects_global_table():
     with pytest.raises(InvalidInputError, match="GLOBAL table"):
@@ -43,6 +62,72 @@ async def test_list_rejects_unknown_table_fails_closed():
 async def test_create_rejects_global_table():
     with pytest.raises(InvalidInputError, match="GLOBAL table"):
         await _repo().create("membership", {"role": "owner"})
+
+
+# ---- FIX #1: generic methods must reject INHERITED tables fail-closed ------
+# `source`, `note`, `chat_session`, `source_insight`, `source_embedding` have NO
+# native `workspace` column (verified: migrations 1-23 never add one). The
+# generic get/list/create/update/delete methods build `WHERE workspace = ...`
+# against the table directly, which silently misbehaves (always-empty or
+# erroring) for these. They must be rejected with a clear, actionable error
+# pointing at `.raw()` + a parent-join filter, not merely fail silently.
+
+@pytest.mark.asyncio
+async def test_list_rejects_inherited_table_with_clear_message():
+    with pytest.raises(InvalidInputError, match="workspace-inherited"):
+        await _repo().list("source")
+
+
+@pytest.mark.asyncio
+async def test_get_rejects_inherited_table_with_clear_message():
+    with pytest.raises(InvalidInputError, match="workspace-inherited"):
+        await _repo().get("source:abc")
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_inherited_table_with_clear_message():
+    with pytest.raises(InvalidInputError, match="workspace-inherited"):
+        await _repo().create("source", {"title": "x"})
+
+
+@pytest.mark.asyncio
+async def test_update_rejects_inherited_table_with_clear_message():
+    with pytest.raises(InvalidInputError, match="workspace-inherited"):
+        await _repo().update("source:abc", {"title": "y"})
+
+
+@pytest.mark.asyncio
+async def test_delete_rejects_inherited_table_with_clear_message():
+    with pytest.raises(InvalidInputError, match="workspace-inherited"):
+        await _repo().delete("source:abc")
+
+
+@pytest.mark.asyncio
+async def test_inherited_table_rejection_mentions_raw_escape_hatch():
+    with pytest.raises(InvalidInputError, match=r"\.raw\(\)"):
+        await _repo().list("note")
+
+
+@pytest.mark.asyncio
+async def test_raw_still_available_for_inherited_table():
+    """`.raw()` remains the sanctioned escape hatch for inherited tables — it
+    must NOT be blocked by the same guard as the generic methods."""
+    with patch(
+        "open_notebook.database.scoping.repo_query",
+        new=AsyncMock(return_value=[{"id": "source:x"}]),
+    ):
+        rows = await _repo().raw("SELECT * FROM source WHERE workspace = $workspace_id")
+    assert rows == [{"id": "source:x"}]
+
+
+@pytest.mark.asyncio
+async def test_native_tables_still_work_via_generic_methods():
+    """Sanity check: the fix must not regress the NATIVE tables."""
+    for table in ("notebook", "project_member", "invitation", "episode"):
+        with patch(
+            "open_notebook.database.scoping.repo_query", new=AsyncMock(return_value=[])
+        ):
+            await _repo().list(table)  # must not raise
 
 
 @pytest.mark.asyncio

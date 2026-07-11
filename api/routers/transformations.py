@@ -19,6 +19,16 @@ from open_notebook.graphs.transformation import graph as transformation_graph
 
 router = APIRouter()
 
+# global: `transformation` is a shared, instance-wide library of reusable
+# prompt templates (e.g. "summarize", "key insights") with no `workspace` or
+# `owner` column in any migration (1-23) - every workspace on this instance
+# sees and can use the same set. It is intentionally NOT workspace-scoped
+# (same category as episode_profile/speaker_profile/model config): scoping it
+# per-workspace would be a product change (per-workspace transformation
+# libraries), not a tenant-isolation bug fix, so it is left as-is here. Every
+# endpoint below still requires an authenticated caller via the global
+# JWTAuthMiddleware (api/main.py) - just not a workspace-scoped one.
+
 
 def _transformation_response(transformation: Transformation) -> TransformationResponse:
     return TransformationResponse(

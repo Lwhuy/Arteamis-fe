@@ -1,0 +1,4 @@
+-- Migration 25: workspace scoping for episode (P6 rollout closes this gap)
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE episode TYPE option<record<workspace>>;
+DEFINE INDEX IF NOT EXISTS idx_episode_workspace ON TABLE episode FIELDS workspace CONCURRENTLY;
+-- No backfill: episode carries no stored link to the notebook/source it was generated from (content is copied in as raw text at generation time and notebook_id is never persisted), so an existing episode's workspace cannot be derived from stored data. Existing rows are left workspace=NONE and become invisible under workspace-scoped list/get until regenerated. New episodes are stamped with the caller's workspace at generation time (api/routers/podcasts.py + api/podcast_service.py + commands/podcast_commands.py).

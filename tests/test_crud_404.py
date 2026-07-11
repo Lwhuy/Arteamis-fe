@@ -90,28 +90,51 @@ async def test_remove_source_missing_project_returns_404(mock_q, client):
     app.dependency_overrides.clear()
 
 
-# --- notes ------------------------------------------------------------------
+# --- notes -------------------------------------------------------------------
+# `note` is workspace-inherited (P6 rollout) — a missing/cross-workspace note
+# 404s via ScopedRepository.raw()'s ownership join in _get_owned_note() before
+# api.routers.notes.Note.get is ever reached, so these patch the scoping
+# module's repo_query binding (empty rows) instead of Note.get, and need a
+# workspace-scoped auth context to reach that code path at all.
 
 
 @pytest.mark.asyncio
-@patch("api.routers.notes.Note.get", new_callable=AsyncMock)
-async def test_get_note_missing_returns_404(mock_get, client):
-    mock_get.side_effect = _nf
-    assert client.get("/api/notes/note:gone").status_code == 404
+@patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+async def test_get_note_missing_returns_404(mock_q, client):
+    from api.main import app
+
+    app.dependency_overrides[get_auth_context] = _member_ctx
+    mock_q.return_value = []
+    try:
+        assert client.get("/api/notes/note:gone").status_code == 404
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.notes.Note.get", new_callable=AsyncMock)
-async def test_update_note_missing_returns_404(mock_get, client):
-    mock_get.side_effect = _nf
-    assert client.put("/api/notes/note:gone", json={"content": "x"}).status_code == 404
+@patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+async def test_update_note_missing_returns_404(mock_q, client):
+    from api.main import app
+
+    app.dependency_overrides[get_auth_context] = _member_ctx
+    mock_q.return_value = []
+    try:
+        assert client.put("/api/notes/note:gone", json={"content": "x"}).status_code == 404
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.notes.Note.get", new_callable=AsyncMock)
-async def test_delete_note_missing_returns_404(mock_get, client):
-    mock_get.side_effect = _nf
-    assert client.delete("/api/notes/note:gone").status_code == 404
+@patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+async def test_delete_note_missing_returns_404(mock_q, client):
+    from api.main import app
+
+    app.dependency_overrides[get_auth_context] = _member_ctx
+    mock_q.return_value = []
+    try:
+        assert client.delete("/api/notes/note:gone").status_code == 404
+    finally:
+        app.dependency_overrides.clear()
 
 
 # --- models -----------------------------------------------------------------

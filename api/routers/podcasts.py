@@ -8,12 +8,15 @@ from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import BaseModel
 
+from api.command_service import CommandService
+from api.deps import CtxDep
 from api.podcast_service import (
     PodcastGenerationRequest,
     PodcastGenerationResponse,
     PodcastService,
 )
 from open_notebook.config import PODCASTS_FOLDER
+from open_notebook.exceptions import NotFoundError
 from open_notebook.podcasts.models import PodcastEpisode
 
 router = APIRouter()
@@ -56,13 +59,34 @@ def _is_audio_path_contained(audio_path: Path) -> bool:
     return resolved.is_relative_to(safe_root)
 
 
+async def _get_owned_episode(repo: CtxDep, episode_id: str) -> PodcastEpisode:
+    """`episode` now carries a native (but optional) `workspace` column (P6
+    rollout, migration 24). repo.get() ANDs `workspace = $workspace_id`, so a
+    cross-workspace id -- or a pre-migration-24 episode with workspace=NULL --
+    both 404 the same way (no existence oracle)."""
+    try:
+        row = await repo.get(episode_id)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    return PodcastEpisode(**row)
+
+
 @router.post("/podcasts/generate", response_model=PodcastGenerationResponse)
-async def generate_podcast(request: PodcastGenerationRequest):
+async def generate_podcast(request: PodcastGenerationRequest, repo: CtxDep):
     """
     Generate a podcast episode using Episode Profiles.
     Returns immediately with job ID for status tracking.
+
+    `notebook_id`, if given, is workspace-checked first (404 on cross-
+    workspace/missing) -- previously a caller could exfiltrate another
+    workspace's notebook content into their own podcast episode merely by
+    supplying its id. The resulting episode is stamped with the caller's
+    workspace (via the background command; see commands/podcast_commands.py).
     """
     try:
+        if request.notebook_id:
+            await repo.get(request.notebook_id)  # workspace-checked; 404 on miss/cross-workspace
+
         job_id = await PodcastService.submit_generation_job(
             episode_profile_name=request.episode_profile,
             speaker_profile_name=request.speaker_profile,
@@ -70,6 +94,7 @@ async def generate_podcast(request: PodcastGenerationRequest):
             notebook_id=request.notebook_id,
             content=request.content,
             briefing_suffix=request.briefing_suffix,
+            workspace_id=repo.workspace_id,
         )
 
         return PodcastGenerationResponse(
@@ -80,6 +105,10 @@ async def generate_podcast(request: PodcastGenerationRequest):
             episode_name=request.episode_name,
         )
 
+    except HTTPException:
+        raise
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Notebook not found")
     except Exception as e:
         logger.error(f"Error generating podcast: {str(e)}")
         raise HTTPException(
@@ -88,12 +117,30 @@ async def generate_podcast(request: PodcastGenerationRequest):
 
 
 @router.get("/podcasts/jobs/{job_id}")
-async def get_podcast_job_status(job_id: str):
-    """Get the status of a podcast generation job"""
+async def get_podcast_job_status(job_id: str, repo: CtxDep):
+    """Get the status of a podcast generation job, scoped to the caller's
+    workspace (P6 rollout jobstatus fix).
+
+    `command` (surreal-commands' own job-queue table, see
+    api/routers/commands.py's module comment) has no native `workspace`
+    column, but `result` for a podcast-generation job carries real tenant
+    content (transcript, outline, audio_file_path) -- previously any caller
+    holding an active-workspace token could read another workspace's episode
+    result merely by supplying its job_id, with no ownership check
+    whatsoever. generate_podcast (above) now stamps the submitting
+    workspace into the command row's `context` field (see
+    PodcastService.submit_generation_job's docstring), and this reads it
+    back via CommandService.get_command_status_for_workspace, which 404s
+    (never 403 -- no existence oracle) on a mismatch, a missing job, or a
+    job with no stored workspace (e.g. one submitted before this fix)."""
     try:
-        status_data = await PodcastService.get_job_status(job_id)
+        status_data = await CommandService.get_command_status_for_workspace(
+            job_id, repo.workspace_id
+        )
         return status_data
 
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Job not found")
     except Exception as e:
         logger.error(f"Error fetching podcast job status: {str(e)}")
         raise HTTPException(
@@ -102,10 +149,13 @@ async def get_podcast_job_status(job_id: str):
 
 
 @router.get("/podcasts/episodes", response_model=List[PodcastEpisodeResponse])
-async def list_podcast_episodes():
-    """List all podcast episodes"""
+async def list_podcast_episodes(repo: CtxDep):
+    """List podcast episodes in the caller's active workspace. Episodes
+    generated before migration 24 have workspace=NULL and are invisible here
+    (documented limitation -- no backfill was possible)."""
     try:
-        episodes = await PodcastService.list_episodes()
+        rows = await repo.list("episode", order_by="created desc")
+        episodes = [PodcastEpisode(**row) for row in rows]
 
         # Batch-fetch job status for every episode with a command in one
         # query instead of one round trip per episode (see
@@ -171,10 +221,11 @@ async def list_podcast_episodes():
 
 
 @router.get("/podcasts/episodes/{episode_id}", response_model=PodcastEpisodeResponse)
-async def get_podcast_episode(episode_id: str):
-    """Get a specific podcast episode"""
+async def get_podcast_episode(episode_id: str, repo: CtxDep):
+    """Get a specific podcast episode. 404 if not in the caller's workspace
+    (no cross-workspace oracle)."""
     try:
-        episode = await PodcastService.get_episode(episode_id)
+        episode = await _get_owned_episode(repo, episode_id)
 
         # Get job status and error message if available
         job_status = None
@@ -211,21 +262,18 @@ async def get_podcast_episode(episode_id: str):
             error_message=error_message,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching podcast episode: {str(e)}")
         raise HTTPException(status_code=404, detail="Episode not found")
 
 
 @router.get("/podcasts/episodes/{episode_id}/audio")
-async def stream_podcast_episode_audio(episode_id: str):
-    """Stream the audio file associated with a podcast episode"""
-    try:
-        episode = await PodcastService.get_episode(episode_id)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching podcast episode for audio: {str(e)}")
-        raise HTTPException(status_code=404, detail="Episode not found")
+async def stream_podcast_episode_audio(episode_id: str, repo: CtxDep):
+    """Stream the audio file associated with a podcast episode. 404 if not in
+    the caller's workspace (no cross-workspace oracle)."""
+    episode = await _get_owned_episode(repo, episode_id)
 
     if not episode.audio_file:
         raise HTTPException(status_code=404, detail="Episode has no audio file")
@@ -248,10 +296,11 @@ async def stream_podcast_episode_audio(episode_id: str):
 
 
 @router.post("/podcasts/episodes/{episode_id}/retry")
-async def retry_podcast_episode(episode_id: str):
-    """Retry a failed podcast episode by deleting it and submitting a new job"""
+async def retry_podcast_episode(episode_id: str, repo: CtxDep):
+    """Retry a failed podcast episode by deleting it and submitting a new job.
+    404 if not in the caller's workspace (no cross-workspace oracle)."""
     try:
-        episode = await PodcastService.get_episode(episode_id)
+        episode = await _get_owned_episode(repo, episode_id)
 
         # Validate episode is in a failed state
         detail = await episode.get_job_detail()
@@ -295,6 +344,7 @@ async def retry_podcast_episode(episode_id: str):
             speaker_profile_name=sp_profile_name,
             episode_name=episode_name,
             content=content,
+            workspace_id=repo.workspace_id,
         )
 
         return {"job_id": job_id, "message": "Retry submitted successfully"}
@@ -309,11 +359,11 @@ async def retry_podcast_episode(episode_id: str):
 
 
 @router.delete("/podcasts/episodes/{episode_id}")
-async def delete_podcast_episode(episode_id: str):
-    """Delete a podcast episode and its associated audio file"""
+async def delete_podcast_episode(episode_id: str, repo: CtxDep):
+    """Delete a podcast episode and its associated audio file. 404 if not in
+    the caller's workspace (no cross-workspace oracle)."""
     try:
-        # Get the episode first to check if it exists and get the audio file path
-        episode = await PodcastService.get_episode(episode_id)
+        episode = await _get_owned_episode(repo, episode_id)
 
         # Delete the physical audio file if it exists
         if episode.audio_file:
@@ -335,6 +385,8 @@ async def delete_podcast_episode(episode_id: str):
         logger.info(f"Deleted podcast episode: {episode_id}")
         return {"message": "Episode deleted successfully", "episode_id": episode_id}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting podcast episode: {str(e)}")
         raise HTTPException(

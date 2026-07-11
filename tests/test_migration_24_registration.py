@@ -4,8 +4,9 @@ def test_migration_24_is_registered_in_both_lists():
     from open_notebook.database.async_migrate import AsyncMigrationManager
 
     manager = AsyncMigrationManager()
-    assert len(manager.up_migrations) == 24
-    assert len(manager.down_migrations) == 24
+    # Final total after auth-mt-rollout merge: 1-23 (P0-P6) + 24 (connectors) + 25 (rollout: episode.workspace).
+    assert len(manager.up_migrations) == 25
+    assert len(manager.down_migrations) == 25
 
 
 def test_migration_24_defines_connection_table():

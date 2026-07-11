@@ -24,6 +24,21 @@ from open_notebook.utils.graph_utils import get_session_message_count
 
 router = APIRouter()
 
+# P6 rollout note (workspace scoping): every endpoint below already requires
+# `require_view_source(source_id, ctx)` first, which itself 404s a
+# cross-workspace source_id (source_permissions.py's _in_active_workspace
+# check, itself a P5/P6-scoped join). Every session lookup afterward is
+# ALWAYS gated by a compound check: "session_id AND out=<that same
+# workspace-verified source_id>" (see the `relation_query` calls below). A
+# session that belongs to a different source (in a different workspace)
+# therefore fails that exact-match join and 404s -- there is no path where a
+# guessed session_id from another workspace succeeds, because the source_id
+# in the join is never attacker-controlled data, only the already-verified
+# path param. This is why `chat_session` here needs no ScopedRepository
+# parent-join of its own (unlike api/routers/chat.py's notebook-linked
+# sessions, which had no equivalent compound check and DID leak -- see P6
+# rollout's fix there).
+
 
 # Request/Response models
 class CreateSourceChatSessionRequest(BaseModel):

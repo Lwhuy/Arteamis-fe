@@ -4,12 +4,21 @@ already fixed in api/routers/context.py::get_notebook_context (P5 Task 11) --
 same fix, same test shape: mirror api/source_permissions.visible_source_ids
 into both the explicit-source-id branch and the default (no context_config)
 branch.
+
+P6 rollout: build_context now also requires CtxDep (repo.get(notebook_id) is
+workspace-checked before visible_source_ids runs at all) -- these tests
+override get_auth_context alongside get_permission_context and patch
+open_notebook.database.scoping.repo_query for the ownership check, and patch
+api.routers.chat.Project (not Notebook.get, which no longer exists here) so
+the mocked notebook object is used regardless of the raw row content.
 """
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from api.deps import get_auth_context
+from api.security import AuthContext
 from api.source_permissions import PermissionContext, get_permission_context
 
 
@@ -19,6 +28,9 @@ def client():
 
     ctx = PermissionContext(user_id="user:u1", workspace_id="workspace:w1", workspace_role="member")
     app.dependency_overrides[get_permission_context] = lambda: ctx
+    app.dependency_overrides[get_auth_context] = lambda: AuthContext(
+        user_id="user:u1", workspace_id="workspace:w1", role="member"
+    )
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -30,48 +42,60 @@ def _mock_notebook():
     return notebook
 
 
+def _patched_repo_get(row=None):
+    """Patch the scoping module's repo_query so repo.get(notebook_id) returns
+    a row (or 404s if row=None, simulating a cross-workspace notebook_id)."""
+    return patch(
+        "open_notebook.database.scoping.repo_query",
+        new=AsyncMock(return_value=[row] if row else []),
+    )
+
+
 def test_explicit_branch_denies_source_not_in_visible_set(client):
     """Caller lists an id they cannot view alongside one they can. Only the
-    visible one's content may come back, and Source.get must not even be
-    called for the denied id (belt-and-braces, matching context.py)."""
+    visible one's content may come back, and the source-fetch raw query must
+    not even run for the denied id (belt-and-braces, matching context.py)."""
     notebook = _mock_notebook()
 
     visible_source = Mock()
     visible_source.get_context = AsyncMock(return_value={"id": "source:a", "content": "AAA"})
 
-    denied_source_get = AsyncMock(return_value=Mock(get_context=AsyncMock(return_value={"id": "source:b", "content": "SECRET-B"})))
+    # repo_query call sequence: 1) repo.get(notebook_id) ownership check,
+    # 2) build_context's repo.raw() fetch of the one visible source (source:b
+    # is filtered out by the `visible` set before any raw call is attempted).
+    scoped_q = AsyncMock(
+        side_effect=[
+            [{"id": "notebook:n1", "workspace": "workspace:w1"}],
+            [{"id": "source:a"}],
+        ]
+    )
 
-    async def fake_source_get(full_id):
-        if full_id == "source:a":
-            return visible_source
-        # Should never be reached for a denied id.
-        return await denied_source_get(full_id)
-
-    with patch("api.routers.chat.Notebook.get", new=AsyncMock(return_value=notebook)):
-        with patch("api.routers.chat.visible_source_ids", new=AsyncMock(return_value=["source:a"])):
-            with patch("api.routers.chat.Source.get", new=AsyncMock(side_effect=fake_source_get)) as src_get:
-                resp = client.post(
-                    "/api/chat/context",
-                    json={
-                        "notebook_id": "notebook:n1",
-                        "context_config": {
-                            "sources": {
-                                "source:a": "full content",
-                                "source:b": "full content",
+    with patch("open_notebook.database.scoping.repo_query", new=scoped_q):
+        with patch("api.routers.chat.Project", return_value=notebook):
+            with patch("api.routers.chat.visible_source_ids", new=AsyncMock(return_value=["source:a"])):
+                with patch("api.routers.chat.Source", return_value=visible_source):
+                    resp = client.post(
+                        "/api/chat/context",
+                        json={
+                            "notebook_id": "notebook:n1",
+                            "context_config": {
+                                "sources": {
+                                    "source:a": "full content",
+                                    "source:b": "full content",
+                                },
+                                "notes": {},
                             },
-                            "notes": {},
                         },
-                    },
-                )
+                    )
 
     assert resp.status_code == 200
     body = resp.json()
     contents = [s.get("content") for s in body["context"]["sources"]]
     assert "AAA" in contents
     assert "SECRET-B" not in contents
-    # Denied id must be filtered out before Source.get is even attempted.
-    called_ids = [c.args[0] for c in src_get.await_args_list]
-    assert "source:b" not in called_ids
+    # Denied id must be filtered out before the raw source-fetch is even
+    # attempted: only 2 repo_query calls total (ownership check + source:a).
+    assert scoped_q.await_count == 2
 
 
 def test_default_branch_passes_viewer_source_ids_to_get_sources(client):
@@ -79,63 +103,41 @@ def test_default_branch_passes_viewer_source_ids_to_get_sources(client):
     to the caller's visible set instead of returning every source."""
     notebook = _mock_notebook()
 
-    with patch("api.routers.chat.Notebook.get", new=AsyncMock(return_value=notebook)):
-        with patch("api.routers.chat.visible_source_ids", new=AsyncMock(return_value=["source:a"])):
-            with patch("api.routers.chat.SourceInsight.get_for_sources", new=AsyncMock(return_value={})):
-                resp = client.post(
-                    "/api/chat/context",
-                    json={"notebook_id": "notebook:n1", "context_config": {}},
-                )
+    with _patched_repo_get({"id": "notebook:n1", "workspace": "workspace:w1"}):
+        with patch("api.routers.chat.Project", return_value=notebook):
+            with patch("api.routers.chat.visible_source_ids", new=AsyncMock(return_value=["source:a"])):
+                with patch("api.routers.chat.SourceInsight.get_for_sources", new=AsyncMock(return_value={})):
+                    resp = client.post(
+                        "/api/chat/context",
+                        json={"notebook_id": "notebook:n1", "context_config": {}},
+                    )
 
     assert resp.status_code == 200
     notebook.get_sources.assert_awaited()
     assert notebook.get_sources.await_args.kwargs.get("viewer_source_ids") == {"source:a"}
 
 
-def test_cross_workspace_notebook_yields_no_sources_either_branch(client):
-    """A notebook_id belonging to another workspace must resolve to an empty
-    visible set (this is what api.source_permissions.visible_source_ids
-    guarantees via its workspace-scoped query) -- and build_context must
-    honor that emptiness in BOTH branches, not just fetch everything."""
-    notebook = _mock_notebook()
+def test_cross_workspace_notebook_id_404s_before_any_source_lookup():
+    """P6 rollout: a notebook_id belonging to another workspace now 404s at
+    the repo.get() ownership check, before visible_source_ids or any source
+    lookup ever runs -- strictly tighter than the pre-P6 behavior (which
+    fetched the notebook unscoped and relied solely on visible_source_ids
+    returning an empty set)."""
+    from api.main import app
 
-    # Simulate get_sources() actually respecting the (empty) filter, the way
-    # Notebook.get_sources's real implementation does.
-    all_sources = [Mock(id="source:a"), Mock(id="source:b")]
-
-    async def fake_get_sources(viewer_source_ids=None, include_full_text=False):
-        if viewer_source_ids is None:
-            return all_sources
-        allowed = set(viewer_source_ids)
-        return [s for s in all_sources if s.id in allowed]
-
-    notebook.get_sources = AsyncMock(side_effect=fake_get_sources)
-
-    with patch("api.routers.chat.Notebook.get", new=AsyncMock(return_value=notebook)):
-        with patch("api.routers.chat.visible_source_ids", new=AsyncMock(return_value=[])):
-            with patch("api.routers.chat.SourceInsight.get_for_sources", new=AsyncMock(return_value={})):
-                # Default branch.
-                resp_default = client.post(
-                    "/api/chat/context",
-                    json={"notebook_id": "notebook:other-ws", "context_config": {}},
-                )
-                # Explicit-id branch, requesting ids that exist but belong to
-                # another workspace (not in the empty visible set).
-                with patch("api.routers.chat.Source.get", new=AsyncMock()) as src_get:
-                    resp_explicit = client.post(
-                        "/api/chat/context",
-                        json={
-                            "notebook_id": "notebook:other-ws",
-                            "context_config": {
-                                "sources": {"source:a": "full content"},
-                                "notes": {},
-                            },
-                        },
-                    )
-
-    assert resp_default.status_code == 200
-    assert resp_default.json()["context"]["sources"] == []
-
-    assert resp_explicit.status_code == 200
-    assert resp_explicit.json()["context"]["sources"] == []
-    src_get.assert_not_awaited()
+    app.dependency_overrides[get_permission_context] = lambda: PermissionContext(
+        user_id="user:u1", workspace_id="workspace:w1", workspace_role="member"
+    )
+    app.dependency_overrides[get_auth_context] = lambda: AuthContext(
+        user_id="user:u1", workspace_id="workspace:w1", role="member"
+    )
+    client = TestClient(app)
+    try:
+        with _patched_repo_get(None):  # repo.get() ownership check finds nothing
+            resp = client.post(
+                "/api/chat/context",
+                json={"notebook_id": "notebook:other-ws", "context_config": {}},
+            )
+        assert resp.status_code == 404
+    finally:
+        app.dependency_overrides.clear()

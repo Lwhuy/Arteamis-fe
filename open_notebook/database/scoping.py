@@ -39,30 +39,67 @@ GLOBAL_TABLES: frozenset[str] = frozenset(
     {"user", "auth_identity", "workspace", "membership"}
 )
 
+# NOTE on `command` (surreal-commands' own job-queue table): deliberately NOT
+# listed in GLOBAL_TABLES, NATIVE_WORKSPACE_TABLES, or
+# INHERITED_WORKSPACE_TABLES above -- it doesn't fit this module's model at
+# all. It has no native `workspace` column (so it can't go through
+# ScopedRepository's generic get/list), but unlike a true global table its
+# `result` field carries real per-tenant job output for some producers
+# (podcast generation's transcript/outline/audio_file_path) -- treating it as
+# purely global let ANY caller read another workspace's job result by
+# guessing its job_id (the last leak found in the rollout review). Fixed at
+# the service layer instead of here: the submitting workspace is stamped
+# into the command row's `context` field at submission
+# (api/command_service.py's submit_command_job) and checked on every
+# job-status read via CommandService.get_command_status_for_workspace (used
+# by GET /commands/jobs/{job_id} and GET /podcasts/jobs/{job_id}), 404ing on
+# any mismatch or missing stamp. This is a bespoke context-field check, NOT a
+# ScopedRepository path -- `command` still does not belong in
+# NATIVE_WORKSPACE_TABLES (it has no native `workspace` column for the
+# generic methods to filter on).
+
 # Tenant/content plane — every row belongs to exactly one workspace (personal OR
 # company — the filter is identical either way) and MUST be filtered by
 # workspace_id on every read/write/delete. NOTE: the project table is
 # PHYSICALLY named `notebook` (P3 repurpose-in-place, exposed as "project" at
 # the API/UI); record ids are `notebook:<id>` and ScopedRepository derives the
-# table from that prefix. `notebook`, `project_member`, `invitation` carry a
-# NATIVE `workspace` column (`project_member`/`invitation` rows simply never
+# table from that prefix.
+#
+# This plane splits into two disjoint subsets because the generic get/list/
+# create/update/delete methods below build `WHERE workspace = $workspace_id`
+# directly against the table — that ONLY works for a table with a NATIVE
+# `workspace` column.
+#
+# NATIVE_WORKSPACE_TABLES — `notebook`, `project_member`, `invitation` carry a
+# real `workspace` column (`project_member`/`invitation` rows simply never
 # exist for a personal workspace — a data-shape fact enforced by P3/P4
-# upstream, not by this filter). `source`, `note`, `chat_session`,
-# `source_insight`, `source_embedding` inherit workspace via their parent
-# project/source and are scoped through a parent join via `raw()` (see spec
-# "Data model changes").
-WORKSPACE_SCOPED_TABLES: frozenset[str] = frozenset(
-    {
-        "notebook",  # exposed as "project"
-        "source",
-        "note",
-        "chat_session",
-        "source_insight",
-        "source_embedding",
-        "project_member",
-        "invitation",
-    }
+# upstream, not by this filter). Safe for the generic methods. `episode`
+# (P6 rollout, migration 24) also carries a native `workspace` column, but
+# unlike the other three it is OPTIONAL and NULL on every episode generated
+# before migration 24 (no backfill was possible — see migration 24's own
+# comment) — the generic get/list methods' `WHERE workspace = $workspace_id`
+# simply never matches a NULL row, which fails closed (invisible to every
+# workspace) rather than open, so this is still safe for the generic path.
+#
+# INHERITED_WORKSPACE_TABLES — `source`, `note`, `chat_session`,
+# `source_insight`, `source_embedding` have NO native `workspace` column
+# (verified against migrations 1-23: none ever adds one). They inherit
+# workspace transitively via a parent: `source`/`note` via the
+# `reference`/`artifact` edge to a `notebook`; `source_insight`/
+# `source_embedding` via their `source`. Calling a generic method against one
+# of these would build `WHERE workspace = $workspace_id` on a column that
+# doesn't exist on the table — silently always-empty or erroring, never a
+# correct filter. `_assert_scoped` rejects these from the generic path
+# fail-closed; the caller MUST use `.raw()` with an explicit parent-join
+# filter instead (see `_get_owned_source` in `api/routers/projects.py` for the
+# reference-edge join pattern).
+NATIVE_WORKSPACE_TABLES: frozenset[str] = frozenset(
+    {"notebook", "project_member", "invitation", "episode"}
 )
+INHERITED_WORKSPACE_TABLES: frozenset[str] = frozenset(
+    {"source", "note", "chat_session", "source_insight", "source_embedding"}
+)
+WORKSPACE_SCOPED_TABLES: frozenset[str] = NATIVE_WORKSPACE_TABLES | INHERITED_WORKSPACE_TABLES
 
 
 def _table_of(record_id: str) -> str:
@@ -71,14 +108,33 @@ def _table_of(record_id: str) -> str:
 
 
 def _assert_scoped(table: str) -> None:
-    """Fail closed: a table must be an explicitly-classified scoped table."""
+    """Fail closed: a table must be an explicitly-classified NATIVE table to go
+    through the generic get/list/create/update/delete path.
+
+    - GLOBAL tables are rejected (never workspace-scoped).
+    - INHERITED tables are rejected too — the generic path would build
+      `WHERE workspace = $workspace_id` against a column that doesn't exist
+      on the table. Rejected with a clear, actionable error rather than
+      silently returning an empty/erroring result.
+    - Unknown tables are rejected (fail closed on a new/misspelled table).
+    """
     if table in GLOBAL_TABLES:
         raise InvalidInputError(
             f"{table!r} is a GLOBAL table — use raw repo_* helpers, not ScopedRepository"
         )
-    if table not in WORKSPACE_SCOPED_TABLES:
+    if table in INHERITED_WORKSPACE_TABLES:
         raise InvalidInputError(
-            f"Unknown table {table!r}; add it to WORKSPACE_SCOPED_TABLES or GLOBAL_TABLES"
+            f"Table {table!r} is workspace-inherited (no native `workspace` "
+            "column — it inherits workspace via a parent record); the generic "
+            "ScopedRepository get/list/create/update/delete methods cannot "
+            "safely filter it. Use ScopedRepository.raw() with an explicit "
+            "parent-join filter instead — see `_get_owned_source` in "
+            "api/routers/projects.py for the reference-edge join pattern."
+        )
+    if table not in NATIVE_WORKSPACE_TABLES:
+        raise InvalidInputError(
+            f"Unknown table {table!r}; add it to NATIVE_WORKSPACE_TABLES, "
+            "INHERITED_WORKSPACE_TABLES, or GLOBAL_TABLES"
         )
 
 
@@ -90,7 +146,18 @@ class ScopedRepository:
 
     Construct once per request via api.deps.get_request_context. Every method
     injects the workspace filter; there is no method that touches a scoped
-    table without it. `raw()` is the audited escape hatch.
+    table without it.
+
+    IMPORTANT — two different kinds of scoped table: the generic get/list/
+    create/update/delete methods only work for NATIVE_WORKSPACE_TABLES
+    (`notebook`, `project_member`, `invitation`, `episode`), which carry a
+    real `workspace` column. INHERITED_WORKSPACE_TABLES (`source`, `note`,
+    `chat_session`, `source_insight`, `source_embedding`) have NO native
+    `workspace` column — they inherit it via a parent record (e.g. `source`
+    via the `reference` edge to a `notebook`) — and are REJECTED by the
+    generic methods with a clear error. For those, use `.raw()` with an
+    explicit parent-join filter; `raw()` is the audited escape hatch for both
+    kinds of table (it never table-checks).
     """
 
     def __init__(self, workspace_id: str, user_id: str, role: Optional[str]):
