@@ -1,7 +1,10 @@
 'use client';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { useScopeStore } from '@/lib/stores/scope-store';
 import { LoopWidget } from './LoopWidget';
 import { SourcesSection } from './SourcesSection';
+import { ReviewInbox } from './ReviewInbox';
+import { CompanyBrainSection } from './CompanyBrainSection';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -17,13 +20,22 @@ function Empty({ text }: { text: string }) {
 
 export function ContextSidebar() {
   const { t } = useTranslation();
+  const scope = useScopeStore((s) => s.scope);
   return (
     <aside className="flex w-[372px] flex-shrink-0 flex-col gap-5 overflow-y-auto border-l border-border bg-background p-4">
       <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t('controlPlane.sidebar.context')}</div>
-      <Section title={t('controlPlane.sidebar.sources')}><SourcesSection /></Section>
-      <Section title={t('controlPlane.sidebar.loop')}><LoopWidget currentIndex={0} /></Section>
-      <Section title={t('controlPlane.sidebar.review')}><Empty text={t('controlPlane.sidebar.reviewEmpty')} /></Section>
-      <Section title={t('controlPlane.sidebar.brain')}><Empty text={t('controlPlane.sidebar.brainEmpty')} /></Section>
+      {scope === 'personal' ? (
+        <>
+          <Section title={t('controlPlane.sidebar.sources')}><SourcesSection /></Section>
+          <Section title={t('controlPlane.sidebar.loop')}><LoopWidget currentIndex={0} /></Section>
+        </>
+      ) : (
+        <>
+          <Section title={t('controlPlane.sidebar.review')}><ReviewInbox /></Section>
+          <Section title={t('controlPlane.sidebar.loop')}><LoopWidget currentIndex={3} /></Section>
+          <Section title={t('controlPlane.sidebar.brain')}><CompanyBrainSection /></Section>
+        </>
+      )}
     </aside>
   );
 }

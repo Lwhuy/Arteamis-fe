@@ -493,6 +493,14 @@ export const deDE = {
       notFound: "Source not found",
       lineageComingSoon: "Belief lineage coming soon",
     },
+    proposeToCompany: "Propose to Company",
+    review: {
+      accept: "Accept",
+      changes: "Request changes",
+    },
+    brain: {
+      view: "View",
+    },
     rail: {
       chat: "Chat",
       brain: "Brain",

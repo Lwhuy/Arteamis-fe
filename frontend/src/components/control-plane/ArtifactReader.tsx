@@ -4,6 +4,7 @@ import { useArtifact } from '@/lib/hooks/use-artifact';
 import { useSource } from '@/lib/hooks/use-sources';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { ProposeButton } from './ProposeButton';
 
 export function ArtifactReader() {
   const { t } = useTranslation();
@@ -38,6 +39,9 @@ function SourceArtifact({ id, loc }: { id: string; loc?: string }) {
       </div>
       <div className="flex-1 overflow-y-auto p-4 text-sm">
         <MarkdownRenderer>{data.full_text ?? ''}</MarkdownRenderer>
+        <div className="mt-4">
+          <ProposeButton title={data.title} body="" sourceSpans={[{ source_id: id, locator: loc }]} />
+        </div>
       </div>
     </div>
   );

@@ -18,6 +18,11 @@ vi.mock('@/lib/hooks/use-sources', () => ({
   useSource: () => ({ data: { id: 'abc', title: 'Q3 Research', full_text: 'body', visibility: 'private' }, isLoading: false }),
   useRecentSources: () => ({ data: [], isLoading: false }),
 }));
+// ProposeButton (rendered inside the artifact reader) uses useCreateProposal, which wraps
+// @tanstack/react-query's useMutation — mock it so this unit test doesn't require a QueryClientProvider.
+vi.mock('@/lib/hooks/use-governance', () => ({
+  useCreateProposal: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 
 import { ControlPlane } from './ControlPlane';
 
