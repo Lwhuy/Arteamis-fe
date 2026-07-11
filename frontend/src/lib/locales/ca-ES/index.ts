@@ -472,6 +472,7 @@ export const caES = {
     sessionDeleted: "S'ha suprimit la sessió",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

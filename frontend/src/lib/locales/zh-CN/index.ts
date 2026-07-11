@@ -472,6 +472,7 @@ export const zhCN = {
     sessionDeleted: "会话已删除",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

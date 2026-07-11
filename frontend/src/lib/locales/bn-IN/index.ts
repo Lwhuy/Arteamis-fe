@@ -472,6 +472,7 @@ export const bnIN = {
     sessionDeleted: "সেশন মুছে ফেলা হয়েছে",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

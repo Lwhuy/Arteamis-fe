@@ -472,6 +472,7 @@ export const jaJP = {
     sessionDeleted: "セッションを削除しました",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

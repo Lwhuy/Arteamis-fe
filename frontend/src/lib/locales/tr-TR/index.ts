@@ -472,6 +472,7 @@ export const trTR = {
     sessionDeleted: "Oturum silindi",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

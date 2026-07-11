@@ -472,6 +472,7 @@ export const ruRU = {
     sessionDeleted: "Сессия удалена",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

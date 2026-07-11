@@ -472,6 +472,7 @@ export const esES = {
     sessionDeleted: "Sesión eliminada",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

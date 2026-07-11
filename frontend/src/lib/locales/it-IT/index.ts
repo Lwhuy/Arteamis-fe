@@ -472,6 +472,7 @@ export const itIT = {
     sessionDeleted: "Sessione eliminata",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

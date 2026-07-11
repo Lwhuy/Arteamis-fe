@@ -472,6 +472,7 @@ export const zhTW = {
     sessionDeleted: "會話已刪除",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

@@ -472,6 +472,7 @@ export const enUS = {
     sessionDeleted: "Session deleted",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

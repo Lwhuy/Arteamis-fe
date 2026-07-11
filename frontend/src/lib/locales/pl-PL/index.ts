@@ -472,6 +472,7 @@ export const plPL = {
     sessionDeleted: "Usunięto sesję",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

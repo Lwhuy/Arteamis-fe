@@ -475,6 +475,7 @@ export const deDE = {
     sessionDeleted: "Sitzung gelöscht",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

@@ -472,6 +472,7 @@ export const ptBR = {
     sessionDeleted: "Sessão excluída",
   },
   controlPlane: {
+    launcher: "Control Plane",
     title: "Ask the Brain",
     personal: "Personal",
     company: "Company",

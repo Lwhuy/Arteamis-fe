@@ -41,9 +41,16 @@ import {
   Plus,
   Wrench,
   Command,
+  Sparkles,
 } from 'lucide-react'
 
 const getNavigation = (t: TFunction) => [
+  {
+    title: t('controlPlane.launcher'),
+    items: [
+      { name: t('controlPlane.launcher'), href: '/control-plane', icon: Sparkles },
+    ],
+  },
   {
     title: t('navigation.collect'),
     items: [
