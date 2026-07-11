@@ -85,7 +85,7 @@ class APIClient:
         if archived is not None:
             params["archived"] = str(archived).lower()
 
-        result = self._make_request("GET", "/api/notebooks", params=params)
+        result = self._make_request("GET", "/api/projects", params=params)
         return result if isinstance(result, list) else [result]
 
     def create_notebook(
@@ -93,13 +93,13 @@ class APIClient:
     ) -> Union[Dict[Any, Any], List[Dict[Any, Any]]]:
         """Create a new notebook."""
         data = {"name": name, "description": description}
-        return self._make_request("POST", "/api/notebooks", json=data)
+        return self._make_request("POST", "/api/projects", json=data)
 
     def get_notebook(
         self, notebook_id: str
     ) -> Union[Dict[Any, Any], List[Dict[Any, Any]]]:
         """Get a specific notebook."""
-        return self._make_request("GET", f"/api/notebooks/{notebook_id}")
+        return self._make_request("GET", f"/api/projects/{notebook_id}")
 
     def update_notebook(
         self, notebook_id: str, **updates

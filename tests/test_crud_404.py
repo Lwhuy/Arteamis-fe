@@ -25,42 +25,69 @@ def _nf(*_args, **_kwargs):
     raise NotFoundError("not found")
 
 
-# --- notebooks --------------------------------------------------------------
+# --- projects (P3, replaces notebooks) --------------------------------------
+
+from api.deps import get_auth_context  # noqa: E402
+from api.security import AuthContext  # noqa: E402
+
+
+def _member_ctx():
+    return AuthContext(user_id="user:1", workspace_id="workspace:a", role="owner")
 
 
 @pytest.mark.asyncio
-@patch("api.routers.notebooks.Notebook.get", new_callable=AsyncMock)
-async def test_delete_notebook_missing_returns_404(mock_get, client):
+@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+async def test_delete_project_missing_returns_404(mock_get, client):
+    from api.main import app
+
+    app.dependency_overrides[get_auth_context] = _member_ctx
     mock_get.side_effect = _nf
-    assert client.delete("/api/notebooks/notebook:gone").status_code == 404
+    assert client.delete("/api/projects/notebook:gone").status_code == 404
+    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.notebooks.Notebook.get", new_callable=AsyncMock)
-async def test_update_notebook_missing_returns_404(mock_get, client):
+@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+async def test_update_project_missing_returns_404(mock_get, client):
+    from api.main import app
+
+    app.dependency_overrides[get_auth_context] = _member_ctx
     mock_get.side_effect = _nf
-    assert client.put("/api/notebooks/notebook:gone", json={"name": "x"}).status_code == 404
+    assert client.put("/api/projects/notebook:gone", json={"name": "x"}).status_code == 404
+    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.notebooks.Notebook.get", new_callable=AsyncMock)
+@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
 async def test_delete_preview_missing_returns_404(mock_get, client):
+    from api.main import app
+
+    app.dependency_overrides[get_auth_context] = _member_ctx
     mock_get.side_effect = _nf
-    assert client.get("/api/notebooks/notebook:gone/delete-preview").status_code == 404
+    assert client.get("/api/projects/notebook:gone/delete-preview").status_code == 404
+    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.notebooks.Notebook.get", new_callable=AsyncMock)
-async def test_add_source_missing_notebook_returns_404(mock_get, client):
+@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+async def test_add_source_missing_project_returns_404(mock_get, client):
+    from api.main import app
+
+    app.dependency_overrides[get_auth_context] = _member_ctx
     mock_get.side_effect = _nf
-    assert client.post("/api/notebooks/notebook:gone/sources/source:1").status_code == 404
+    assert client.post("/api/projects/notebook:gone/sources/source:1").status_code == 404
+    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-@patch("api.routers.notebooks.Notebook.get", new_callable=AsyncMock)
-async def test_remove_source_missing_notebook_returns_404(mock_get, client):
+@patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+async def test_remove_source_missing_project_returns_404(mock_get, client):
+    from api.main import app
+
+    app.dependency_overrides[get_auth_context] = _member_ctx
     mock_get.side_effect = _nf
-    assert client.delete("/api/notebooks/notebook:gone/sources/source:1").status_code == 404
+    assert client.delete("/api/projects/notebook:gone/sources/source:1").status_code == 404
+    app.dependency_overrides.clear()
 
 
 # --- notes ------------------------------------------------------------------
