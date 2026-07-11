@@ -2,9 +2,13 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 import api.brain_service as brain_service
 from api.brain_models import BrainStatusResponse
+from api.deps import get_auth_context
+from api.security import AuthContext
 
 
 def _ctx(workspace_id="workspace:ws1", role="owner"):
@@ -174,3 +178,72 @@ async def test_get_brain_graph_drops_relates_edge_for_unlisted_node(monkeypatch)
     result = await brain_service.get_brain_graph(_ctx(), domain=None, limit=200)
 
     assert all(e.target != "source:unlisted" for e in result.edges)
+
+
+def _client(role="owner"):
+    """TestClient with get_auth_context + the router's owner_or_admin gate
+    overridden, mirroring tests/test_projects_api.py's auth-override pattern
+    (the P7.2 brain router uses get_auth_context/require_role, not P6's
+    CtxDep/get_request_context)."""
+    import api.routers.brain as brain_router
+    from api.main import app
+
+    ctx = AuthContext(user_id="user:1", workspace_id="workspace:ws1", role=role)
+    app.dependency_overrides[get_auth_context] = lambda: ctx
+
+    def _gate():
+        if role not in ("owner", "admin"):
+            raise HTTPException(status_code=403, detail="forbidden")
+        return ctx
+
+    app.dependency_overrides[brain_router.owner_or_admin] = _gate
+    return TestClient(app), app
+
+
+def test_brain_status_route(monkeypatch):
+    import api.routers.brain as brain_router
+
+    monkeypatch.setattr(
+        brain_router,
+        "get_brain_status",
+        AsyncMock(
+            return_value=BrainStatusResponse(
+                total_sources=4, built_sources=2, running=True
+            )
+        ),
+    )
+    client, app = _client()
+    try:
+        resp = client.get("/api/brain/status")
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "total_sources": 4,
+            "built_sources": 2,
+            "running": True,
+        }
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_brain_rebuild_route_owner(monkeypatch):
+    import api.routers.brain as brain_router
+
+    monkeypatch.setattr(
+        brain_router, "trigger_rebuild", AsyncMock(return_value="command:abc")
+    )
+    client, app = _client(role="owner")
+    try:
+        resp = client.post("/api/brain/rebuild", json={"mode": "full"})
+        assert resp.status_code == 200
+        assert resp.json() == {"command_id": "command:abc"}
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_brain_rebuild_route_forbidden_for_member(monkeypatch):
+    client, app = _client(role="member")
+    try:
+        resp = client.post("/api/brain/rebuild", json={"mode": "incremental"})
+        assert resp.status_code == 403
+    finally:
+        app.dependency_overrides.clear()
