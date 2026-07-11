@@ -1079,6 +1079,8 @@ export const esES = {
     toastRuleCreated: "Regla creada",
     toastWorkPackageCreated: "Paquete de trabajo creado",
     toastWorkPackageStatusUpdated: "Estado del paquete de trabajo actualizado",
+    toastTraceRecorded: "Traza registrada",
+    toastLearningProposed: "Aprendizaje propuesto",
   },
   setupBanner: {
     encryptionRequired: "Clave de encriptación no configurada",

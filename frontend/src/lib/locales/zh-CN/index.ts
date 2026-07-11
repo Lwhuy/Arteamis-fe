@@ -1078,6 +1078,8 @@ export const zhCN = {
     toastRuleCreated: "规则已创建",
     toastWorkPackageCreated: "工作包已创建",
     toastWorkPackageStatusUpdated: "工作包状态已更新",
+    toastTraceRecorded: "追踪已记录",
+    toastLearningProposed: "学习提案已创建",
   },
   setupBanner: {
     encryptionRequired: "未配置加密密钥",

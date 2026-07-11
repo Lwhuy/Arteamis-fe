@@ -13,11 +13,12 @@ vi.mock('@/lib/api/governance', async () => {
       listProposals: vi.fn().mockResolvedValue([{ id: 'proposal:1', title: 'SMB', status: 'pending' }]),
       listDecisions: vi.fn().mockResolvedValue([{ id: 'decision:1', title: 'Ship SMB pricing', status: 'active' }]),
       listWorkPackages: vi.fn().mockResolvedValue([{ id: 'work_package:1', title: 'Draft plan', status: 'open' }]),
+      listTraces: vi.fn().mockResolvedValue([{ id: 'trace:1', summary: 'Ran playbook', outcome: 'success' }]),
     },
   }
 })
 
-import { useProposals, useDecisions, useWorkPackages } from './use-governance'
+import { useProposals, useDecisions, useWorkPackages, useTracesForWorkPackage } from './use-governance'
 
 const wrapper = ({ children }: { children: React.ReactNode }) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -42,5 +43,12 @@ describe('useWorkPackages', () => {
   it('fetches work packages', async () => {
     const { result } = renderHook(() => useWorkPackages(), { wrapper })
     await waitFor(() => expect(result.current.data?.[0].title).toBe('Draft plan'))
+  })
+})
+
+describe('useTracesForWorkPackage', () => {
+  it('fetches traces for a work package', async () => {
+    const { result } = renderHook(() => useTracesForWorkPackage('work_package:1'), { wrapper })
+    await waitFor(() => expect(result.current.data?.[0].summary).toBe('Ran playbook'))
   })
 })

@@ -6,6 +6,8 @@ import {
   type CreateRulePayload,
   type CreateWorkPackagePayload,
   type WorkPackage,
+  type RecordTracePayload,
+  type CreateLearningProposalPayload,
 } from '@/lib/api/governance'
 import { useToast } from '@/lib/hooks/use-toast'
 import { useTranslation } from '@/lib/hooks/use-translation'
@@ -158,6 +160,50 @@ export function useUpdateWorkPackageStatus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: KEYS.workPackages })
       toast({ title: t('governance.toastWorkPackageStatusUpdated') })
+    },
+  })
+}
+
+export const useTracesForWorkPackage = (workPackageId?: string) =>
+  useQuery({
+    queryKey: ['traces', workPackageId],
+    queryFn: () => governanceApi.listTraces(workPackageId as string),
+    enabled: !!workPackageId,
+  })
+
+export const useTrace = (id?: string) =>
+  useQuery({
+    queryKey: ['traces', 'detail', id],
+    queryFn: () => governanceApi.getTrace(id as string),
+    enabled: !!id,
+  })
+
+export function useRecordTrace() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const { t } = useTranslation()
+
+  return useMutation({
+    mutationFn: ({ workPackageId, payload }: { workPackageId: string; payload: RecordTracePayload }) =>
+      governanceApi.recordTrace(workPackageId, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['traces', variables.workPackageId] })
+      toast({ title: t('governance.toastTraceRecorded') })
+    },
+  })
+}
+
+export function useCreateLearningProposal() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const { t } = useTranslation()
+
+  return useMutation({
+    mutationFn: ({ traceId, payload }: { traceId: string; payload: CreateLearningProposalPayload }) =>
+      governanceApi.createLearningProposal(traceId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: KEYS.proposals })
+      toast({ title: t('governance.toastLearningProposed') })
     },
   })
 }

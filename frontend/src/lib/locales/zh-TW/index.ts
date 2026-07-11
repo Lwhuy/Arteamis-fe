@@ -1078,6 +1078,8 @@ export const zhTW = {
     toastRuleCreated: "規則已建立",
     toastWorkPackageCreated: "工作包已建立",
     toastWorkPackageStatusUpdated: "工作包狀態已更新",
+    toastTraceRecorded: "追蹤已記錄",
+    toastLearningProposed: "學習提案已建立",
   },
   setupBanner: {
     encryptionRequired: "未設定加密金鑰",

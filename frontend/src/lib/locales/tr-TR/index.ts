@@ -1078,6 +1078,8 @@ export const trTR = {
     toastRuleCreated: "Kural oluşturuldu",
     toastWorkPackageCreated: "Çalışma paketi oluşturuldu",
     toastWorkPackageStatusUpdated: "Çalışma paketi durumu güncellendi",
+    toastTraceRecorded: "İz kaydedildi",
+    toastLearningProposed: "Öğrenme önerildi",
   },
   setupBanner: {
     encryptionRequired: "Şifreleme anahtarı yapılandırılmadı",

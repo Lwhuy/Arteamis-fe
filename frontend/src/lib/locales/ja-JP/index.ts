@@ -1078,6 +1078,8 @@ export const jaJP = {
     toastRuleCreated: "ルールを作成しました",
     toastWorkPackageCreated: "作業パッケージを作成しました",
     toastWorkPackageStatusUpdated: "作業パッケージのステータスを更新しました",
+    toastTraceRecorded: "トレースを記録しました",
+    toastLearningProposed: "学習を提案しました",
   },
   setupBanner: {
     encryptionRequired: "暗号化キーが設定されていません",

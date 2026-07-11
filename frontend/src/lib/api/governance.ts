@@ -76,6 +76,27 @@ export interface CreateWorkPackagePayload {
   executes_ids: string[]
 }
 
+export interface Trace {
+  id: string
+  work_package: string
+  summary: string
+  sources_used: string[]
+  outcome: string
+  created?: string
+}
+
+export interface RecordTracePayload {
+  summary: string
+  sources_used?: string[]
+  outcome?: string
+}
+
+export interface CreateLearningProposalPayload {
+  title: string
+  body?: string
+  belief_id: string
+}
+
 export const governanceApi = {
   createProposal: (payload: CreateProposalPayload) =>
     apiClient.post<Proposal>('/proposals', payload).then((r) => r.data),
@@ -116,4 +137,15 @@ export const governanceApi = {
 
   updateWorkPackageStatus: (id: string, status: WorkPackage['status']) =>
     apiClient.post<WorkPackage>(`/work-packages/${id}/status`, { status }).then((r) => r.data),
+
+  recordTrace: (workPackageId: string, payload: RecordTracePayload) =>
+    apiClient.post<Trace>(`/work-packages/${workPackageId}/trace`, payload).then((r) => r.data),
+
+  listTraces: (workPackageId: string) =>
+    apiClient.get<Trace[]>(`/work-packages/${workPackageId}/traces`).then((r) => r.data),
+
+  getTrace: (id: string) => apiClient.get<Trace>(`/traces/${id}`).then((r) => r.data),
+
+  createLearningProposal: (traceId: string, payload: CreateLearningProposalPayload) =>
+    apiClient.post<Proposal>(`/traces/${traceId}/learning`, payload).then((r) => r.data),
 }

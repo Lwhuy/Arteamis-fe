@@ -1078,6 +1078,8 @@ export const ruRU = {
     toastRuleCreated: "Правило создано",
     toastWorkPackageCreated: "Рабочий пакет создан",
     toastWorkPackageStatusUpdated: "Статус рабочего пакета обновлён",
+    toastTraceRecorded: "Трассировка записана",
+    toastLearningProposed: "Обучение предложено",
   },
   setupBanner: {
     encryptionRequired: "Ключ шифрования не настроен",

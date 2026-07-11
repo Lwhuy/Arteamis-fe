@@ -1078,6 +1078,8 @@ export const frFR = {
     toastRuleCreated: "Règle créée",
     toastWorkPackageCreated: "Lot de travail créé",
     toastWorkPackageStatusUpdated: "Statut du lot de travail mis à jour",
+    toastTraceRecorded: "Trace enregistrée",
+    toastLearningProposed: "Apprentissage proposé",
   },
   setupBanner: {
     encryptionRequired: "Clé de chiffrement non configurée",

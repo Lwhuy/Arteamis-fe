@@ -1079,6 +1079,8 @@ export const bnIN = {
     toastRuleCreated: "নিয়ম তৈরি হয়েছে",
     toastWorkPackageCreated: "কাজের প্যাকেজ তৈরি হয়েছে",
     toastWorkPackageStatusUpdated: "কাজের প্যাকেজের অবস্থা আপডেট হয়েছে",
+    toastTraceRecorded: "ট্রেস রেকর্ড করা হয়েছে",
+    toastLearningProposed: "শিক্ষার প্রস্তাব দেওয়া হয়েছে",
   },
   setupBanner: {
     encryptionRequired: "এনক্রিপশন কী কনফিগার করা হয়নি",

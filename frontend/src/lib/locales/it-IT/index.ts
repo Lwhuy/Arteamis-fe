@@ -1078,6 +1078,8 @@ export const itIT = {
     toastRuleCreated: "Regola creata",
     toastWorkPackageCreated: "Pacchetto di lavoro creato",
     toastWorkPackageStatusUpdated: "Stato del pacchetto di lavoro aggiornato",
+    toastTraceRecorded: "Traccia registrata",
+    toastLearningProposed: "Apprendimento proposto",
   },
   setupBanner: {
     encryptionRequired: "Chiave di crittografia non configurata",

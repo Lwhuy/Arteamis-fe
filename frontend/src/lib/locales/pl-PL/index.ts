@@ -1078,6 +1078,8 @@ export const plPL = {
     toastRuleCreated: "Reguła utworzona",
     toastWorkPackageCreated: "Pakiet roboczy utworzony",
     toastWorkPackageStatusUpdated: "Zaktualizowano status pakietu roboczego",
+    toastTraceRecorded: "Zarejestrowano ślad",
+    toastLearningProposed: "Zaproponowano uczenie",
   },
   setupBanner: {
     encryptionRequired: "Klucz szyfrowania nie został skonfigurowany",

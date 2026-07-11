@@ -1079,6 +1079,8 @@ export const enUS = {
     toastRuleCreated: "Rule created",
     toastWorkPackageCreated: "Work package created",
     toastWorkPackageStatusUpdated: "Work package status updated",
+    toastTraceRecorded: "Trace recorded",
+    toastLearningProposed: "Learning proposed",
   },
   setupBanner: {
     encryptionRequired: "Encryption key not configured",
