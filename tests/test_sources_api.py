@@ -6,16 +6,30 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from api.source_permissions import PermissionContext, get_permission_context
 from open_notebook.config import UPLOADS_FOLDER
 from open_notebook.domain.notebook import Source
 
 
 @pytest.fixture
 def client():
-    """Create test client after environment variables have been cleared by conftest."""
+    """Create test client after environment variables have been cleared by conftest.
+
+    P5 wires require_view_source/require_mutate_source into every endpoint in
+    this router, which need a PermissionContext; override it with a
+    workspace-owner context so these (permission-agnostic) tests keep
+    exercising the behavior they were written for without also having to stub
+    out the 3-scope predicate machinery (that lives in
+    tests/test_p5_sources_router.py and test_p5_require_and_visible.py).
+    """
     from api.main import app
 
-    return TestClient(app)
+    ctx = PermissionContext(
+        user_id="user:1", workspace_id="workspace:w1", workspace_role="owner"
+    )
+    app.dependency_overrides[get_permission_context] = lambda: ctx
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class TestAsyncSourceAssetPersistence:
@@ -29,12 +43,14 @@ class TestAsyncSourceAssetPersistence:
     @pytest.mark.asyncio
     @patch("api.routers.sources.CommandService.submit_command_job", new_callable=AsyncMock)
     @patch("api.routers.sources.Source.add_to_notebook", new_callable=AsyncMock)
-    @patch("api.routers.sources.Notebook.get", new_callable=AsyncMock)
+    @patch("api.routers.sources.Project.get", new_callable=AsyncMock)
     async def test_async_link_source_persists_url_asset(
         self, mock_nb_get, mock_add_nb, mock_submit, client
     ):
         """POST /sources with type=link and async_processing=true persists Asset(url=...)."""
-        mock_nb_get.return_value = MagicMock()
+        mock_nb_get.return_value = MagicMock(
+            workspace="workspace:w1", default_source_scope="project"
+        )
         mock_submit.return_value = "command:123"
 
         saved_sources = []
@@ -66,13 +82,15 @@ class TestAsyncSourceAssetPersistence:
     @pytest.mark.asyncio
     @patch("api.routers.sources.CommandService.submit_command_job", new_callable=AsyncMock)
     @patch("api.routers.sources.Source.add_to_notebook", new_callable=AsyncMock)
-    @patch("api.routers.sources.Notebook.get", new_callable=AsyncMock)
+    @patch("api.routers.sources.Project.get", new_callable=AsyncMock)
     @patch("api.routers.sources.save_uploaded_file", new_callable=AsyncMock)
     async def test_async_upload_source_persists_file_asset(
         self, mock_upload, mock_nb_get, mock_add_nb, mock_submit, client
     ):
         """POST /sources with type=upload and async_processing=true persists Asset(file_path=...)."""
-        mock_nb_get.return_value = MagicMock()
+        mock_nb_get.return_value = MagicMock(
+            workspace="workspace:w1", default_source_scope="project"
+        )
         mock_upload.return_value = os.path.join(os.path.abspath(UPLOADS_FOLDER), "video.mp4")
         mock_submit.return_value = "command:123"
 
@@ -105,12 +123,14 @@ class TestAsyncSourceAssetPersistence:
     @pytest.mark.asyncio
     @patch("api.routers.sources.CommandService.submit_command_job", new_callable=AsyncMock)
     @patch("api.routers.sources.Source.add_to_notebook", new_callable=AsyncMock)
-    @patch("api.routers.sources.Notebook.get", new_callable=AsyncMock)
+    @patch("api.routers.sources.Project.get", new_callable=AsyncMock)
     async def test_async_text_source_has_no_asset(
         self, mock_nb_get, mock_add_nb, mock_submit, client
     ):
         """POST /sources with type=text and async_processing=true has asset=None."""
-        mock_nb_get.return_value = MagicMock()
+        mock_nb_get.return_value = MagicMock(
+            workspace="workspace:w1", default_source_scope="project"
+        )
         mock_submit.return_value = "command:123"
 
         saved_sources = []
@@ -145,9 +165,9 @@ class TestRetrySourceProcessing:
     @pytest.mark.asyncio
     @patch("api.routers.sources.CommandService.submit_command_job", new_callable=AsyncMock)
     @patch("api.routers.sources.repo_query", new_callable=AsyncMock)
-    @patch("api.routers.sources.Source.get", new_callable=AsyncMock)
+    @patch("api.routers.sources.require_mutate_source", new_callable=AsyncMock)
     async def test_retry_finds_notebooks_and_requeues(
-        self, mock_get, mock_repo_query, mock_submit, client
+        self, mock_require_mutate, mock_repo_query, mock_submit, client
     ):
         source = MagicMock()
         source.id = "source:1"
@@ -155,10 +175,12 @@ class TestRetrySourceProcessing:
         source.title = "My source"
         source.topics = []
         source.full_text = None
+        source.scope = "project"
+        source.owner = None
         source.asset = MagicMock(file_path=None, url="https://example.com/post")
         source.save = AsyncMock()
         source.get_embedded_chunks = AsyncMock(return_value=0)
-        mock_get.return_value = source
+        mock_require_mutate.return_value = source
 
         # The corrected query returns the linked notebook(s)
         mock_repo_query.return_value = ["notebook:1"]
@@ -181,14 +203,14 @@ class TestRetrySourceProcessing:
 
     @pytest.mark.asyncio
     @patch("api.routers.sources.repo_query", new_callable=AsyncMock)
-    @patch("api.routers.sources.Source.get", new_callable=AsyncMock)
+    @patch("api.routers.sources.require_mutate_source", new_callable=AsyncMock)
     async def test_retry_400_only_when_truly_unlinked(
-        self, mock_get, mock_repo_query, client
+        self, mock_require_mutate, mock_repo_query, client
     ):
         source = MagicMock()
         source.id = "source:1"
         source.command = None
-        mock_get.return_value = source
+        mock_require_mutate.return_value = source
         mock_repo_query.return_value = []  # genuinely no notebooks
 
         response = client.post("/api/sources/source:1/retry")
@@ -228,9 +250,11 @@ class TestTitleSortUsesAlias:
     """
 
     @pytest.mark.asyncio
+    @patch("api.routers.sources.visible_source_ids", new_callable=AsyncMock)
     @patch("api.routers.sources.repo_query", new_callable=AsyncMock)
-    async def test_sort_by_title_orders_by_alias(self, mock_query, client):
+    async def test_sort_by_title_orders_by_alias(self, mock_query, mock_visible, client):
         mock_query.return_value = []
+        mock_visible.return_value = []
 
         response = client.get("/api/sources?sort_by=title")
 
@@ -240,9 +264,11 @@ class TestTitleSortUsesAlias:
         assert "AS title_sort" in query
 
     @pytest.mark.asyncio
+    @patch("api.routers.sources.visible_source_ids", new_callable=AsyncMock)
     @patch("api.routers.sources.repo_query", new_callable=AsyncMock)
-    async def test_all_sort_fields_return_200(self, mock_query, client):
+    async def test_all_sort_fields_return_200(self, mock_query, mock_visible, client):
         mock_query.return_value = []
+        mock_visible.return_value = []
         for field in ["type", "title", "created", "updated", "insights_count", "embedded"]:
             response = client.get(f"/api/sources?sort_by={field}")
             assert response.status_code == 200, f"sort_by={field}"

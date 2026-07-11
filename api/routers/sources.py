@@ -30,10 +30,17 @@ from api.models import (
     SourceStatusResponse,
     SourceUpdate,
 )
+from api.source_permissions import (
+    PermissionContext,
+    get_permission_context,
+    require_mutate_source,
+    require_view_source,
+    visible_source_ids,
+)
 from commands.source_commands import SourceProcessingInput
 from open_notebook.config import UPLOADS_FOLDER
 from open_notebook.database.repository import ensure_record_id, repo_query
-from open_notebook.domain.notebook import Asset, Notebook, Source
+from open_notebook.domain.notebook import Asset, Project, Source
 from open_notebook.domain.transformation import Transformation
 from open_notebook.exceptions import InvalidInputError, NotFoundError
 
@@ -223,8 +230,9 @@ async def get_sources(
         description="Field to sort by (type, title, created, updated, insights_count, or embedded)",
     ),
     sort_order: str = Query("desc", description="Sort order (asc or desc)"),
+    ctx: PermissionContext = Depends(get_permission_context),
 ):
-    """Get sources with pagination and sorting support."""
+    """Get sources with pagination and sorting, scoped to sources the caller may view."""
     try:
         # Validate sort parameters
         if sort_by not in SOURCE_SORT_FIELDS:
@@ -245,21 +253,26 @@ async def get_sources(
             f"ORDER BY {SOURCE_SORT_FIELDS[sort_by]} {sort_order.upper()}, id ASC"
         )
 
+        # Allow-list of source ids the caller may view (scopes to active workspace).
+        visible = await visible_source_ids(ctx, notebook_id)
+        visible_ids = [ensure_record_id(s) for s in visible]
+
         # Build the query
         if notebook_id:
             # Verify notebook exists first
-            notebook = await Notebook.get(notebook_id)
+            notebook = await Project.get(notebook_id)
             if not notebook:
                 raise HTTPException(status_code=404, detail="Notebook not found")
 
             # Query sources for specific notebook - include command field with FETCH
             query = f"""
-                SELECT id, asset, created, title, updated, topics, command,
+                SELECT id, asset, created, title, updated, topics, command, scope, owner,
                 string::lowercase(title OR '') AS title_sort,
                 ({SOURCE_TYPE_EXPRESSION}) AS type,
                 (SELECT VALUE count() FROM source_insight WHERE source = $parent.id GROUP ALL)[0].count OR 0 AS insights_count,
                 (SELECT VALUE id FROM source_embedding WHERE source = $parent.id LIMIT 1) != [] AS embedded
                 FROM (select value in from reference where out=$notebook_id)
+                WHERE id IN $visible_ids
                 {order_clause}
                 LIMIT $limit START $offset
                 FETCH command
@@ -268,6 +281,7 @@ async def get_sources(
                 query,
                 {
                     "notebook_id": ensure_record_id(notebook_id),
+                    "visible_ids": visible_ids,
                     "limit": limit,
                     "offset": offset,
                 },
@@ -275,17 +289,20 @@ async def get_sources(
         else:
             # Query all sources - include command field with FETCH
             query = f"""
-                SELECT id, asset, created, title, updated, topics, command,
+                SELECT id, asset, created, title, updated, topics, command, scope, owner,
                 string::lowercase(title OR '') AS title_sort,
                 ({SOURCE_TYPE_EXPRESSION}) AS type,
                 (SELECT VALUE count() FROM source_insight WHERE source = $parent.id GROUP ALL)[0].count OR 0 AS insights_count,
                 (SELECT VALUE id FROM source_embedding WHERE source = $parent.id LIMIT 1) != [] AS embedded
                 FROM source
+                WHERE id IN $visible_ids
                 {order_clause}
                 LIMIT $limit START $offset
                 FETCH command
             """
-            result = await repo_query(query, {"limit": limit, "offset": offset})
+            result = await repo_query(
+                query, {"visible_ids": visible_ids, "limit": limit, "offset": offset}
+            )
 
         # Convert result to response model
         # Command data is already fetched via FETCH command clause
@@ -339,6 +356,8 @@ async def get_sources(
                     command_id=command_id,
                     status=status,
                     processing_info=processing_info,
+                    scope=row.get("scope") or "project",
+                    owner=str(row["owner"]) if row.get("owner") else None,
                 )
             )
 
@@ -355,6 +374,7 @@ async def create_source(
     form_data: tuple[SourceCreate, Optional[UploadFile]] = Depends(
         parse_source_form_data
     ),
+    ctx: PermissionContext = Depends(get_permission_context),
 ):
     """Create a new source with support for both JSON and multipart form data."""
     source_data, upload_file = form_data
@@ -363,13 +383,28 @@ async def create_source(
     file_path = None
 
     try:
-        # Verify all specified notebooks exist (backward compatibility support)
-        for notebook_id in source_data.notebooks or []:
-            notebook = await Notebook.get(notebook_id)
-            if not notebook:
+        # Verify target projects exist AND the caller is a member (member+) of
+        # each, in the active workspace. Non-member -> 403; wrong workspace /
+        # missing -> 404. Resolve the effective scope from the FIRST target
+        # project's default_source_scope when the caller didn't pick one.
+        resolved_scope = source_data.scope
+        for i, notebook_id in enumerate(source_data.notebooks or []):
+            project = await Project.get(notebook_id)
+            if not project:
                 raise HTTPException(
                     status_code=404, detail=f"Notebook {notebook_id} not found"
                 )
+            if str(getattr(project, "workspace", None)) != ctx.workspace_id:
+                raise HTTPException(
+                    status_code=404, detail=f"Notebook {notebook_id} not found"
+                )
+            if await ctx.project_role(notebook_id) not in ("admin", "member"):
+                raise HTTPException(
+                    status_code=403, detail="You are not a member of this project"
+                )
+            if i == 0 and resolved_scope is None:
+                resolved_scope = getattr(project, "default_source_scope", None)
+        resolved_scope = resolved_scope or "project"
 
         # Handle file upload if provided
         if upload_file and source_data.type == "upload":
@@ -451,6 +486,8 @@ async def create_source(
                 title=source_data.title or "Processing...",
                 topics=[],
                 asset=source_asset,
+                owner=ctx.user_id,
+                scope=resolved_scope,
             )
             await source.save()
 
@@ -499,6 +536,8 @@ async def create_source(
                     command_id=command_id,
                     status="new",
                     processing_info={"async": True, "queued": True},
+                    scope=resolved_scope,
+                    owner=ctx.user_id,
                 )
 
             except Exception as e:
@@ -530,6 +569,8 @@ async def create_source(
                 source = Source(
                     title=source_data.title or "Processing...",
                     topics=[],
+                    owner=ctx.user_id,
+                    scope=resolved_scope,
                 )
                 await source.save()
 
@@ -606,6 +647,10 @@ async def create_source(
                     created=str(processed_source.created),
                     updated=str(processed_source.updated),
                     # No command_id or status for sync processing (legacy behavior)
+                    scope=processed_source.scope,
+                    owner=str(processed_source.owner)
+                    if processed_source.owner
+                    else None,
                 )
 
             except Exception as e:
@@ -646,17 +691,20 @@ async def create_source(
 
 
 @router.post("/sources/json", response_model=SourceResponse)
-async def create_source_json(source_data: SourceCreate):
+async def create_source_json(
+    source_data: SourceCreate,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Create a new source using JSON payload (legacy endpoint for backward compatibility)."""
     # Convert to form data format and call main endpoint
     form_data = (source_data, None)
-    return await create_source(form_data)
+    return await create_source(form_data, ctx)
 
 
-async def _resolve_source_file(source_id: str) -> tuple[str, str]:
-    source = await Source.get(source_id)
-    if not source:
-        raise HTTPException(status_code=404, detail="Source not found")
+async def _resolve_source_file(
+    source_id: str, ctx: PermissionContext
+) -> tuple[str, str]:
+    source = await require_view_source(source_id, ctx)
 
     file_path = source.asset.file_path if source.asset else None
     if not file_path:
@@ -693,12 +741,12 @@ def _is_source_file_available(source: Source) -> Optional[bool]:
 
 
 @router.get("/sources/{source_id}", response_model=SourceResponse)
-async def get_source(source_id: str):
+async def get_source(
+    source_id: str, ctx: PermissionContext = Depends(get_permission_context)
+):
     """Get a specific source by ID."""
     try:
-        source = await Source.get(source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        source = await require_view_source(source_id, ctx)
 
         await _stamp_source_view(source.id or source_id)
 
@@ -746,6 +794,8 @@ async def get_source(source_id: str):
             processing_info=processing_info,
             # Notebook associations
             notebooks=notebook_ids,
+            scope=source.scope,
+            owner=str(source.owner) if source.owner else None,
         )
     except HTTPException:
         raise
@@ -757,10 +807,12 @@ async def get_source(source_id: str):
 
 
 @router.head("/sources/{source_id}/download")
-async def check_source_file(source_id: str):
+async def check_source_file(
+    source_id: str, ctx: PermissionContext = Depends(get_permission_context)
+):
     """Check if a source has a downloadable file."""
     try:
-        await _resolve_source_file(source_id)
+        await _resolve_source_file(source_id, ctx)
         return Response(status_code=200)
     except HTTPException:
         raise
@@ -770,10 +822,12 @@ async def check_source_file(source_id: str):
 
 
 @router.get("/sources/{source_id}/download")
-async def download_source_file(source_id: str):
+async def download_source_file(
+    source_id: str, ctx: PermissionContext = Depends(get_permission_context)
+):
     """Download the original file associated with an uploaded source."""
     try:
-        resolved_path, filename = await _resolve_source_file(source_id)
+        resolved_path, filename = await _resolve_source_file(source_id, ctx)
         return FileResponse(
             path=resolved_path,
             filename=filename,
@@ -787,13 +841,13 @@ async def download_source_file(source_id: str):
 
 
 @router.get("/sources/{source_id}/status", response_model=SourceStatusResponse)
-async def get_source_status(source_id: str):
+async def get_source_status(
+    source_id: str, ctx: PermissionContext = Depends(get_permission_context)
+):
     """Get processing status for a source."""
     try:
-        # First, verify source exists
-        source = await Source.get(source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        # First, verify source exists and the caller may view it
+        source = await require_view_source(source_id, ctx)
 
         # Check if this is a legacy source (no command)
         if not source.command:
@@ -847,18 +901,22 @@ async def get_source_status(source_id: str):
 
 
 @router.put("/sources/{source_id}", response_model=SourceResponse)
-async def update_source(source_id: str, source_update: SourceUpdate):
+async def update_source(
+    source_id: str,
+    source_update: SourceUpdate,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Update a source."""
     try:
-        source = await Source.get(source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        source = await require_mutate_source(source_id, ctx)
 
         # Update only provided fields
         if source_update.title is not None:
             source.title = source_update.title
         if source_update.topics is not None:
             source.topics = source_update.topics
+        if source_update.scope is not None:
+            source.scope = source_update.scope
 
         await source.save()
 
@@ -878,6 +936,8 @@ async def update_source(source_id: str, source_update: SourceUpdate):
             embedded_chunks=embedded_chunks,
             created=str(source.created),
             updated=str(source.updated),
+            scope=source.scope,
+            owner=str(source.owner) if source.owner else None,
         )
     except HTTPException:
         raise
@@ -889,13 +949,13 @@ async def update_source(source_id: str, source_update: SourceUpdate):
 
 
 @router.post("/sources/{source_id}/retry", response_model=SourceResponse)
-async def retry_source_processing(source_id: str):
+async def retry_source_processing(
+    source_id: str, ctx: PermissionContext = Depends(get_permission_context)
+):
     """Retry processing for a failed or stuck source."""
     try:
-        # First, verify source exists
-        source = await Source.get(source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        # First, verify source exists and the caller may mutate it
+        source = await require_mutate_source(source_id, ctx)
 
         # Check if source already has a running command
         if source.command:
@@ -1000,6 +1060,8 @@ async def retry_source_processing(source_id: str):
                 command_id=command_id,
                 status="queued",
                 processing_info={"retry": True, "queued": True},
+                scope=source.scope,
+                owner=str(source.owner) if source.owner else None,
             )
 
         except Exception as e:
@@ -1018,12 +1080,12 @@ async def retry_source_processing(source_id: str):
 
 
 @router.delete("/sources/{source_id}")
-async def delete_source(source_id: str):
+async def delete_source(
+    source_id: str, ctx: PermissionContext = Depends(get_permission_context)
+):
     """Delete a source."""
     try:
-        source = await Source.get(source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        source = await require_mutate_source(source_id, ctx)
 
         await source.delete()
 
@@ -1036,12 +1098,12 @@ async def delete_source(source_id: str):
 
 
 @router.get("/sources/{source_id}/insights", response_model=List[SourceInsightResponse])
-async def get_source_insights(source_id: str):
+async def get_source_insights(
+    source_id: str, ctx: PermissionContext = Depends(get_permission_context)
+):
     """Get all insights for a specific source."""
     try:
-        source = await Source.get(source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        source = await require_view_source(source_id, ctx)
 
         insights = await source.get_insights()
         return [
@@ -1067,7 +1129,11 @@ async def get_source_insights(source_id: str):
     response_model=InsightCreationResponse,
     status_code=202,
 )
-async def create_source_insight(source_id: str, request: CreateSourceInsightRequest):
+async def create_source_insight(
+    source_id: str,
+    request: CreateSourceInsightRequest,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """
     Start insight generation for a source by running a transformation.
 
@@ -1076,10 +1142,9 @@ async def create_source_insight(source_id: str, request: CreateSourceInsightRequ
     Poll GET /sources/{source_id}/insights to see when the insight is ready.
     """
     try:
-        # Validate source exists
-        source = await Source.get(source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        # Validate source exists and the caller may mutate it (generating
+        # insights writes to the source).
+        source = await require_mutate_source(source_id, ctx)
 
         # Validate transformation exists
         transformation = await Transformation.get(request.transformation_id)
