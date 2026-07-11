@@ -16,6 +16,7 @@ from surrealdb import RecordID
 from api.governance_service import (
     accept_proposal,
     create_decision,
+    create_learning_proposal,
     create_proposal,
     create_rule,
     create_work_package,
@@ -23,11 +24,14 @@ from api.governance_service import (
     get_decision,
     get_proposal,
     get_rule,
+    get_trace,
     get_work_package,
     list_decisions,
     list_proposals,
     list_rules,
+    list_traces_for_work_package,
     list_work_packages,
+    record_trace,
     request_changes,
     update_work_package_status,
 )
@@ -36,6 +40,7 @@ from open_notebook.domain.governance import (
     Decision,
     Proposal,
     Rule,
+    Trace,
     WorkPackage,
 )
 
@@ -208,6 +213,7 @@ async def test_get_belief_lineage_returns_sources_and_provenance(
                 "created": "2026-07-12T00:00:00Z",
             }
         ],  # provenance
+        [],  # updates edge (this belief was not itself produced by learning)
     ]
 
     lineage = await get_belief_lineage("belief:1")
@@ -217,6 +223,7 @@ async def test_get_belief_lineage_returns_sources_and_provenance(
     assert any(e["action"] == "proposal.accepted" for e in lineage["provenance"])
     assert lineage["derived_work"] == []
     assert lineage["contradictions"] == []
+    assert lineage["updated_from"] is None
 
 
 @pytest.mark.asyncio
@@ -404,3 +411,165 @@ async def test_update_work_package_status_transitions_and_audits(
 async def test_update_work_package_status_rejects_invalid_status():
     with pytest.raises(ValueError):
         await update_work_package_status("user:1", "work_package:1", "paused")
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_relate", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
+async def test_record_trace_saves_relates_and_audits(mock_create, mock_relate):
+    mock_create.side_effect = [
+        [{"id": "trace:1", "work_package": "work_package:1", "summary": "Ran playbook", "outcome": "success"}],  # trace.save()
+        [{"id": "audit_event:1"}],  # AuditEvent().save()
+    ]
+
+    trace = await record_trace(
+        "user:1", "work_package:1",
+        summary="Ran playbook", sources_used=["source:1"], outcome="success",
+    )
+
+    assert trace.id == "trace:1"
+    assert trace.outcome == "success"
+    mock_relate.assert_awaited_once_with("work_package:1", "traced_by", "trace:1", {})
+
+    audit_data = mock_create.await_args_list[1].args[1]
+    assert audit_data["action"] == "trace.recorded"
+    assert audit_data["meta"] == {"work_package": "work_package:1", "outcome": "success"}
+
+
+@pytest.mark.asyncio
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_get_trace_returns_trace(mock_query):
+    mock_query.return_value = [
+        {"id": "trace:1", "work_package": "work_package:1", "summary": "x", "outcome": "pending"}
+    ]
+    trace = await get_trace("trace:1")
+    assert isinstance(trace, Trace)
+    assert trace.id == "trace:1"
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_query", new_callable=AsyncMock)
+async def test_list_traces_for_work_package_returns_edge_rows(mock_query):
+    mock_query.return_value = [
+        {"id": "trace:1", "summary": "Ran playbook", "outcome": "success", "created": "2026-07-12T00:00:00Z"}
+    ]
+    rows = await list_traces_for_work_package("work_package:1")
+    assert rows[0]["id"] == "trace:1"
+    mock_query.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_relate", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
+async def test_create_learning_proposal_links_trace_and_belief(mock_create, mock_relate):
+    mock_create.side_effect = [
+        [{"id": "proposal:9", "kind": "learning", "status": "pending", "title": "Outcome: SMB outreach worked"}],  # proposal.save()
+        [{"id": "audit_event:1"}],  # AuditEvent().save()
+    ]
+
+    proposal = await create_learning_proposal(
+        "user:1", "trace:1",
+        title="Outcome: SMB outreach worked",
+        body="Response rate was 3x higher for SMBs",
+        belief_id="belief:1",
+    )
+
+    assert proposal.kind == "learning"
+    assert proposal.status == "pending"
+    mock_relate.assert_awaited_once_with(
+        "proposal:9", "learned_from", "trace:1", {"belief": "belief:1"}
+    )
+    audit_data = mock_create.await_args_list[1].args[1]
+    assert audit_data["action"] == "learning.proposed"
+    assert audit_data["meta"] == {"trace": "trace:1", "belief": "belief:1"}
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_relate", new_callable=AsyncMock)
+@patch("api.governance_service.repo_query", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_update", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_accept_learning_proposal_updates_belief_and_supersedes_original(
+    mock_base_query, mock_create, mock_update, mock_gov_query, mock_relate
+):
+    # open_notebook.domain.base.repo_query backs Proposal.get / Trace.get / Belief.get,
+    # called in that order by _accept_learning_proposal.
+    mock_base_query.side_effect = [
+        [{"id": "proposal:9", "author": "user:1", "kind": "learning", "title": "Outcome",
+          "body": "SMB response rate was 3x higher", "status": "pending"}],  # Proposal.get
+        [{"id": "trace:1", "work_package": "work_package:1", "summary": "Ran playbook", "outcome": "success"}],  # Trace.get
+        [{"id": "belief:1", "title": "SMB focus Q3", "body": "...", "claim_type": "inference",
+          "confidence": 0.6, "status": "current"}],  # Belief.get (original)
+    ]
+    # api.governance_service.repo_query backs the learned_from edge lookup, then the
+    # original belief's derived_from sources being copied forward.
+    mock_gov_query.side_effect = [
+        [{"trace": "trace:1", "belief": "belief:1"}],
+        [{"source": "source:1", "locator": "p.4"}],
+    ]
+    mock_create.side_effect = [
+        [{"id": "belief:2", "status": "current"}],  # updated_belief.save()
+        [{"id": "audit_event:1"}],  # AuditEvent().save()
+    ]
+    mock_update.side_effect = [
+        [{"id": "belief:1", "status": "superseded"}],  # original.save()
+        [{"id": "proposal:9", "status": "accepted"}],  # proposal.save()
+    ]
+
+    result = await accept_proposal("user:1", "proposal:9")
+
+    assert result["belief"].id == "belief:2"
+    assert result["belief"].confidence == pytest.approx(0.75)  # 0.6 + 0.15 for a 'success' outcome
+    assert result["proposal"].status == "accepted"
+
+    mock_relate.assert_any_await("belief:2", "updates", "belief:1", {"trace": "trace:1"})
+    mock_relate.assert_any_await("belief:2", "derived_from", "source:1", {"locator": "p.4"})
+
+    supersede_call = mock_update.await_args_list[0]
+    assert supersede_call.args[0] == "belief"
+    assert supersede_call.args[1] == "belief:1"
+    assert supersede_call.args[2]["status"] == "superseded"
+
+    audit_data = mock_create.await_args_list[1].args[1]
+    assert audit_data["action"] == "proposal.accepted"
+    assert audit_data["meta"] == {
+        "kind": "learning", "belief": "belief:2", "superseded": "belief:1", "trace": "trace:1",
+    }
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_query", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_accept_learning_proposal_without_belief_link_raises(mock_base_query, mock_gov_query):
+    mock_base_query.return_value = [
+        {"id": "proposal:9", "author": "user:1", "kind": "learning", "title": "Outcome", "status": "pending"}
+    ]
+    mock_gov_query.return_value = []  # no learned_from edge found
+
+    with pytest.raises(ValueError):
+        await accept_proposal("user:1", "proposal:9")
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_query", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_get_belief_lineage_includes_updated_from_when_present(mock_base_query, mock_gov_query):
+    mock_base_query.return_value = [{"id": "belief:2", "title": "SMB focus Q3", "status": "current"}]
+    mock_gov_query.side_effect = [
+        [],  # sources
+        [],  # provenance
+        [{"belief": "belief:1", "trace": "trace:1"}],  # updates edge (this belief updates belief:1)
+    ]
+    lineage = await get_belief_lineage("belief:2")
+    assert lineage["updated_from"] == {"belief": "belief:1", "trace": "trace:1"}
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_query", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_get_belief_lineage_updated_from_none_when_absent(mock_base_query, mock_gov_query):
+    mock_base_query.return_value = [{"id": "belief:1", "title": "SMB focus Q3", "status": "current"}]
+    mock_gov_query.side_effect = [[], [], []]
+    lineage = await get_belief_lineage("belief:1")
+    assert lineage["updated_from"] is None

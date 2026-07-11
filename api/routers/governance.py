@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from api.governance_service import (
     accept_proposal,
     create_decision,
+    create_learning_proposal,
     create_proposal,
     create_rule,
     create_work_package,
@@ -22,11 +23,14 @@ from api.governance_service import (
     get_decision,
     get_proposal,
     get_rule,
+    get_trace,
     get_work_package,
     list_decisions,
     list_proposals,
     list_rules,
+    list_traces_for_work_package,
     list_work_packages,
+    record_trace,
     request_changes,
     update_work_package_status,
 )
@@ -50,6 +54,18 @@ class CreateProposalBody(BaseModel):
 
 class ChangesBody(BaseModel):
     note: str = ""
+
+
+class RecordTraceBody(BaseModel):
+    summary: str
+    sources_used: list[str] = []
+    outcome: str = "pending"
+
+
+class CreateLearningProposalBody(BaseModel):
+    title: str
+    body: str = ""
+    belief_id: str
 
 
 class CreateDecisionBody(BaseModel):
@@ -134,6 +150,39 @@ async def list_beliefs_endpoint() -> list[dict[str, Any]]:
 async def belief_lineage_endpoint(belief_id: str) -> dict[str, Any]:
     result = await get_belief_lineage(belief_id)
     return {**result, "belief": result["belief"].model_dump()}
+
+
+@router.post("/work-packages/{work_package_id}/trace", status_code=201)
+async def record_trace_endpoint(
+    work_package_id: str, body: RecordTraceBody, request: Request
+) -> dict[str, Any]:
+    trace = await record_trace(
+        _actor(request), work_package_id,
+        summary=body.summary, sources_used=body.sources_used, outcome=body.outcome,
+    )
+    return trace.model_dump()
+
+
+@router.get("/work-packages/{work_package_id}/traces")
+async def list_traces_endpoint(work_package_id: str) -> list[dict[str, Any]]:
+    return await list_traces_for_work_package(work_package_id)
+
+
+@router.get("/traces/{trace_id}")
+async def get_trace_endpoint(trace_id: str) -> dict[str, Any]:
+    trace = await get_trace(trace_id)
+    return trace.model_dump()
+
+
+@router.post("/traces/{trace_id}/learning", status_code=201)
+async def create_learning_proposal_endpoint(
+    trace_id: str, body: CreateLearningProposalBody, request: Request
+) -> dict[str, Any]:
+    proposal = await create_learning_proposal(
+        _actor(request), trace_id,
+        title=body.title, body=body.body, belief_id=body.belief_id,
+    )
+    return proposal.model_dump()
 
 
 @router.post("/decisions", status_code=201)

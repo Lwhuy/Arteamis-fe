@@ -1,6 +1,13 @@
 from surrealdb import RecordID
 
-from open_notebook.domain.governance import AuditEvent, Decision, Proposal, Rule, WorkPackage
+from open_notebook.domain.governance import (
+    AuditEvent,
+    Decision,
+    Proposal,
+    Rule,
+    Trace,
+    WorkPackage,
+)
 
 
 def test_proposal_author_converted_to_record_id():
@@ -63,3 +70,24 @@ def test_work_package_assignee_is_left_as_plain_string():
     data = wp._prepare_save_data()
     assert data["assignee"] == "user:1"
     assert not isinstance(data["assignee"], RecordID)
+
+
+def test_trace_work_package_converted_to_record_id():
+    tr = Trace(work_package="work_package:1", summary="x")
+    data = tr._prepare_save_data()
+    assert isinstance(data["work_package"], RecordID)
+    assert not isinstance(data["work_package"], str)
+    assert data["work_package"] == RecordID.parse("work_package:1")
+
+
+def test_trace_command_converted_to_record_id_when_present():
+    tr = Trace(work_package="work_package:1", summary="x", command="command:9")
+    data = tr._prepare_save_data()
+    assert isinstance(data["command"], RecordID)
+    assert data["command"] == RecordID.parse("command:9")
+
+
+def test_trace_command_none_is_left_none():
+    tr = Trace(work_package="work_package:1", summary="x")
+    data = tr._prepare_save_data()
+    assert data.get("command") is None

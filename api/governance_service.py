@@ -25,6 +25,7 @@ from open_notebook.domain.governance import (
     Decision,
     Proposal,
     Rule,
+    Trace,
     WorkPackage,
 )
 
@@ -86,19 +87,32 @@ async def get_proposal(proposal_id: str) -> Proposal:
 
 
 async def accept_proposal(actor: str, proposal_id: str) -> dict[str, Any]:
-    """Promote a pending proposal into a belief.
+    """Promote or apply a pending proposal.
 
-    Creates the belief, links proposal->promotes_to->belief, copies every
-    proposal->derived_from->source edge onto the belief, marks the proposal
-    accepted, and writes an audit event.
+    `kind='belief'` proposals promote into a new belief (unchanged P8.2
+    behavior). `kind='learning'` proposals apply a traced outcome onto the
+    belief they reference, superseding it (P8.5).
 
     Raises:
-        ValueError: if the proposal is not currently `pending`.
+        ValueError: if the proposal is not currently `pending`, or (for a
+            learning proposal) if it has no linked belief to update.
     """
     proposal = await Proposal.get(proposal_id)
     if proposal.status != "pending":
         raise ValueError(f"proposal {proposal_id} is {proposal.status}, not pending")
 
+    if proposal.kind == "learning":
+        return await _accept_learning_proposal(actor, proposal)
+    return await _accept_belief_proposal(actor, proposal)
+
+
+async def _accept_belief_proposal(actor: str, proposal: Proposal) -> dict[str, Any]:
+    """Promote a pending belief/decision/rule proposal into a belief.
+
+    Creates the belief, links proposal->promotes_to->belief, copies every
+    proposal->derived_from->source edge onto the belief, marks the proposal
+    accepted, and writes an audit event.
+    """
     belief = Belief(
         title=proposal.title,
         body=proposal.body,
@@ -131,6 +145,67 @@ async def accept_proposal(actor: str, proposal_id: str) -> dict[str, Any]:
     return {"proposal": proposal, "belief": belief}
 
 
+async def _accept_learning_proposal(actor: str, proposal: Proposal) -> dict[str, Any]:
+    """Apply a traced outcome onto the belief it references.
+
+    Propose-only, per PRD 1.6A/4.5B: this is only ever reached through the
+    same pending -> accept_proposal path every other proposal goes through
+    (never a direct write). The new belief supersedes the original: same
+    title, body rewritten to the learning proposal's content, confidence
+    nudged by the trace outcome, and evidentiary sources copied forward so
+    lineage never breaks.
+    """
+    edges = await repo_query(
+        "SELECT out AS trace, belief FROM learned_from WHERE in = $id",
+        {"id": proposal.id},
+    )
+    if not edges or not edges[0].get("belief"):
+        raise ValueError(f"learning proposal {proposal.id} has no linked belief to update")
+
+    trace_id = edges[0]["trace"]
+    original_belief_id = edges[0]["belief"]
+
+    trace = await Trace.get(trace_id)
+    original = await Belief.get(original_belief_id)
+
+    confidence = original.confidence
+    if trace.outcome == "success":
+        confidence = min(1.0, confidence + 0.15)
+    elif trace.outcome == "fail":
+        confidence = max(0.0, confidence - 0.15)
+
+    updated_belief = Belief(
+        title=original.title,
+        body=proposal.body,
+        claim_type=original.claim_type,
+        confidence=confidence,
+        status="current",
+    )
+    await updated_belief.save()
+    await repo_relate(updated_belief.id, "updates", original.id, {"trace": trace.id})
+
+    source_edges = await repo_query(
+        "SELECT out AS source, locator FROM derived_from WHERE in = $id",
+        {"id": original.id},
+    )
+    for edge in source_edges:
+        await repo_relate(
+            updated_belief.id, "derived_from", edge["source"], {"locator": edge.get("locator")}
+        )
+
+    original.status = "superseded"
+    await original.save()
+
+    proposal.status = "accepted"
+    await proposal.save()
+    await _audit(
+        actor, "proposal.accepted", proposal.id,
+        {"kind": "learning", "belief": updated_belief.id, "superseded": original.id, "trace": trace.id},
+    )
+
+    return {"proposal": proposal, "belief": updated_belief}
+
+
 async def request_changes(actor: str, proposal_id: str, note: str) -> Proposal:
     """Send a pending proposal back for revision.
 
@@ -151,6 +226,9 @@ async def get_belief_lineage(belief_id: str) -> dict[str, Any]:
 
     `derived_work` and `contradictions` are reserved for later phases of the
     Promotion Bridge (belief-to-belief graph) and always come back empty.
+    `updated_from` is populated when this belief itself was produced by
+    accepting a learning proposal (P8.5) -- it points at the trace and the
+    prior belief this one superseded.
     """
     belief = await Belief.get(belief_id)
 
@@ -164,6 +242,15 @@ async def get_belief_lineage(belief_id: str) -> dict[str, Any]:
         "WHERE object = $id OR meta.belief = $id ORDER BY created",
         {"id": belief_id},
     )
+    updated_from_rows = await repo_query(
+        "SELECT out AS belief, trace FROM updates WHERE in = $id",
+        {"id": belief_id},
+    )
+    updated_from = (
+        {"belief": updated_from_rows[0]["belief"], "trace": updated_from_rows[0]["trace"]}
+        if updated_from_rows
+        else None
+    )
 
     return {
         "belief": belief,
@@ -171,6 +258,7 @@ async def get_belief_lineage(belief_id: str) -> dict[str, Any]:
         "provenance": provenance,
         "derived_work": [],
         "contradictions": [],
+        "updated_from": updated_from,
     }
 
 
@@ -306,3 +394,63 @@ async def update_work_package_status(
         {"from": previous_status, "to": status},
     )
     return work_package
+
+
+async def record_trace(
+    actor: str,
+    work_package_id: str,
+    *,
+    summary: str,
+    sources_used: Optional[list[str]] = None,
+    outcome: str = "pending",
+) -> Trace:
+    """Record what actually happened when a work package was executed."""
+    trace = Trace(
+        work_package=work_package_id,
+        summary=summary,
+        sources_used=sources_used or [],
+        outcome=outcome,
+    )
+    await trace.save()
+    await repo_relate(work_package_id, "traced_by", trace.id, {})
+    await _audit(
+        actor, "trace.recorded", trace.id,
+        {"work_package": work_package_id, "outcome": outcome},
+    )
+    return trace
+
+
+async def get_trace(trace_id: str) -> Trace:
+    return await Trace.get(trace_id)
+
+
+async def list_traces_for_work_package(work_package_id: str) -> list[dict[str, Any]]:
+    """Traces recorded for a work package, most recent first."""
+    return await repo_query(
+        "SELECT out.id AS id, out.summary AS summary, out.outcome AS outcome, "
+        "out.created AS created FROM traced_by WHERE in = $id ORDER BY out.created DESC",
+        {"id": work_package_id},
+    )
+
+
+async def create_learning_proposal(
+    actor: str,
+    trace_id: str,
+    *,
+    title: str,
+    body: str,
+    belief_id: str,
+) -> Proposal:
+    """Draft a propose-only learning update from a trace's real-world outcome.
+
+    Learning NEVER writes to a belief directly (PRD §1.6A/§4.5B) — it always
+    goes through the same pending -> accept/request-changes review as any
+    other proposal. `belief_id` is the belief this outcome should update; it
+    is carried on the `learned_from` edge so `accept_proposal` can find it
+    without re-deriving it through the work_package -> decision/rule chain.
+    """
+    proposal = Proposal(author=actor, kind="learning", title=title, body=body, status="pending")
+    await proposal.save()
+    await repo_relate(proposal.id, "learned_from", trace_id, {"belief": belief_id})
+    await _audit(actor, "learning.proposed", proposal.id, {"trace": trace_id, "belief": belief_id})
+    return proposal
