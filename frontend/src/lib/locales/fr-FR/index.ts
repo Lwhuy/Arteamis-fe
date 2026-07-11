@@ -1042,6 +1042,8 @@ export const frFR = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
+    toastDecisionCreated: "Decision created",
+    toastRuleCreated: "Rule created",
   },
   setupBanner: {
     encryptionRequired: "Clé de chiffrement non configurée",

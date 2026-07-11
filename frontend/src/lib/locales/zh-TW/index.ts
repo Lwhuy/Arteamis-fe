@@ -1042,6 +1042,8 @@ export const zhTW = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
+    toastDecisionCreated: "Decision created",
+    toastRuleCreated: "Rule created",
   },
   setupBanner: {
     encryptionRequired: "未設定加密金鑰",

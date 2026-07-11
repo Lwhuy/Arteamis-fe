@@ -1042,6 +1042,8 @@ export const ptBR = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
+    toastDecisionCreated: "Decision created",
+    toastRuleCreated: "Rule created",
   },
   setupBanner: {
     encryptionRequired: "Chave de criptografia não configurada",

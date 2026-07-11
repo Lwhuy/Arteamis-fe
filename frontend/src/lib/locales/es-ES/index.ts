@@ -1043,6 +1043,8 @@ export const esES = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
+    toastDecisionCreated: "Decision created",
+    toastRuleCreated: "Rule created",
   },
   setupBanner: {
     encryptionRequired: "Clave de encriptación no configurada",

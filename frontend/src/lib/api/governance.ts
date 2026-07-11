@@ -26,6 +26,32 @@ export interface CreateProposalPayload {
   source_spans: { source_id: string; locator?: string }[]
 }
 
+export interface Decision {
+  id: string
+  title: string
+  rationale: string
+  status: string
+}
+
+export interface Rule {
+  id: string
+  title: string
+  statement: string
+  status: string
+}
+
+export interface CreateDecisionPayload {
+  title: string
+  rationale?: string
+  belief_ids: string[]
+}
+
+export interface CreateRulePayload {
+  title: string
+  statement: string
+  belief_ids: string[]
+}
+
 export const governanceApi = {
   createProposal: (payload: CreateProposalPayload) =>
     apiClient.post<Proposal>('/proposals', payload).then((r) => r.data),
@@ -42,4 +68,16 @@ export const governanceApi = {
   listBeliefs: () => apiClient.get<Belief[]>('/beliefs').then((r) => r.data),
 
   getBelief: (id: string) => apiClient.get<Belief>(`/beliefs/${id}`).then((r) => r.data),
+
+  createDecision: (payload: CreateDecisionPayload) =>
+    apiClient.post<Decision>('/decisions', payload).then((r) => r.data),
+
+  listDecisions: (status?: string) =>
+    apiClient.get<Decision[]>('/decisions', { params: { status } }).then((r) => r.data),
+
+  createRule: (payload: CreateRulePayload) =>
+    apiClient.post<Rule>('/rules', payload).then((r) => r.data),
+
+  listRules: (status?: string) =>
+    apiClient.get<Rule[]>('/rules', { params: { status } }).then((r) => r.data),
 }
