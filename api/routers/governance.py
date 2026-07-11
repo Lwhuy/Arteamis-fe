@@ -14,10 +14,16 @@ from pydantic import BaseModel
 
 from api.governance_service import (
     accept_proposal,
+    create_decision,
     create_proposal,
+    create_rule,
     get_belief_lineage,
+    get_decision,
     get_proposal,
+    get_rule,
+    list_decisions,
     list_proposals,
+    list_rules,
     request_changes,
 )
 
@@ -40,6 +46,18 @@ class CreateProposalBody(BaseModel):
 
 class ChangesBody(BaseModel):
     note: str = ""
+
+
+class CreateDecisionBody(BaseModel):
+    title: str
+    rationale: str = ""
+    belief_ids: list[str] = []
+
+
+class CreateRuleBody(BaseModel):
+    title: str
+    statement: str
+    belief_ids: list[str] = []
 
 
 def _actor(request: Request) -> str:
@@ -112,3 +130,51 @@ async def list_beliefs_endpoint() -> list[dict[str, Any]]:
 async def belief_lineage_endpoint(belief_id: str) -> dict[str, Any]:
     result = await get_belief_lineage(belief_id)
     return {**result, "belief": result["belief"].model_dump()}
+
+
+@router.post("/decisions", status_code=201)
+async def create_decision_endpoint(
+    body: CreateDecisionBody, request: Request
+) -> dict[str, Any]:
+    decision = await create_decision(
+        _actor(request),
+        title=body.title,
+        rationale=body.rationale,
+        belief_ids=body.belief_ids,
+    )
+    return decision.model_dump()
+
+
+@router.get("/decisions")
+async def list_decisions_endpoint(status: Optional[str] = None) -> list[dict[str, Any]]:
+    decisions = await list_decisions(status=status)
+    return [d.model_dump() for d in decisions]
+
+
+@router.get("/decisions/{decision_id}")
+async def get_decision_endpoint(decision_id: str) -> dict[str, Any]:
+    decision = await get_decision(decision_id)
+    return decision.model_dump()
+
+
+@router.post("/rules", status_code=201)
+async def create_rule_endpoint(body: CreateRuleBody, request: Request) -> dict[str, Any]:
+    rule = await create_rule(
+        _actor(request),
+        title=body.title,
+        statement=body.statement,
+        belief_ids=body.belief_ids,
+    )
+    return rule.model_dump()
+
+
+@router.get("/rules")
+async def list_rules_endpoint(status: Optional[str] = None) -> list[dict[str, Any]]:
+    rules = await list_rules(status=status)
+    return [r.model_dump() for r in rules]
+
+
+@router.get("/rules/{rule_id}")
+async def get_rule_endpoint(rule_id: str) -> dict[str, Any]:
+    rule = await get_rule(rule_id)
+    return rule.model_dump()

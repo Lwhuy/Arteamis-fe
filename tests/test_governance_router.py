@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.security import create_identity_token
-from open_notebook.domain.governance import Belief, Proposal
+from open_notebook.domain.governance import Belief, Decision, Proposal, Rule
 
 
 @pytest.fixture(autouse=True)
@@ -149,3 +149,130 @@ def test_belief_lineage_returns_200_with_lineage_shape(mock_lineage, client):
     assert body["derived_work"] == []
     assert body["contradictions"] == []
     mock_lineage.assert_awaited_once_with("belief:1")
+
+
+def _decision(**overrides) -> Decision:
+    data = dict(
+        id="decision:1",
+        title="Ship SMB pricing",
+        rationale="Belief-backed",
+        status="active",
+    )
+    data.update(overrides)
+    return Decision(**data)
+
+
+def _rule(**overrides) -> Rule:
+    data = dict(
+        id="rule:1",
+        title="Always cite two sources",
+        statement="Every Company Belief needs at least two independent sources.",
+        status="active",
+    )
+    data.update(overrides)
+    return Rule(**data)
+
+
+@patch("api.routers.governance.create_decision", new_callable=AsyncMock)
+def test_create_decision_returns_201(mock_create, client):
+    mock_create.return_value = _decision()
+
+    resp = client.post(
+        "/api/decisions",
+        json={
+            "title": "Ship SMB pricing",
+            "rationale": "Belief-backed",
+            "belief_ids": ["belief:1", "belief:2"],
+        },
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["id"] == "decision:1"
+    mock_create.assert_awaited_once_with(
+        "user:1",
+        title="Ship SMB pricing",
+        rationale="Belief-backed",
+        belief_ids=["belief:1", "belief:2"],
+    )
+
+
+def test_create_decision_requires_auth(client):
+    resp = client.post(
+        "/api/decisions", json={"title": "x", "belief_ids": []}
+    )
+    assert resp.status_code == 401
+
+
+@patch("api.routers.governance.list_decisions", new_callable=AsyncMock)
+def test_list_decisions_returns_mocked_list(mock_list, client):
+    mock_list.return_value = [_decision(), _decision(id="decision:2")]
+
+    resp = client.get("/api/decisions?status=active", headers=_auth())
+
+    assert resp.status_code == 200
+    ids = [d["id"] for d in resp.json()]
+    assert ids == ["decision:1", "decision:2"]
+    mock_list.assert_awaited_once_with(status="active")
+
+
+@patch("api.routers.governance.get_decision", new_callable=AsyncMock)
+def test_get_decision_returns_200(mock_get, client):
+    mock_get.return_value = _decision()
+
+    resp = client.get("/api/decisions/decision:1", headers=_auth())
+
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "Ship SMB pricing"
+
+
+@patch("api.routers.governance.create_rule", new_callable=AsyncMock)
+def test_create_rule_returns_201(mock_create, client):
+    mock_create.return_value = _rule()
+
+    resp = client.post(
+        "/api/rules",
+        json={
+            "title": "Always cite two sources",
+            "statement": "Every Company Belief needs at least two independent sources.",
+            "belief_ids": ["belief:3"],
+        },
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["id"] == "rule:1"
+    mock_create.assert_awaited_once_with(
+        "user:1",
+        title="Always cite two sources",
+        statement="Every Company Belief needs at least two independent sources.",
+        belief_ids=["belief:3"],
+    )
+
+
+def test_create_rule_requires_auth(client):
+    resp = client.post(
+        "/api/rules", json={"title": "x", "statement": "y", "belief_ids": []}
+    )
+    assert resp.status_code == 401
+
+
+@patch("api.routers.governance.list_rules", new_callable=AsyncMock)
+def test_list_rules_returns_mocked_list(mock_list, client):
+    mock_list.return_value = [_rule()]
+
+    resp = client.get("/api/rules?status=active", headers=_auth())
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["id"] == "rule:1"
+    mock_list.assert_awaited_once_with(status="active")
+
+
+@patch("api.routers.governance.get_rule", new_callable=AsyncMock)
+def test_get_rule_returns_200(mock_get, client):
+    mock_get.return_value = _rule()
+
+    resp = client.get("/api/rules/rule:1", headers=_auth())
+
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "Always cite two sources"
