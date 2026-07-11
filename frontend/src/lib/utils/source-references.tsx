@@ -493,3 +493,67 @@ export function convertSourceReferencesLegacy(text: string): React.ReactNode {
   // Components should migrate to new convertSourceReferences function
   return text
 }
+
+export interface ReferenceIndexEntry {
+  number: number
+  type: ReferenceType
+  id: string
+}
+
+export interface ReferenceIndex {
+  /** Answer text with each inline ref replaced by [n](#ref-type-id); NO appended list. */
+  numberedText: string
+  /** Unique references in first-appearance order, numbered to match numberedText. */
+  references: ReferenceIndexEntry[]
+}
+
+/**
+ * Build a consistent numbering for all references in `text`, returning both the
+ * numbered inline markdown (for the answer body) and the ordered unique reference
+ * list (for the Sources panel). Numbers are shared so [n] markers and panel rows align.
+ */
+export function buildReferenceIndex(text: string): ReferenceIndex {
+  const parsed = parseSourceReferences(text)
+  if (parsed.length === 0) {
+    return { numberedText: text, references: [] }
+  }
+
+  const map = new Map<string, ReferenceIndexEntry>()
+  let next = 1
+  for (const ref of parsed) {
+    const key = `${ref.type}:${ref.id}`
+    if (!map.has(key)) {
+      map.set(key, { number: next++, type: ref.type, id: ref.id })
+    }
+  }
+
+  let result = text
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    const ref = parsed[i]
+    const entry = map.get(`${ref.type}:${ref.id}`)!
+    const start = ref.startIndex
+    const end = ref.endIndex
+    const before = result.substring(Math.max(0, start - 2), start)
+    const after = result.substring(end, Math.min(result.length, end + 2))
+    let replaceStart = start
+    let replaceEnd = end
+    if (before === '[[' && after.startsWith(']]')) {
+      replaceStart = start - 2
+      replaceEnd = end + 2
+    } else if (before.endsWith('[') && after.startsWith(']')) {
+      replaceStart = start - 1
+      replaceEnd = end + 1
+    }
+    const link = `[${entry.number}](#ref-${ref.type}-${ref.id})`
+    result = result.substring(0, replaceStart) + link + result.substring(replaceEnd)
+  }
+
+  return { numberedText: result, references: Array.from(map.values()) }
+}
+
+/** Collapse whitespace, trim, and truncate to `max` chars with a trailing ellipsis. */
+export function truncateSnippet(text: string, max: number): string {
+  if (!text) return ''
+  const clean = text.replace(/\s+/g, ' ').trim()
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean
+}
