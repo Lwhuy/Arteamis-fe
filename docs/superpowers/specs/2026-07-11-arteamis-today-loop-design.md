@@ -57,7 +57,7 @@ Exactly one primary CTA is shown: the **next action = the first incomplete step*
 | 0 | Create a notebook            | `notebooks.length > 0`               | `/notebooks`          |
 | 1 | Add a source                 | active notebook has ≥ 1 source       | `/notebooks/[id]`     |
 | 2 | Ask & save a note            | active notebook has ≥ 1 note         | `/notebooks/[id]`     |
-| 3 | Generate a podcast           | ≥ 1 podcast episode exists           | `/podcasts`           |
+| 3 | Generate a podcast           | ≥ 1 **completed** podcast episode    | `/podcasts`           |
 
 When all steps are done, the hero shows a "loop complete — start the next thread"
 state whose CTA adds another source.
@@ -68,9 +68,20 @@ state whose CTA adds another source.
 - Step 1: `useSources(activeNotebookId)` → array length.
 - Step 2: notes for the active notebook via the existing notes hook/api
   (`notesApi.list({ notebook_id })`).
-- Step 3: `podcastsApi.listEpisodes()` (global episode list; there is no
-  notebook-scoped episode filter today, so this step is intentionally global —
-  documented as a known imprecision, not a bug).
+- Step 3: `usePodcastEpisodes()` (wraps `podcastsApi.listEpisodes()` →
+  `/podcasts/episodes`). This is a **global** episode list — there is no
+  notebook-scoped episode filter today, so this step is intentionally global
+  (documented imprecision, not a bug). The list also includes
+  `queued`/`running`/`failed` episodes; "done" therefore requires at least one
+  episode in a **completed** state, not merely any episode.
+
+### Query-state coercion (idle vs error vs empty)
+
+`useSources`/`useNotes` use `enabled: !!activeNotebookId`, so when no notebook is
+selected their queries stay **idle** with `data === undefined` (not `[]`). The
+signal builder MUST coerce every count from a possibly-`undefined` query result to
+`0` — covering idle, loading, and error alike — before calling `deriveLoopSteps`.
+`deriveLoopSteps` itself only ever receives concrete numbers.
 
 ## Architecture
 
@@ -78,6 +89,8 @@ state whose CTA adds another source.
 app/(dashboard)/today/page.tsx        → renders <TodayScreen/>
 app/(dashboard)/page.tsx              → redirect '/notebooks' → '/today'  (edit)
 components/layout/AppSidebar.tsx      → add "Today" nav entry              (edit)
+lib/locales/*/…                       → add today.* + navigation.today keys (edit,
+                                        all 15 locales — parity is test-enforced)
 
 components/today/
   TodayScreen.tsx     client orchestrator: reads hooks, picks active notebook,
@@ -107,7 +120,8 @@ components/today/
 
 1. `TodayScreen` calls `useNotebooks()`; picks `activeNotebookId` (persisted
    selection if still valid, else `notebooks[0]`).
-2. Calls `useSources(activeNotebookId)`, notes hook, `useEpisodes()`.
+2. Calls `useSources(activeNotebookId)`, `useNotes(activeNotebookId)`, and
+   `usePodcastEpisodes()`.
 3. Builds `LoopSignals`, calls `deriveLoopSteps(signals)`.
 4. Passes `steps` + `nextAction` to the presentational components.
 5. The notebook picker updates `activeNotebookId` and persists it.
@@ -135,18 +149,39 @@ components/today/
   - all satisfied → loop-complete next action.
   - done/current/later flags are mutually consistent (exactly one `current`
     unless complete).
+  - `undefined` counts (idle/loading/errored queries) are coerced to `0` and
+    never throw.
+  - podcast step is done only when an episode is in a completed state (a lone
+    failed/queued episode does NOT complete the step).
 - **Component smoke (optional):** `TodayScreen` renders first-run state with an
   empty notebooks list without throwing.
+- **i18n parity:** `frontend/src/lib/locales/index.test.ts` must stay green — new
+  keys present in all locales, no unused keys. Run `npm run test` before done.
 - Run under the existing `vitest` config; follow patterns in
   `frontend/src/app/(dashboard)/notebooks/components/ChatColumn.test.tsx` and
   `AppSidebar.test.tsx`.
 
 ## i18n
 
-Add new copy keys under a `today.*` namespace (and one `navigation.today`) to the
-existing locale files, consumed via `t()`. No hard-coded user-facing English in
-components. English is the reference locale; other locales get the same keys
-(untranslated fallback is acceptable for this iteration).
+Add new copy keys under a `today.*` namespace (and one `navigation.today`),
+consumed via `t()`. No hard-coded user-facing English in components.
+
+**Locale parity is enforced by tests** — `frontend/src/lib/locales/index.test.ts`
+runs two checks that this work must satisfy:
+
+1. **Locale Parity:** every non-`en-US` locale must have the *exact* same key set
+   as `en-US` (no missing, no extra). Therefore the new keys MUST be added to
+   **every** locale file under `frontend/src/lib/locales/` — currently **15**
+   locales (`bn-IN, ca-ES, de-DE, en-US, es-ES, fr-FR, it-IT, ja-JP, pl-PL,
+   pt-BR, ru-RU, tr-TR, zh-CN, zh-TW`, plus `en-US`). English placeholder values
+   are acceptable for non-English locales this iteration, but the keys must exist
+   everywhere. Do not rely on runtime fallback — the parity test checks the files.
+2. **Unused Key Detection:** every `en-US` leaf key must be referenced somewhere in
+   source. Therefore only add keys that are actually consumed by a shipped
+   component. If the optional `LoopProgress` component (or any step label) is not
+   built, its keys must not be added.
+
+`en-US` is the reference locale.
 
 ## Rollout / reversibility
 
