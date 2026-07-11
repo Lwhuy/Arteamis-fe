@@ -227,3 +227,52 @@ class TestProjectDetail:
         mock_prev.return_value = {"note_count": 2, "exclusive_source_count": 1, "shared_source_count": 0}
         resp = client.get("/api/projects/notebook:1/delete-preview")
         assert resp.status_code == 200 and resp.json()["note_count"] == 2
+
+
+class TestProjectSources:
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Source.get", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_add_source_creates_reference(self, mock_pget, mock_sget, mock_q, client):
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="member", workspace_id="workspace:a", user_id="user:5"))
+        mock_pget.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        mock_q.side_effect = [[], []]  # 1) existing-ref check empty, 2) RELATE
+        resp = client.post("/api/projects/notebook:1/sources/source:1")
+        assert resp.status_code == 200
+        assert any("RELATE" in c.args[0] for c in mock_q.await_args_list)
+
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_remove_source_deletes_reference(self, mock_pget, mock_q, client):
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="member", workspace_id="workspace:a", user_id="user:5"))
+        mock_pget.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        mock_q.return_value = []
+        resp = client.delete("/api/projects/notebook:1/sources/source:1")
+        assert resp.status_code == 200
+
+
+class TestRecentlyViewed:
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    def test_recently_viewed_scopes_projects_by_workspace(self, mock_q, client):
+        from api.main import app
+
+        _override(app, _ctx(role="member", workspace_id="workspace:a"))
+        mock_q.side_effect = [
+            [{"id": "notebook:1", "title": "Acme", "last_viewed_at": "2026-06-27T10:00:00Z"}],
+            [{"id": "source:1", "title": "Src", "last_viewed_at": "2026-06-27T09:00:00Z"}],
+        ]
+        resp = client.get("/api/recently-viewed")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body[0]["type"] == "project" and body[0]["id"] == "notebook:1"
+        assert "workspace = $workspace_id" in mock_q.await_args_list[0].args[0]

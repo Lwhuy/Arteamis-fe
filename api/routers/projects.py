@@ -10,11 +10,11 @@ from api.models import (
     ProjectDeleteResponse,
     ProjectResponse,
     ProjectUpdate,
-    RecentlyViewedResponse,  # noqa: F401 (used by Task 7)
+    RecentlyViewedResponse,
 )
 from api.security import AuthContext
 from open_notebook.database.repository import ensure_record_id, repo_query
-from open_notebook.domain.notebook import Project
+from open_notebook.domain.notebook import Project, Source
 from open_notebook.exceptions import InvalidInputError, NotFoundError
 
 router = APIRouter()
@@ -311,3 +311,100 @@ async def delete_project(
         deleted_sources=result["deleted_sources"],
         unlinked_sources=result["unlinked_sources"],
     )
+
+
+def _recently_viewed_project(row: dict) -> RecentlyViewedResponse:
+    return RecentlyViewedResponse(
+        type="project",
+        id=str(row.get("id", "")),
+        title=row.get("title") or row.get("name") or "Untitled project",
+        last_viewed_at=str(row.get("last_viewed_at", "")),
+    )
+
+
+def _recently_viewed_source(row: dict) -> RecentlyViewedResponse:
+    return RecentlyViewedResponse(
+        type="source",
+        id=str(row.get("id", "")),
+        title=row.get("title") or "Untitled source",
+        last_viewed_at=str(row.get("last_viewed_at", "")),
+    )
+
+
+@router.post("/projects/{project_id}/sources/{source_id}")
+async def add_source_to_project(
+    project_id: str, source_id: str, ctx: AuthContext = Depends(get_auth_context)
+):
+    await _load_project_in_workspace(project_id, ctx)
+    await Source.get(source_id)  # NotFoundError -> 404 via global handler
+    existing = await repo_query(
+        "SELECT * FROM reference WHERE out = $source_id AND in = $project_id",
+        {
+            "project_id": ensure_record_id(project_id),
+            "source_id": ensure_record_id(source_id),
+        },
+    )
+    if not existing:
+        await repo_query(
+            "RELATE $source_id->reference->$project_id",
+            {
+                "project_id": ensure_record_id(project_id),
+                "source_id": ensure_record_id(source_id),
+            },
+        )
+    return {"message": "Source linked to project successfully"}
+
+
+@router.delete("/projects/{project_id}/sources/{source_id}")
+async def remove_source_from_project(
+    project_id: str, source_id: str, ctx: AuthContext = Depends(get_auth_context)
+):
+    await _load_project_in_workspace(project_id, ctx)
+    await repo_query(
+        "DELETE FROM reference WHERE out = $project_id AND in = $source_id",
+        {
+            "project_id": ensure_record_id(project_id),
+            "source_id": ensure_record_id(source_id),
+        },
+    )
+    return {"message": "Source removed from project successfully"}
+
+
+@router.get("/recently-viewed", response_model=List[RecentlyViewedResponse])
+async def get_recently_viewed(
+    limit: int = Query(12, ge=1, le=50, description="Number of items to return"),
+    ctx: AuthContext = Depends(get_auth_context),
+):
+    """Recently viewed projects (in the active workspace) and sources, newest first."""
+    try:
+        projects = await repo_query(
+            """
+            SELECT id, name AS title, last_viewed_at
+            FROM notebook
+            WHERE workspace = $workspace_id
+              AND last_viewed_at != NONE AND last_viewed_at != NULL
+            ORDER BY last_viewed_at DESC
+            LIMIT $limit
+            """,
+            {"workspace_id": ensure_record_id(ctx.workspace_id), "limit": limit},
+        )
+        sources = await repo_query(
+            """
+            SELECT id, title, last_viewed_at
+            FROM source
+            WHERE last_viewed_at != NONE AND last_viewed_at != NULL
+            ORDER BY last_viewed_at DESC
+            LIMIT $limit
+            """,
+            {"limit": limit},
+        )
+    except Exception as e:
+        logger.exception(f"Error fetching recently viewed items: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching recently viewed items")
+
+    items = [
+        *[_recently_viewed_project(p) for p in projects],
+        *[_recently_viewed_source(s) for s in sources],
+    ]
+    items.sort(key=lambda i: i.last_viewed_at, reverse=True)
+    return items[:limit]
