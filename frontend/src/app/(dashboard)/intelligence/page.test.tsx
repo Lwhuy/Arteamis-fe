@@ -12,6 +12,7 @@ vi.mock('@/lib/hooks/use-brain-graph', () => ({
 vi.mock('@/components/intelligence/GraphCanvas', () => ({ GraphCanvas: () => <div data-testid="graph-canvas" /> }))
 vi.mock('@/components/intelligence/GraphLegend', () => ({ GraphLegend: () => <div data-testid="legend" /> }))
 vi.mock('@/components/intelligence/NodeDetailPanel', () => ({ NodeDetailPanel: () => <div data-testid="detail" /> }))
+vi.mock('@/components/intelligence/AskTheBrainPanel', () => ({ AskTheBrainPanel: () => <div data-testid="ask-the-brain-panel" /> }))
 vi.mock('@/components/layout/AppShell', () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
 
 import IntelligencePage from './page'
@@ -52,5 +53,6 @@ describe('IntelligencePage', () => {
     expect(screen.getByTestId('graph-canvas')).toBeInTheDocument()
     expect(screen.getByTestId('legend')).toBeInTheDocument()
     expect(screen.getByTestId('brain-right-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('ask-the-brain-panel')).toBeInTheDocument()
   })
 })

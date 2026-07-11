@@ -7,6 +7,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { GraphCanvas } from '@/components/intelligence/GraphCanvas'
 import { GraphLegend } from '@/components/intelligence/GraphLegend'
 import { NodeDetailPanel } from '@/components/intelligence/NodeDetailPanel'
+import { AskTheBrainPanel } from '@/components/intelligence/AskTheBrainPanel'
 import { useBrainStatus, useBrainGraph, useRebuildBrain } from '@/lib/hooks/use-brain-graph'
 
 export default function IntelligencePage() {
@@ -77,14 +78,13 @@ export default function IntelligencePage() {
           )}
         </div>
 
-        {/* Right panel slot: NodeDetailPanel now; P7.4 mounts AskTheBrainPanel here. */}
+        {/* Right panel slot: NodeDetailPanel + AskTheBrainPanel (graph-aware Q&A). */}
         <aside
           data-testid="brain-right-panel"
           className="hidden lg:flex w-80 flex-col gap-4 border-l p-4 overflow-y-auto"
         >
           <NodeDetailPanel graph={graph} />
-          {/* P7.4: <AskTheBrainPanel /> mounts below the detail panel. */}
-          <p className="text-xs text-muted-foreground">{t('intelligence.askPlaceholder')}</p>
+          <AskTheBrainPanel />
         </aside>
       </div>
     </AppShell>

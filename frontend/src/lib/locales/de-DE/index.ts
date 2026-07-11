@@ -1060,7 +1060,9 @@ export const deDE = {
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
-    askPlaceholder: "Ask the Brain is coming soon",
+    askTitle: "Ask the Brain",
+    askPlaceholder: "Ask a question about this workspace…",
+    askSend: "Send",
     empty: {
       title: "Your brain hasn't been built yet",
       description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
