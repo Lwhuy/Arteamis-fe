@@ -229,3 +229,87 @@ async def test_personal_workspace_x_not_visible_to_personal_workspace_y(client, 
         headers=_headers(seeded_personal["user_x"], seeded_personal["workspace_x"]),
     )
     assert r_own.status_code == 200
+
+
+# ── P6 rollout: /notes (workspace-inherited via the `artifact` edge) ────────
+
+
+@pytest_asyncio.fixture
+async def seeded_with_note(seeded):
+    """Extend `seeded` with a note attached to A's project via the `artifact`
+    edge — proves `note`'s workspace-inherited scoping (no native `workspace`
+    column; see open_notebook/database/scoping.py)."""
+    note_a = await _create("note", {"title": "secret note", "content": "shh", "note_type": "human"})
+    await repo_query(
+        "RELATE $note->artifact->$project",
+        {"note": ensure_record_id(note_a["id"]), "project": ensure_record_id(seeded["project_a"])},
+    )
+    data = {**seeded, "note_a": str(note_a["id"])}
+    yield data
+    await repo_query("DELETE artifact WHERE in = $note", {"note": ensure_record_id(note_a["id"])})
+    try:
+        await repo_delete(note_a["id"])
+    except Exception:
+        pass
+
+
+async def test_workspace_b_cannot_list_workspace_a_notes(client, seeded_with_note):
+    r = await client.get("/api/notes", headers=_headers(seeded_with_note["user_b"], seeded_with_note["workspace_b"]))
+    assert r.status_code == 200, r.text
+    ids = [n["id"] for n in r.json()]
+    assert seeded_with_note["note_a"] not in ids
+
+
+async def test_workspace_a_can_list_own_notes(client, seeded_with_note):
+    r = await client.get("/api/notes", headers=_headers(seeded_with_note["user_a"], seeded_with_note["workspace_a"]))
+    assert r.status_code == 200, r.text
+    ids = [n["id"] for n in r.json()]
+    assert seeded_with_note["note_a"] in ids
+
+
+async def test_workspace_b_cannot_get_workspace_a_note_by_guessed_id(client, seeded_with_note):
+    r = await client.get(
+        f"/api/notes/{seeded_with_note['note_a']}",
+        headers=_headers(seeded_with_note["user_b"], seeded_with_note["workspace_b"]),
+    )
+    assert r.status_code == 404, r.text  # not 200, not 403 — no existence oracle
+
+
+async def test_workspace_b_cannot_update_workspace_a_note(client, seeded_with_note):
+    r = await client.put(
+        f"/api/notes/{seeded_with_note['note_a']}",
+        json={"title": "hijacked"},
+        headers=_headers(seeded_with_note["user_b"], seeded_with_note["workspace_b"]),
+    )
+    assert r.status_code == 404
+    ra = await client.get(
+        f"/api/notes/{seeded_with_note['note_a']}",
+        headers=_headers(seeded_with_note["user_a"], seeded_with_note["workspace_a"]),
+    )
+    assert ra.status_code == 200
+    assert ra.json()["title"] != "hijacked"
+
+
+async def test_workspace_b_cannot_delete_workspace_a_note(client, seeded_with_note):
+    r = await client.delete(
+        f"/api/notes/{seeded_with_note['note_a']}",
+        headers=_headers(seeded_with_note["user_b"], seeded_with_note["workspace_b"]),
+    )
+    assert r.status_code == 404
+    ra = await client.get(
+        f"/api/notes/{seeded_with_note['note_a']}",
+        headers=_headers(seeded_with_note["user_a"], seeded_with_note["workspace_a"]),
+    )
+    assert ra.status_code == 200  # A still sees it
+
+
+async def test_workspace_b_cannot_attach_note_to_workspace_a_project(client, seeded):
+    """Creating a note with someone else's notebook_id must 404, not silently
+    attach — a caller can't adopt a note into another workspace's project by
+    guessing its id (mirrors _get_owned_source's P6 prep-design §3.10 fix)."""
+    r = await client.post(
+        "/api/notes",
+        json={"content": "hi", "notebook_id": seeded["project_a"]},
+        headers=_headers(seeded["user_b"], seeded["workspace_b"]),
+    )
+    assert r.status_code == 404, r.text

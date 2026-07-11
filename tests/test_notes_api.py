@@ -3,13 +3,22 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from api.deps import get_auth_context
+from api.security import AuthContext
+
+
+def _ctx():
+    return AuthContext(user_id="user:1", workspace_id="workspace:a", role="owner")
+
 
 @pytest.fixture
 def client():
     """Create test client after environment variables have been cleared by conftest."""
     from api.main import app
 
-    return TestClient(app)
+    app.dependency_overrides[get_auth_context] = _ctx
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class TestNoteCreation:
@@ -69,8 +78,10 @@ class TestNoteUpdate:
     """Test suite for Note update endpoint."""
 
     @patch("api.routers.notes.Note")
-    def test_update_note_returns_command_id(self, mock_note_cls, client):
+    @patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+    def test_update_note_returns_command_id(self, mock_scoped_q, mock_note_cls, client):
         """Test that updating a note returns the embed command_id."""
+        mock_scoped_q.return_value = [{"id": "note:abc123"}]  # ownership join passes
         mock_note = AsyncMock()
         mock_note.id = "note:abc123"
         mock_note.title = "Test Note"
@@ -91,10 +102,12 @@ class TestNoteUpdate:
         assert data["command_id"] == "command:embed789"
 
     @patch("api.routers.notes.Note")
+    @patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
     def test_update_note_command_id_none_when_no_embedding(
-        self, mock_note_cls, client
+        self, mock_scoped_q, mock_note_cls, client
     ):
         """Test that command_id is None on update when no embedding is triggered."""
+        mock_scoped_q.return_value = [{"id": "note:abc123"}]  # ownership join passes
         mock_note = AsyncMock()
         mock_note.id = "note:abc123"
         mock_note.title = "Test Note"

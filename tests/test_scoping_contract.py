@@ -29,6 +29,7 @@ from pathlib import Path
 MIGRATED_MODULES = {
     "api/routers/projects.py",
     "api/deps.py",
+    "api/routers/notes.py",
 }
 
 # Banned tokens: raw scoped-table access outside ScopedRepository.

@@ -3,40 +3,78 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
+from api.deps import CtxDep
 from api.models import NoteCreate, NoteResponse, NoteUpdate
+from open_notebook.database.repository import ensure_record_id
 from open_notebook.domain.notebook import Note
 from open_notebook.exceptions import InvalidInputError, NotFoundError
 
 router = APIRouter()
 
 
+async def _get_owned_note(repo: CtxDep, note_id: str) -> dict:
+    """`note` has no native `workspace` column (like `source` — see
+    `_get_owned_source` in api/routers/projects.py) — it only belongs to a
+    workspace transitively via the `artifact` edge to some notebook in that
+    workspace. 404 (not 403) hides cross-workspace existence, matching
+    ScopedRepository.get()'s no-oracle behavior for natively-scoped tables.
+    """
+    rows = await repo.raw(
+        # scoped-raw: note has no native workspace column; ownership is
+        # verified via the artifact edge to a notebook in the caller's workspace
+        "SELECT * FROM $nid WHERE id IN "
+        "(SELECT VALUE in FROM artifact WHERE out.workspace = $workspace_id)",
+        {"nid": ensure_record_id(note_id)},
+    )
+    if not rows:
+        raise NotFoundError(f"note {note_id} not found")
+    return rows[0]
+
+
+def _note_response(row: dict) -> NoteResponse:
+    return NoteResponse(
+        id=str(row.get("id", "")),
+        title=row.get("title"),
+        content=row.get("content"),
+        note_type=row.get("note_type"),
+        created=str(row.get("created", "")),
+        updated=str(row.get("updated", "")),
+    )
+
+
 @router.get("/notes", response_model=List[NoteResponse])
 async def get_notes(
+    repo: CtxDep,
     notebook_id: Optional[str] = Query(None, description="Filter by notebook ID"),
 ):
-    """Get all notes with optional notebook filtering."""
+    """List notes in the caller's active workspace. If `notebook_id` is given,
+    it's workspace-checked first (404 on cross-workspace/missing) and only that
+    notebook's notes are returned; otherwise every note reachable via the
+    `artifact` edge to a notebook in the caller's workspace is returned. `note`
+    is workspace-inherited (no native `workspace` column — see
+    open_notebook/database/scoping.py), so both branches go through the
+    ScopedRepository raw escape hatch with an explicit parent-join filter."""
     try:
         if notebook_id:
-            # Get notes for a specific notebook
-            from open_notebook.domain.notebook import Notebook
-
-            notebook = await Notebook.get(notebook_id)
-            notes = await notebook.get_notes()
-        else:
-            # Get all notes
-            notes = await Note.get_all(order_by="updated desc")
-
-        return [
-            NoteResponse(
-                id=note.id or "",
-                title=note.title,
-                content=note.content,
-                note_type=note.note_type,
-                created=str(note.created),
-                updated=str(note.updated),
+            await repo.get(notebook_id)  # workspace-checked; 404 on miss/cross-workspace
+            rows = await repo.raw(
+                # scoped-raw: note has no native workspace column; notebook_id is
+                # already workspace-verified via repo.get() above, so filtering
+                # the artifact edge by that exact id inherits the check
+                "SELECT * FROM note WHERE id IN "
+                "(SELECT VALUE in FROM artifact WHERE out = $notebook_id) "
+                "ORDER BY updated DESC",
+                {"notebook_id": ensure_record_id(notebook_id)},
             )
-            for note in notes
-        ]
+        else:
+            rows = await repo.raw(
+                # scoped-raw: note has no native workspace column; scoped via the
+                # artifact edge to a notebook in the caller's workspace
+                "SELECT * FROM note WHERE id IN "
+                "(SELECT VALUE in FROM artifact WHERE out.workspace = $workspace_id) "
+                "ORDER BY updated DESC",
+            )
+        return [_note_response(row) for row in rows]
     except HTTPException:
         raise
     except NotFoundError:
@@ -47,9 +85,19 @@ async def get_notes(
 
 
 @router.post("/notes", response_model=NoteResponse)
-async def create_note(note_data: NoteCreate):
-    """Create a new note."""
+async def create_note(note_data: NoteCreate, repo: CtxDep):
+    """Create a new note. If `notebook_id` is given it's workspace-checked
+    first (404 on cross-workspace/missing) before the note is attached to it —
+    a caller cannot "adopt" a note into another workspace's notebook by
+    guessing its id. A note created with no `notebook_id` is an orphan (not
+    attached to any notebook) and, since `note` has no native `workspace`
+    column, will not appear in any workspace-scoped list/get afterward — this
+    mirrors the pre-existing optional `notebook_id` semantics, just now made
+    workspace-safe."""
     try:
+        if note_data.notebook_id:
+            await repo.get(note_data.notebook_id)  # workspace-checked; 404 on miss/cross-workspace
+
         # Auto-generate title if not provided and it's an AI note
         title = note_data.title
         if not title and note_data.note_type == "ai" and note_data.content:
@@ -80,12 +128,8 @@ async def create_note(note_data: NoteCreate):
         )
         command_id = await new_note.save()
 
-        # Add to notebook if specified
+        # Add to notebook if specified (already workspace-verified above)
         if note_data.notebook_id:
-            from open_notebook.domain.notebook import Notebook
-
-            # Verify the notebook exists (raises NotFoundError -> 404)
-            await Notebook.get(note_data.notebook_id)
             await new_note.add_to_notebook(note_data.notebook_id)
 
         return NoteResponse(
@@ -109,19 +153,12 @@ async def create_note(note_data: NoteCreate):
 
 
 @router.get("/notes/{note_id}", response_model=NoteResponse)
-async def get_note(note_id: str):
-    """Get a specific note by ID."""
+async def get_note(note_id: str, repo: CtxDep):
+    """Get a specific note by ID. 404 if not in the caller's workspace (no
+    cross-workspace oracle)."""
     try:
-        note = await Note.get(note_id)
-
-        return NoteResponse(
-            id=note.id or "",
-            title=note.title,
-            content=note.content,
-            note_type=note.note_type,
-            created=str(note.created),
-            updated=str(note.updated),
-        )
+        row = await _get_owned_note(repo, note_id)
+        return _note_response(row)
     except HTTPException:
         raise
     except NotFoundError:
@@ -132,9 +169,10 @@ async def get_note(note_id: str):
 
 
 @router.put("/notes/{note_id}", response_model=NoteResponse)
-async def update_note(note_id: str, note_update: NoteUpdate):
-    """Update a note."""
+async def update_note(note_id: str, note_update: NoteUpdate, repo: CtxDep):
+    """Update a note. 404 on cross-workspace id (ownership-checked first)."""
     try:
+        await _get_owned_note(repo, note_id)  # ownership-checked → 404 on cross-workspace
         note = await Note.get(note_id)
 
         # Update only provided fields
@@ -173,11 +211,11 @@ async def update_note(note_id: str, note_update: NoteUpdate):
 
 
 @router.delete("/notes/{note_id}")
-async def delete_note(note_id: str):
-    """Delete a note."""
+async def delete_note(note_id: str, repo: CtxDep):
+    """Delete a note. 404 on cross-workspace id (ownership-checked first)."""
     try:
+        await _get_owned_note(repo, note_id)  # ownership-checked → 404 on cross-workspace
         note = await Note.get(note_id)
-
         await note.delete()
 
         return {"message": "Note deleted successfully"}
