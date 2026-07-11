@@ -229,6 +229,7 @@ export const bnIN = {
     notebooks: "নোটবুকগুলি",
     projects: "প্রকল্প",
     askAndSearch: "জিজ্ঞাসা ও অনুসন্ধান",
+    intelligence: "বুদ্ধিমত্তা",
     podcasts: "পডকাস্ট",
     models: "মডেলগুলি",
     transformations: "ট্রান্সফরমেশনস",

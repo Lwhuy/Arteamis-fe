@@ -229,6 +229,7 @@ export const enUS = {
     notebooks: "Notebooks",
     projects: "Projects",
     askAndSearch: "Ask and Search",
+    intelligence: "Intelligence",
     podcasts: "Podcasts",
     models: "Models",
     transformations: "Transformations",

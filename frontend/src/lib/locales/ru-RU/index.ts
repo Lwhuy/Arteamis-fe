@@ -229,6 +229,7 @@ export const ruRU = {
     notebooks: "Блокноты",
     projects: "Проекты",
     askAndSearch: "Запрос и поиск",
+    intelligence: "Интеллект",
     podcasts: "Подкасты",
     models: "Модели",
     transformations: "Трансформации",

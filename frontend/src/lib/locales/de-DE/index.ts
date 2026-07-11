@@ -232,6 +232,7 @@ export const deDE = {
     notebooks: "Notebooks",
     projects: "Projects",
     askAndSearch: "Fragen und Suchen",
+    intelligence: "Intelligenz",
     podcasts: "Podcasts",
     models: "Modelle",
     transformations: "Transformationen",

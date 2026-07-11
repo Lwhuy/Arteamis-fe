@@ -229,6 +229,7 @@ export const zhCN = {
     notebooks: "笔记本",
     projects: "项目",
     askAndSearch: "询问与搜索",
+    intelligence: "智能",
     podcasts: "播客",
     models: "模型",
     transformations: "转换",

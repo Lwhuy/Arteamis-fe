@@ -229,6 +229,7 @@ export const plPL = {
     notebooks: "Notatniki",
     projects: "Projects",
     askAndSearch: "Pytaj i szukaj",
+    intelligence: "Inteligencja",
     podcasts: "Podcasty",
     models: "Modele",
     transformations: "Transformacje",

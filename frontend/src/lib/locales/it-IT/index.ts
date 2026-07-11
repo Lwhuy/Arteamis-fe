@@ -229,6 +229,7 @@ export const itIT = {
     notebooks: "Quaderni",
     projects: "Projects",
     askAndSearch: "Chiedi e cerca",
+    intelligence: "Intelligenza",
     podcasts: "Podcast",
     models: "Modelli",
     transformations: "Trasformazioni",

@@ -229,6 +229,7 @@ export const trTR = {
     notebooks: "Defterler",
     projects: "Projects",
     askAndSearch: "Sor ve Ara",
+    intelligence: "Zeka",
     podcasts: "Podcastler",
     models: "Modeller",
     transformations: "Dönüşümler",

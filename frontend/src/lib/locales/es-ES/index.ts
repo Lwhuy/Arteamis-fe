@@ -229,6 +229,7 @@ export const esES = {
     notebooks: "Cuadernos",
     projects: "Projects",
     askAndSearch: "Preguntar y buscar",
+    intelligence: "Inteligencia",
     podcasts: "Podcasts",
     models: "Modelos",
     transformations: "Transformaciones",

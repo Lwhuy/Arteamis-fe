@@ -229,6 +229,7 @@ export const frFR = {
     notebooks: "Carnets",
     projects: "Projects",
     askAndSearch: "Demander et rechercher",
+    intelligence: "Intelligence",
     podcasts: "Podcasts",
     models: "Modèles",
     transformations: "Transformations",

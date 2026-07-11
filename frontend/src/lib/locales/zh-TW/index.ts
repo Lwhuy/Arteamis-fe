@@ -229,6 +229,7 @@ export const zhTW = {
     notebooks: "筆記本",
     projects: "專案",
     askAndSearch: "詢問與搜尋",
+    intelligence: "智能",
     podcasts: "播客",
     models: "模型",
     transformations: "轉換",

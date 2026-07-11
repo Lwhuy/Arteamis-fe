@@ -229,6 +229,7 @@ export const caES = {
     notebooks: "Quaderns",
     projects: "Projects",
     askAndSearch: "Pregunta i cerca",
+    intelligence: "Intel·ligència",
     podcasts: "Podcasts",
     models: "Models",
     transformations: "Transformacions",
