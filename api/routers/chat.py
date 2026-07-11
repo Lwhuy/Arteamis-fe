@@ -2,11 +2,16 @@ import asyncio
 import traceback
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from api.source_permissions import (
+    PermissionContext,
+    get_permission_context,
+    visible_source_ids,
+)
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.notebook import (
     ChatSession,
@@ -429,13 +434,22 @@ async def execute_chat(request: ExecuteChatRequest):
 
 
 @router.post("/chat/context", response_model=BuildContextResponse)
-async def build_context(request: BuildContextRequest):
+async def build_context(
+    request: BuildContextRequest,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Build context for a notebook based on context configuration."""
     try:
         # Verify notebook exists
         notebook = await Notebook.get(request.notebook_id)
         if not notebook:
             raise HTTPException(status_code=404, detail="Notebook not found")
+
+        # Allow-list of source ids the caller may view in this project (3-scope).
+        # Also enforces workspace isolation: a notebook_id from another
+        # workspace resolves to an empty set here (see
+        # api.source_permissions.visible_source_ids), so nothing leaks.
+        visible = set(await visible_source_ids(ctx, request.notebook_id))
 
         context_data: dict[str, list[dict[str, str]]] = {"sources": [], "notes": []}
         total_content = ""
@@ -454,6 +468,12 @@ async def build_context(request: BuildContextRequest):
                         if source_id.startswith("source:")
                         else f"source:{source_id}"
                     )
+
+                    # Skip sources the caller may not view (belt-and-braces
+                    # with the set filter on the default-branch get_sources()
+                    # call below).
+                    if full_source_id not in visible:
+                        continue
 
                     try:
                         source = await Source.get(full_source_id)
@@ -495,7 +515,7 @@ async def build_context(request: BuildContextRequest):
                     continue
         else:
             # Default behavior - include all sources and notes with short context
-            sources = await notebook.get_sources()
+            sources = await notebook.get_sources(viewer_source_ids=visible)
             try:
                 insights_by_source = await SourceInsight.get_for_sources(
                     [source.id for source in sources if source.id]
