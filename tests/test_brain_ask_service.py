@@ -58,12 +58,14 @@ async def test_ask_brain_injects_relationships_and_tags_cited_node_ids():
     with (
         patch("api.brain_service.vector_search", new_callable=AsyncMock) as mock_vs,
         patch("api.brain_service.get_source_relationships", new_callable=AsyncMock) as mock_rel,
+        patch("api.brain_service.visible_source_ids", new_callable=AsyncMock) as mock_visible,
         patch("api.brain_service.ask_graph", fake_graph),
     ):
         mock_vs.return_value = [{"id": "source:a"}, {"id": "source:b"}]
         mock_rel.return_value = [
             {"source": "source:a", "target": "source:z", "type": "supersedes", "rationale": "r"}
         ]
+        mock_visible.return_value = ["source:a", "source:b", "source:z"]
 
         events = [e async for e in _drive(ctx)]
 
@@ -85,9 +87,57 @@ async def _drive(ctx):
 
 
 @pytest.mark.asyncio
+async def test_ask_brain_threads_viewer_source_ids_into_vector_search_and_graph():
+    """CRITICAL: fn::vector_search (migration 23) treats $viewer_source_ids as a
+    MANDATORY allow-list -- absent/None becomes [] and `IN []` matches nothing.
+    ask_brain must compute the caller's visible_source_ids() and thread the same
+    list into both the vector_search call and the ask_graph configurable, exactly
+    like api.routers.search.stream_ask_response does."""
+    ctx = types.SimpleNamespace(workspace_id="workspace:alpha")
+    captured: dict = {}
+
+    async def _capturing_astream(*args, **kwargs):
+        captured["config"] = kwargs.get("config")
+        yield {"agent": {"strategy": _Strategy()}}
+        yield {"write_final_answer": {"final_answer": "the final answer"}}
+
+    fake_graph = types.SimpleNamespace(astream=_capturing_astream)
+
+    with (
+        patch("api.brain_service.vector_search", new_callable=AsyncMock) as mock_vs,
+        patch("api.brain_service.get_source_relationships", new_callable=AsyncMock) as mock_rel,
+        patch("api.brain_service.visible_source_ids", new_callable=AsyncMock) as mock_visible,
+        patch("api.brain_service.ask_graph", fake_graph),
+    ):
+        mock_vs.return_value = [{"id": "source:a"}]
+        mock_rel.return_value = []
+        mock_visible.return_value = ["source:a", "source:b", "source:c"]
+
+        events = [e async for e in _drive(ctx)]
+
+    mock_visible.assert_awaited_once_with(ctx, None)
+
+    mock_vs.assert_awaited_once()
+    _, vs_kwargs = mock_vs.call_args
+    assert vs_kwargs.get("viewer_source_ids") == ["source:a", "source:b", "source:c"]
+
+    assert captured["config"] is not None
+    assert captured["config"]["configurable"]["viewer_source_ids"] == [
+        "source:a",
+        "source:b",
+        "source:c",
+    ]
+    assert events[-1].final_answer == "the final answer"
+
+
+@pytest.mark.asyncio
 async def test_ask_brain_emits_error_event_without_raising():
     ctx = types.SimpleNamespace(workspace_id="workspace:alpha")
-    with patch("api.brain_service.vector_search", new_callable=AsyncMock) as mock_vs:
+    with (
+        patch("api.brain_service.vector_search", new_callable=AsyncMock) as mock_vs,
+        patch("api.brain_service.visible_source_ids", new_callable=AsyncMock) as mock_visible,
+    ):
+        mock_visible.return_value = []
         mock_vs.side_effect = RuntimeError("boom")
         events = [e async for e in _drive(ctx)]
 

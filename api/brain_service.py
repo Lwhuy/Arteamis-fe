@@ -3,6 +3,7 @@ from typing import Any, AsyncIterator, Optional
 from loguru import logger
 
 from api.brain_models import BrainAskEvent, BrainEdge, BrainGraphResponse, BrainNode
+from api.source_permissions import PermissionContext, visible_source_ids
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.brain import get_source_relationships, normalize_entity_name
 from open_notebook.domain.notebook import vector_search
@@ -132,7 +133,7 @@ async def get_brain_graph(
 
 
 async def ask_brain(
-    ctx: Any,
+    ctx: PermissionContext,
     question: str,
     strategy_model: str,
     answer_model: str,
@@ -143,7 +144,17 @@ async def ask_brain(
     annotations into the question context. Every emitted event carries
     cited_node_ids so the canvas can highlight cited nodes."""
     try:
-        results = await vector_search(question, 10, True, False)
+        # Allow-list of source ids the caller may view. fn::vector_search
+        # (migration 23) requires $viewer_source_ids as a MANDATORY allow-list --
+        # absent/None becomes [] and `IN []` matches nothing, silently returning
+        # zero sources. Mirrors api.routers.search.stream_ask_response.
+        viewer_ids = await visible_source_ids(ctx, None)
+        # NOTE: this call is fully mocked in unit tests (no real SurrealDB here).
+        # A real-SurrealDB integration test should be added later to guard the
+        # fn::vector_search allow-list semantics end-to-end (follow-up).
+        results = await vector_search(
+            question, 10, True, False, viewer_source_ids=viewer_ids
+        )
         retrieved_ids = [r["id"] for r in (results or [])]
         relationships = await get_source_relationships(ctx.workspace_id)
         annotations, cited_node_ids = build_subgraph_context(retrieved_ids, relationships)
@@ -163,6 +174,7 @@ async def ask_brain(
                     strategy_model=strategy_model,
                     answer_model=answer_model,
                     final_answer_model=final_answer_model,
+                    viewer_source_ids=viewer_ids,
                 )
             ),
             stream_mode="updates",

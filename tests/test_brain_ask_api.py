@@ -1,10 +1,12 @@
 """Tests for the POST /api/brain/ask SSE route.
 
-Follows the landed pattern used by tests/test_brain_router.py /
-tests/test_projects_api.py: override P2's get_auth_context with a synthetic
-AuthContext (NOT the P6 CtxDep/get_request_context, which don't exist yet),
-and mock the service layer (api.brain_service.ask_brain) so no real DB or
-model provider is needed.
+Unlike the other /brain routes (which still use P2's get_auth_context / plain
+AuthContext), /brain/ask needs the viewer_source_ids allow-list computed by
+visible_source_ids(), so it depends on api.source_permissions'
+PermissionContext / get_permission_context -- the same pattern used by
+api/routers/search.py and tests/test_search_api.py. The service layer
+(api.brain_service.ask_brain) is mocked so no real DB or model provider is
+needed.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -13,12 +15,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.brain_models import BrainAskEvent
-from api.deps import get_auth_context
-from api.security import AuthContext
+from api.source_permissions import PermissionContext, get_permission_context
 
 
 def _ctx(role="owner", workspace_id="workspace:ws1", user_id="user:u1"):
-    return AuthContext(user_id=user_id, workspace_id=workspace_id, role=role)
+    return PermissionContext(user_id=user_id, workspace_id=workspace_id, workspace_role=role)
 
 
 @pytest.fixture
@@ -31,7 +32,7 @@ def client():
 
 
 def _override(app, ctx):
-    app.dependency_overrides[get_auth_context] = lambda: ctx
+    app.dependency_overrides[get_permission_context] = lambda: ctx
 
 
 def _body():

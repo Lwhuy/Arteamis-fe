@@ -10,6 +10,7 @@ from api.brain_service import ask_brain, get_brain_graph
 from api.deps import get_auth_context
 from api.models import AskRequest
 from api.security import AuthContext
+from api.source_permissions import PermissionContext, get_permission_context
 from open_notebook.ai.models import Model, model_manager
 
 router = APIRouter(prefix="/brain", tags=["brain"])
@@ -28,7 +29,7 @@ async def get_graph(
 @router.post("/ask")
 async def ask_brain_endpoint(
     ask_request: AskRequest,
-    ctx: AuthContext = Depends(get_auth_context),
+    ctx: PermissionContext = Depends(get_permission_context),
 ):
     """Graph-aware RAG over the active workspace's brain (SSE stream, any member)."""
     strategy_model = await Model.get(ask_request.strategy_model)
