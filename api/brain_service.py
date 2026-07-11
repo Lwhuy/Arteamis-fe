@@ -1,11 +1,14 @@
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 from loguru import logger
 
-from api.brain_models import BrainEdge, BrainGraphResponse, BrainNode
+from api.brain_models import BrainAskEvent, BrainEdge, BrainGraphResponse, BrainNode
 from open_notebook.database.repository import ensure_record_id, repo_query
-from open_notebook.domain.brain import normalize_entity_name
+from open_notebook.domain.brain import get_source_relationships, normalize_entity_name
+from open_notebook.domain.notebook import vector_search
 from open_notebook.exceptions import DatabaseOperationError
+from open_notebook.graphs.ask import graph as ask_graph
+from open_notebook.utils.error_classifier import classify_error
 
 
 def build_subgraph_context(
@@ -126,3 +129,72 @@ async def get_brain_graph(
         logger.error(f"Error building brain graph for {ctx.workspace_id}: {e}")
         logger.exception(e)
         raise DatabaseOperationError(e)
+
+
+async def ask_brain(
+    ctx: Any,
+    question: str,
+    strategy_model: str,
+    answer_model: str,
+    final_answer_model: str,
+) -> AsyncIterator[BrainAskEvent]:
+    """Graph-aware RAG: reuse the ask pipeline, but expand the retrieved
+    sources to their surrounding subgraph and inject relationship
+    annotations into the question context. Every emitted event carries
+    cited_node_ids so the canvas can highlight cited nodes."""
+    try:
+        results = await vector_search(question, 10, True, False)
+        retrieved_ids = [r["id"] for r in (results or [])]
+        relationships = await get_source_relationships(ctx.workspace_id)
+        annotations, cited_node_ids = build_subgraph_context(retrieved_ids, relationships)
+
+        augmented_question = question
+        if annotations:
+            augmented_question = (
+                f"{question}\n\nKnown relationships between sources "
+                f"(use these to weight and reconcile evidence):\n{annotations}"
+            )
+
+        final_answer = None
+        async for chunk in ask_graph.astream(
+            input=dict(question=augmented_question),  # type: ignore[arg-type]
+            config=dict(
+                configurable=dict(
+                    strategy_model=strategy_model,
+                    answer_model=answer_model,
+                    final_answer_model=final_answer_model,
+                )
+            ),
+            stream_mode="updates",
+        ):
+            if "agent" in chunk:
+                strategy = chunk["agent"]["strategy"]
+                yield BrainAskEvent(
+                    type="strategy",
+                    reasoning=strategy.reasoning,
+                    searches=[
+                        {"term": s.term, "instructions": s.instructions}
+                        for s in strategy.searches
+                    ],
+                    cited_node_ids=cited_node_ids,
+                )
+            elif "provide_answer" in chunk:
+                for answer in chunk["provide_answer"]["answers"]:
+                    yield BrainAskEvent(
+                        type="answer", content=answer, cited_node_ids=cited_node_ids
+                    )
+            elif "write_final_answer" in chunk:
+                final_answer = chunk["write_final_answer"]["final_answer"]
+                yield BrainAskEvent(
+                    type="final_answer",
+                    content=final_answer,
+                    cited_node_ids=cited_node_ids,
+                )
+
+        yield BrainAskEvent(
+            type="complete", final_answer=final_answer, cited_node_ids=cited_node_ids
+        )
+    except Exception as e:
+        _, user_message = classify_error(e)
+        logger.error(f"Error in ask_brain streaming: {str(e)}")
+        yield BrainAskEvent(type="error", message=user_message, cited_node_ids=[])
