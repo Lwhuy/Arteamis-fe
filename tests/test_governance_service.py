@@ -11,6 +11,7 @@ api.governance_service's own repo_query/repo_relate imports.
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from surrealdb import RecordID
 
 from api.governance_service import (
     accept_proposal,
@@ -54,7 +55,9 @@ async def test_create_proposal_saves_pending_links_sources_and_audits(
     audit_kwargs_call = mock_create.await_args_list[1]
     audit_data = audit_kwargs_call.args[1]
     assert audit_data["action"] == "proposal.created"
-    assert audit_data["object"] == "proposal:1"
+    # object is a record<> link field, so AuditEvent._prepare_save_data()
+    # converts it to a RecordID before it reaches repo_create.
+    assert audit_data["object"] == RecordID.parse("proposal:1")
 
 
 @pytest.mark.asyncio

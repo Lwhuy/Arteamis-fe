@@ -1,7 +1,8 @@
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar, Dict, Optional
 
 from pydantic import Field, field_validator
 
+from open_notebook.database.repository import ensure_record_id
 from open_notebook.domain.base import ObjectModel
 
 CLAIM_TYPES = ["fact", "inference", "assumption", "recommendation", "preference"]
@@ -34,6 +35,12 @@ class Proposal(ObjectModel):
             raise ValueError(f"invalid claim_type {v}")
         return v
 
+    def _prepare_save_data(self) -> Dict[str, Any]:
+        data = super()._prepare_save_data()
+        if data.get("author") is not None:
+            data["author"] = ensure_record_id(data["author"])
+        return data
+
 
 class Belief(ObjectModel):
     table_name: ClassVar[str] = "belief"
@@ -50,3 +57,11 @@ class AuditEvent(ObjectModel):
     action: str
     object: Optional[str] = None
     meta: dict[str, Any] = Field(default_factory=dict)
+
+    def _prepare_save_data(self) -> Dict[str, Any]:
+        data = super()._prepare_save_data()
+        if data.get("actor") is not None:
+            data["actor"] = ensure_record_id(data["actor"])
+        if data.get("object") is not None:
+            data["object"] = ensure_record_id(data["object"])
+        return data
