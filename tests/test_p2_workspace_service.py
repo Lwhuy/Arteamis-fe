@@ -175,7 +175,14 @@ async def test_list_memberships_maps_rows_including_kind(mock_query):
         },
     ]
     # Isolation: the query filters by the caller's user id.
-    assert "WHERE user = $user" in mock_query.await_args.args[0]
+    query_text = mock_query.await_args.args[0]
+    assert "WHERE user = $user" in query_text
+    # Regression: `ORDER BY created` must be valid SurrealQL, which requires
+    # `created` to appear in the SELECT projection (bug caught via live
+    # SurrealDB: a projection of `role, workspace` alone 500s on login).
+    assert "ORDER BY created" in query_text
+    select_clause = query_text.split("FROM", 1)[0]
+    assert "created" in select_clause
 
 
 @pytest.mark.asyncio
