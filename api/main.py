@@ -36,6 +36,7 @@ from api.routers import (
     sources,
     speaker_profiles,
     transformations,
+    workspaces,
 )
 from api.routers import commands as commands_router
 from open_notebook.database.async_migrate import AsyncMigrationManager
@@ -387,6 +388,7 @@ async def open_notebook_error_handler(request: Request, exc: OpenNotebookError):
 
 # Include routers
 app.include_router(auth.router, prefix="/api", tags=["auth"])
+app.include_router(workspaces.router, prefix="/api", tags=["workspaces"])
 app.include_router(config.router, prefix="/api", tags=["config"])
 app.include_router(notebooks.router, prefix="/api", tags=["notebooks"])
 app.include_router(search.router, prefix="/api", tags=["search"])

@@ -770,3 +770,28 @@ class SessionPayload(BaseModel):
 class MeResponse(BaseModel):
     user: AuthUser
     memberships: List[Any] = Field(default_factory=list)
+
+
+# Workspace API models (P2)
+class WorkspaceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    slug: Optional[str] = None  # optional explicit slug; else derived from name
+    # NOTE: intentionally no `kind` field. POST /workspaces always creates
+    # kind="company" — a client cannot request/relabel a personal workspace.
+
+
+class WorkspaceResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    kind: str  # "personal" | "company"
+    role: str  # caller's role in this workspace
+    created: str
+    updated: str
+
+
+class TokenResponse(BaseModel):  # returned by workspace create + switch (+ reused by login/register)
+    access_token: str
+    token_type: str = "bearer"
+    active_workspace_id: str
+    role: str
