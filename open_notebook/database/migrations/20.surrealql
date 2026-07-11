@@ -1,0 +1,14 @@
+-- Migration 20: connection table — encrypted OAuth connections to external source providers.
+
+DEFINE TABLE IF NOT EXISTS connection SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS provider ON TABLE connection TYPE string;
+DEFINE FIELD IF NOT EXISTS account_label ON TABLE connection TYPE string;
+DEFINE FIELD IF NOT EXISTS access_token ON TABLE connection TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS refresh_token ON TABLE connection TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS token_expires_at ON TABLE connection TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS scopes ON TABLE connection TYPE array<string> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS status ON TABLE connection TYPE string DEFAULT "connected";
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE connection TYPE option<record<workspace>>;
+DEFINE FIELD IF NOT EXISTS created ON connection DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON connection DEFAULT time::now() VALUE time::now();
+DEFINE INDEX IF NOT EXISTS idx_connection_provider ON TABLE connection FIELDS provider;
