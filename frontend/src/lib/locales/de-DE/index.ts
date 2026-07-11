@@ -499,7 +499,7 @@ export const deDE = {
       provenance: "Provenance",
       contradiction: "Contradiction",
       contradictionNone: "No contradictions detected",
-      createDecision: "Create decision from this belief",
+      createDecision: "Entscheidung aus dieser Überzeugung erstellen",
     },
     proposeToCompany: "Propose to Company",
     review: {
@@ -508,10 +508,10 @@ export const deDE = {
     },
     brain: {
       view: "View",
-      decisionsTitle: "Decisions",
-      decisionsEmpty: "No decisions yet.",
-      rulesTitle: "Rules",
-      rulesEmpty: "No rules yet.",
+      decisionsTitle: "Entscheidungen",
+      decisionsEmpty: "Noch keine Entscheidungen.",
+      rulesTitle: "Regeln",
+      rulesEmpty: "Noch keine Regeln.",
     },
     rail: {
       chat: "Chat",
@@ -1050,8 +1050,8 @@ export const deDE = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
-    toastDecisionCreated: "Decision created",
-    toastRuleCreated: "Rule created",
+    toastDecisionCreated: "Entscheidung erstellt",
+    toastRuleCreated: "Regel erstellt",
   },
   setupBanner: {
     encryptionRequired: "Verschlüsselungsschlüssel nicht konfiguriert",

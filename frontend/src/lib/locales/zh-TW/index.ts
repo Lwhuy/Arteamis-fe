@@ -496,7 +496,7 @@ export const zhTW = {
       provenance: "Provenance",
       contradiction: "Contradiction",
       contradictionNone: "No contradictions detected",
-      createDecision: "Create decision from this belief",
+      createDecision: "根據此信念建立決策",
     },
     proposeToCompany: "Propose to Company",
     review: {
@@ -505,10 +505,10 @@ export const zhTW = {
     },
     brain: {
       view: "View",
-      decisionsTitle: "Decisions",
-      decisionsEmpty: "No decisions yet.",
-      rulesTitle: "Rules",
-      rulesEmpty: "No rules yet.",
+      decisionsTitle: "決策",
+      decisionsEmpty: "尚無決策。",
+      rulesTitle: "規則",
+      rulesEmpty: "尚無規則。",
     },
     rail: {
       chat: "Chat",
@@ -1047,8 +1047,8 @@ export const zhTW = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
-    toastDecisionCreated: "Decision created",
-    toastRuleCreated: "Rule created",
+    toastDecisionCreated: "決策已建立",
+    toastRuleCreated: "規則已建立",
   },
   setupBanner: {
     encryptionRequired: "未設定加密金鑰",

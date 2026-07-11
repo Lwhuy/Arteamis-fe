@@ -496,7 +496,7 @@ export const bnIN = {
       provenance: "Provenance",
       contradiction: "Contradiction",
       contradictionNone: "No contradictions detected",
-      createDecision: "Create decision from this belief",
+      createDecision: "এই বিশ্বাস থেকে সিদ্ধান্ত তৈরি করুন",
     },
     proposeToCompany: "Propose to Company",
     review: {
@@ -505,10 +505,10 @@ export const bnIN = {
     },
     brain: {
       view: "View",
-      decisionsTitle: "Decisions",
-      decisionsEmpty: "No decisions yet.",
-      rulesTitle: "Rules",
-      rulesEmpty: "No rules yet.",
+      decisionsTitle: "সিদ্ধান্তসমূহ",
+      decisionsEmpty: "এখনও কোনো সিদ্ধান্ত নেই।",
+      rulesTitle: "নিয়মসমূহ",
+      rulesEmpty: "এখনও কোনো নিয়ম নেই।",
     },
     rail: {
       chat: "Chat",
@@ -1048,8 +1048,8 @@ export const bnIN = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
-    toastDecisionCreated: "Decision created",
-    toastRuleCreated: "Rule created",
+    toastDecisionCreated: "সিদ্ধান্ত তৈরি হয়েছে",
+    toastRuleCreated: "নিয়ম তৈরি হয়েছে",
   },
   setupBanner: {
     encryptionRequired: "এনক্রিপশন কী কনফিগার করা হয়নি",

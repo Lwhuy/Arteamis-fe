@@ -496,7 +496,7 @@ export const ruRU = {
       provenance: "Provenance",
       contradiction: "Contradiction",
       contradictionNone: "No contradictions detected",
-      createDecision: "Create decision from this belief",
+      createDecision: "Создать решение на основе этого убеждения",
     },
     proposeToCompany: "Propose to Company",
     review: {
@@ -505,10 +505,10 @@ export const ruRU = {
     },
     brain: {
       view: "View",
-      decisionsTitle: "Decisions",
-      decisionsEmpty: "No decisions yet.",
-      rulesTitle: "Rules",
-      rulesEmpty: "No rules yet.",
+      decisionsTitle: "Решения",
+      decisionsEmpty: "Пока нет решений.",
+      rulesTitle: "Правила",
+      rulesEmpty: "Пока нет правил.",
     },
     rail: {
       chat: "Chat",
@@ -1047,8 +1047,8 @@ export const ruRU = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
-    toastDecisionCreated: "Decision created",
-    toastRuleCreated: "Rule created",
+    toastDecisionCreated: "Решение создано",
+    toastRuleCreated: "Правило создано",
   },
   setupBanner: {
     encryptionRequired: "Ключ шифрования не настроен",

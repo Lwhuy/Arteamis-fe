@@ -496,7 +496,7 @@ export const ptBR = {
       provenance: "Provenance",
       contradiction: "Contradiction",
       contradictionNone: "No contradictions detected",
-      createDecision: "Create decision from this belief",
+      createDecision: "Criar decisão a partir desta crença",
     },
     proposeToCompany: "Propose to Company",
     review: {
@@ -505,10 +505,10 @@ export const ptBR = {
     },
     brain: {
       view: "View",
-      decisionsTitle: "Decisions",
-      decisionsEmpty: "No decisions yet.",
-      rulesTitle: "Rules",
-      rulesEmpty: "No rules yet.",
+      decisionsTitle: "Decisões",
+      decisionsEmpty: "Nenhuma decisão ainda.",
+      rulesTitle: "Regras",
+      rulesEmpty: "Nenhuma regra ainda.",
     },
     rail: {
       chat: "Chat",
@@ -1047,8 +1047,8 @@ export const ptBR = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
-    toastDecisionCreated: "Decision created",
-    toastRuleCreated: "Rule created",
+    toastDecisionCreated: "Decisão criada",
+    toastRuleCreated: "Regra criada",
   },
   setupBanner: {
     encryptionRequired: "Chave de criptografia não configurada",

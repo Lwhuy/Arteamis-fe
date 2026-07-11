@@ -496,7 +496,7 @@ export const trTR = {
       provenance: "Provenance",
       contradiction: "Contradiction",
       contradictionNone: "No contradictions detected",
-      createDecision: "Create decision from this belief",
+      createDecision: "Bu inançtan karar oluştur",
     },
     proposeToCompany: "Propose to Company",
     review: {
@@ -505,10 +505,10 @@ export const trTR = {
     },
     brain: {
       view: "View",
-      decisionsTitle: "Decisions",
-      decisionsEmpty: "No decisions yet.",
-      rulesTitle: "Rules",
-      rulesEmpty: "No rules yet.",
+      decisionsTitle: "Kararlar",
+      decisionsEmpty: "Henüz karar yok.",
+      rulesTitle: "Kurallar",
+      rulesEmpty: "Henüz kural yok.",
     },
     rail: {
       chat: "Chat",
@@ -1047,8 +1047,8 @@ export const trTR = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
-    toastDecisionCreated: "Decision created",
-    toastRuleCreated: "Rule created",
+    toastDecisionCreated: "Karar oluşturuldu",
+    toastRuleCreated: "Kural oluşturuldu",
   },
   setupBanner: {
     encryptionRequired: "Şifreleme anahtarı yapılandırılmadı",

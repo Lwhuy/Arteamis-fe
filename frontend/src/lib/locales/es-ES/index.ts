@@ -496,7 +496,7 @@ export const esES = {
       provenance: "Provenance",
       contradiction: "Contradiction",
       contradictionNone: "No contradictions detected",
-      createDecision: "Create decision from this belief",
+      createDecision: "Crear decisión a partir de esta creencia",
     },
     proposeToCompany: "Propose to Company",
     review: {
@@ -505,10 +505,10 @@ export const esES = {
     },
     brain: {
       view: "View",
-      decisionsTitle: "Decisions",
-      decisionsEmpty: "No decisions yet.",
-      rulesTitle: "Rules",
-      rulesEmpty: "No rules yet.",
+      decisionsTitle: "Decisiones",
+      decisionsEmpty: "Aún no hay decisiones.",
+      rulesTitle: "Reglas",
+      rulesEmpty: "Aún no hay reglas.",
     },
     rail: {
       chat: "Chat",
@@ -1048,8 +1048,8 @@ export const esES = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
-    toastDecisionCreated: "Decision created",
-    toastRuleCreated: "Rule created",
+    toastDecisionCreated: "Decisión creada",
+    toastRuleCreated: "Regla creada",
   },
   setupBanner: {
     encryptionRequired: "Clave de encriptación no configurada",

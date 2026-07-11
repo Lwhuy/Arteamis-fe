@@ -496,7 +496,7 @@ export const caES = {
       provenance: "Provenance",
       contradiction: "Contradiction",
       contradictionNone: "No contradictions detected",
-      createDecision: "Create decision from this belief",
+      createDecision: "Crea una decisió a partir d'aquesta creença",
     },
     proposeToCompany: "Propose to Company",
     review: {
@@ -506,9 +506,9 @@ export const caES = {
     brain: {
       view: "View",
       decisionsTitle: "Decisions",
-      decisionsEmpty: "No decisions yet.",
-      rulesTitle: "Rules",
-      rulesEmpty: "No rules yet.",
+      decisionsEmpty: "Encara no hi ha decisions.",
+      rulesTitle: "Regles",
+      rulesEmpty: "Encara no hi ha regles.",
     },
     rail: {
       chat: "Chat",
@@ -1047,8 +1047,8 @@ export const caES = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
-    toastDecisionCreated: "Decision created",
-    toastRuleCreated: "Rule created",
+    toastDecisionCreated: "Decisió creada",
+    toastRuleCreated: "Regla creada",
   },
   setupBanner: {
     encryptionRequired: "Clau de xifratge no configurada",

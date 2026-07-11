@@ -496,7 +496,7 @@ export const jaJP = {
       provenance: "Provenance",
       contradiction: "Contradiction",
       contradictionNone: "No contradictions detected",
-      createDecision: "Create decision from this belief",
+      createDecision: "この信念から決定を作成",
     },
     proposeToCompany: "Propose to Company",
     review: {
@@ -505,10 +505,10 @@ export const jaJP = {
     },
     brain: {
       view: "View",
-      decisionsTitle: "Decisions",
-      decisionsEmpty: "No decisions yet.",
-      rulesTitle: "Rules",
-      rulesEmpty: "No rules yet.",
+      decisionsTitle: "決定",
+      decisionsEmpty: "まだ決定はありません。",
+      rulesTitle: "ルール",
+      rulesEmpty: "まだルールはありません。",
     },
     rail: {
       chat: "Chat",
@@ -1047,8 +1047,8 @@ export const jaJP = {
     toastProposed: "Proposed to company",
     toastAccepted: "Accepted into Company Brain",
     toastChangesRequested: "Sent back for changes",
-    toastDecisionCreated: "Decision created",
-    toastRuleCreated: "Rule created",
+    toastDecisionCreated: "決定を作成しました",
+    toastRuleCreated: "ルールを作成しました",
   },
   setupBanner: {
     encryptionRequired: "暗号化キーが設定されていません",
