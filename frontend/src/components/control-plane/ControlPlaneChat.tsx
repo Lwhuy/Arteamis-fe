@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Plus, Send } from 'lucide-react';
 import { useAsk } from '@/lib/hooks/use-ask';
+import { useArtifact } from '@/lib/hooks/use-artifact';
 import { useCreateDialogs } from '@/lib/hooks/use-create-dialogs';
 import { useModelDefaults } from '@/lib/hooks/use-models';
 import { useScopeStore } from '@/lib/stores/scope-store';
@@ -12,6 +13,7 @@ export function ControlPlaneChat() {
   const { t } = useTranslation();
   const scope = useScopeStore((s) => s.scope);
   const { finalAnswer, isStreaming, sendAsk } = useAsk();
+  const { openArtifact } = useArtifact();
   const { openSourceDialog } = useCreateDialogs();
   const { data: modelDefaults } = useModelDefaults();
   const [q, setQ] = useState('');
@@ -35,7 +37,11 @@ export function ControlPlaneChat() {
       </div>
       <div className="flex-1 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-2xl">
-          <AnswerBody finalAnswer={finalAnswer} isStreaming={isStreaming} />
+          <AnswerBody
+            finalAnswer={finalAnswer}
+            isStreaming={isStreaming}
+            onReferenceClick={(type, id) => openArtifact('source', id)}
+          />
         </div>
       </div>
       <div className="border-t border-border p-4">
