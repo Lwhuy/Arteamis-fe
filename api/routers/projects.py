@@ -6,13 +6,16 @@ from loguru import logger
 from api.deps import get_auth_context, require_role
 from api.models import (
     ProjectCreate,
+    ProjectDeletePreview,
+    ProjectDeleteResponse,
     ProjectResponse,
+    ProjectUpdate,
     RecentlyViewedResponse,  # noqa: F401 (used by Task 7)
 )
 from api.security import AuthContext
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.notebook import Project
-from open_notebook.exceptions import InvalidInputError
+from open_notebook.exceptions import InvalidInputError, NotFoundError
 
 router = APIRouter()
 
@@ -146,4 +149,165 @@ async def create_project(
         owner=ctx.user_id,
         default_source_scope=project.default_source_scope,
         promoted_from=project.promoted_from,
+    )
+
+
+async def _load_project_in_workspace(project_id: str, ctx: AuthContext) -> Project:
+    """Load a project and 404 unless it belongs to the caller's active workspace.
+
+    Returning 404 (not 403) for another workspace's project hides its existence
+    across tenants — including across personal vs. company workspace boundaries.
+    """
+    try:
+        project = await Project.get(project_id)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.workspace != ctx.workspace_id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+async def _authorize_project_write(project: Project, ctx: AuthContext) -> None:
+    """Workspace owner/admin may write any project; otherwise the caller must be
+    a project admin (active project_member row with role='admin').
+
+    In a personal workspace ctx.role is always "owner" (P2 invariant), so this
+    always short-circuits on the first branch and project_member is never
+    queried for a personal project.
+    """
+    if ctx.role in {"owner", "admin"}:
+        return
+    rows = await repo_query(
+        "SELECT id FROM project_member WHERE project = $project AND user = $user "
+        "AND role = 'admin' AND status = 'active'",
+        {
+            "project": ensure_record_id(project.id),
+            "user": ensure_record_id(ctx.user_id),
+        },
+    )
+    if not rows:
+        raise HTTPException(status_code=403, detail="Requires project admin")
+
+
+@router.get("/projects/{project_id}", response_model=ProjectResponse)
+async def get_project(
+    project_id: str, ctx: AuthContext = Depends(get_auth_context)
+):
+    await _load_project_in_workspace(project_id, ctx)
+    query = """
+        SELECT *,
+        count(<-reference.in) as source_count,
+        count(<-artifact.in) as note_count
+        FROM $project_id
+    """
+    result = await repo_query(
+        query, {"project_id": ensure_record_id(project_id)}
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Project not found")
+    # Best-effort write-on-read stamp; never fail a read.
+    try:
+        await repo_query(
+            "UPDATE $project_id SET last_viewed_at = time::now();",
+            {"project_id": ensure_record_id(project_id)},
+        )
+    except Exception as e:
+        logger.warning(f"Failed to stamp last_viewed_at for project {project_id}: {e}")
+    return _project_response_from_row(result[0])
+
+
+@router.put("/projects/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: str,
+    body: ProjectUpdate,
+    ctx: AuthContext = Depends(get_auth_context),
+):
+    project = await _load_project_in_workspace(project_id, ctx)
+    await _authorize_project_write(project, ctx)
+
+    if body.name is not None:
+        project.name = body.name
+    if body.description is not None:
+        project.description = body.description
+    if body.archived is not None:
+        project.archived = body.archived
+    if body.default_source_scope is not None:
+        project.default_source_scope = body.default_source_scope
+
+    try:
+        # See create_project: called unbound so a bare-AsyncMock patch in
+        # tests still receives the instance explicitly as `self`.
+        await Project.save(project)
+    except InvalidInputError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    result = await repo_query(
+        """
+        SELECT *,
+        count(<-reference.in) as source_count,
+        count(<-artifact.in) as note_count
+        FROM $project_id
+        """,
+        {"project_id": ensure_record_id(project_id)},
+    )
+    if result:
+        return _project_response_from_row(result[0])
+    return _project_response_from_row(
+        {
+            "id": project.id,
+            "name": project.name,
+            "description": project.description,
+            "archived": project.archived,
+            "created": project.created,
+            "updated": project.updated,
+            "workspace": project.workspace,
+            "owner": project.owner,
+            "default_source_scope": project.default_source_scope,
+            "promoted_from": project.promoted_from,
+        }
+    )
+
+
+@router.get(
+    "/projects/{project_id}/delete-preview", response_model=ProjectDeletePreview
+)
+async def get_project_delete_preview(
+    project_id: str, ctx: AuthContext = Depends(get_auth_context)
+):
+    project = await _load_project_in_workspace(project_id, ctx)
+    await _authorize_project_write(project, ctx)
+    preview = await project.get_delete_preview()
+    return ProjectDeletePreview(
+        project_id=str(project.id),
+        project_name=project.name,
+        note_count=preview["note_count"],
+        exclusive_source_count=preview["exclusive_source_count"],
+        shared_source_count=preview["shared_source_count"],
+    )
+
+
+@router.delete("/projects/{project_id}", response_model=ProjectDeleteResponse)
+async def delete_project(
+    project_id: str,
+    delete_exclusive_sources: bool = Query(
+        False, description="Delete sources that belong only to this project"
+    ),
+    ctx: AuthContext = Depends(get_auth_context),
+):
+    project = await _load_project_in_workspace(project_id, ctx)
+    await _authorize_project_write(project, ctx)
+    result = await project.delete(delete_exclusive_sources=delete_exclusive_sources)
+    # Clean up membership rows so no dangling project_member remains.
+    try:
+        await repo_query(
+            "DELETE project_member WHERE project = $project_id",
+            {"project_id": ensure_record_id(project_id)},
+        )
+    except Exception as e:
+        logger.warning(f"Failed to clear members for deleted project {project_id}: {e}")
+    return ProjectDeleteResponse(
+        message="Project deleted successfully",
+        deleted_notes=result["deleted_notes"],
+        deleted_sources=result["deleted_sources"],
+        unlinked_sources=result["unlinked_sources"],
     )

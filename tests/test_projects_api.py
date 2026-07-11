@@ -121,3 +121,109 @@ class TestProjectCreate:
         _override(app, _ctx(role="owner"))
         resp = client.post("/api/projects", json={"name": "   "})
         assert resp.status_code in (400, 422)
+
+
+class TestProjectDetail:
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_get_cross_workspace_is_404(self, mock_get, mock_q, client):
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="owner", workspace_id="workspace:a"))
+        mock_get.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:b", owner="user:9"
+        )
+        resp = client.get("/api/projects/notebook:1")
+        assert resp.status_code == 404  # existence hidden across tenants
+
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_get_in_workspace_ok_and_stamps_view(self, mock_get, mock_q, client):
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="admin", workspace_id="workspace:a"))
+        mock_get.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        # first repo_query = counts, second = last_viewed stamp
+        mock_q.side_effect = [
+            [{"id": "notebook:1", "name": "Acme", "description": "", "archived": False,
+              "created": "t", "updated": "t", "source_count": 3, "note_count": 2,
+              "workspace": "workspace:a", "owner": "user:1",
+              "default_source_scope": "project", "promoted_from": None}],
+            [],
+        ]
+        resp = client.get("/api/projects/notebook:1")
+        assert resp.status_code == 200
+        assert resp.json()["source_count"] == 3
+        assert "last_viewed_at = time::now()" in mock_q.await_args_list[1].args[0]
+
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_update_project_member_forbidden(self, mock_get, mock_q, client):
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="member", workspace_id="workspace:a", user_id="user:5"))
+        mock_get.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        mock_q.return_value = []  # no admin project_member row for user:5
+        resp = client.put("/api/projects/notebook:1", json={"name": "New"})
+        assert resp.status_code == 403
+
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.save", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_update_workspace_admin_ok(self, mock_get, mock_save, mock_q, client):
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="admin", workspace_id="workspace:a"))
+        mock_get.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        mock_q.return_value = [
+            {"id": "notebook:1", "name": "New", "description": "", "archived": False,
+             "created": "t", "updated": "t", "source_count": 0, "note_count": 0,
+             "workspace": "workspace:a", "owner": "user:1",
+             "default_source_scope": "personal", "promoted_from": None}
+        ]
+        resp = client.put("/api/projects/notebook:1", json={"name": "New"})
+        assert resp.status_code == 200 and resp.json()["name"] == "New"
+
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.delete", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_delete_workspace_owner_ok_and_clears_members(self, mock_get, mock_del, mock_q, client):
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="owner", workspace_id="workspace:a"))
+        mock_get.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        mock_del.return_value = {"deleted_notes": 1, "deleted_sources": 0, "unlinked_sources": 2}
+        mock_q.return_value = []
+        resp = client.delete("/api/projects/notebook:1")
+        assert resp.status_code == 200 and resp.json()["deleted_notes"] == 1
+        assert any(
+            "DELETE project_member" in c.args[0] for c in mock_q.await_args_list
+        )
+
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get_delete_preview", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_delete_preview_in_workspace(self, mock_get, mock_prev, mock_q, client):
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="owner", workspace_id="workspace:a"))
+        mock_get.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        mock_prev.return_value = {"note_count": 2, "exclusive_source_count": 1, "shared_source_count": 0}
+        resp = client.get("/api/projects/notebook:1/delete-preview")
+        assert resp.status_code == 200 and resp.json()["note_count"] == 2
