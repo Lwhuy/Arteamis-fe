@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api.auth import PasswordAuthMiddleware
+from api.auth import JWTAuthMiddleware
 from api.middleware import MaxBodySizeMiddleware, get_max_upload_size_bytes
 from api.routers import (
     auth,
@@ -42,6 +42,7 @@ from open_notebook.database.async_migrate import AsyncMigrationManager
 from open_notebook.exceptions import (
     AuthenticationError,
     ConfigurationError,
+    DuplicateResourceError,
     ExternalServiceError,
     InvalidInputError,
     NetworkError,
@@ -232,10 +233,11 @@ if CORS_IS_DEFAULT_WILDCARD:
 else:
     logger.info(f"CORS allowed origins: {CORS_ALLOWED_ORIGINS}")
 
-# Add password authentication middleware first
-# Exclude /api/auth/status and /api/config from authentication
+# Add JWT authentication middleware first.
+# When JWT_SECRET is unset, JWTAuthMiddleware passes everything through (dev mode).
+# Excluded: docs/health/root + public auth endpoints + /api/config.
 app.add_middleware(
-    PasswordAuthMiddleware,
+    JWTAuthMiddleware,
     excluded_paths=[
         "/",
         "/health",
@@ -244,11 +246,17 @@ app.add_middleware(
         "/redoc",
         "/api/auth/status",
         "/api/config",
+        "/api/auth/register",
+        "/api/auth/login",
+        "/api/auth/google/start",
+        "/api/auth/google/callback",
+        "/api/auth/refresh",
+        "/api/auth/logout",
     ],
 )
 
 # Reject oversized request bodies before they reach auth or routing - added
-# after PasswordAuthMiddleware (so it wraps around it) so a too-large request
+# after JWTAuthMiddleware (so it wraps around it) so a too-large request
 # is rejected before spending any work checking credentials.
 logger.info(
     f"Max request body size: {MAX_UPLOAD_SIZE_BYTES / (1024 * 1024):g}MB "
@@ -318,6 +326,15 @@ async def invalid_input_error_handler(request: Request, exc: InvalidInputError):
 async def authentication_error_handler(request: Request, exc: AuthenticationError):
     return JSONResponse(
         status_code=401,
+        content={"detail": str(exc)},
+        headers=_cors_headers(request),
+    )
+
+
+@app.exception_handler(DuplicateResourceError)
+async def duplicate_resource_error_handler(request: Request, exc: DuplicateResourceError):
+    return JSONResponse(
+        status_code=409,
         content={"detail": str(exc)},
         headers=_cors_headers(request),
     )

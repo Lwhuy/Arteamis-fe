@@ -1,4 +1,3 @@
-import secrets
 from typing import Optional
 
 from fastapi import Request
@@ -6,22 +5,26 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-from open_notebook.utils.encryption import get_secret_from_env
+from api.auth_config import auth_enabled
+from api.security import decode_identity_token
+from open_notebook.exceptions import AuthenticationError
 
 
-class PasswordAuthMiddleware(BaseHTTPMiddleware):
+class JWTAuthMiddleware(BaseHTTPMiddleware):
+    """Authenticate every request from a JWT Bearer token.
+
+    Behavior:
+      * If no JWT_SECRET is configured, auth is disabled (dev parity with the
+        old 'no password → open' behavior) — pass everything through.
+      * Otherwise require `Authorization: Bearer <jwt>`; decode it via
+        decode_identity_token (accepts identity OR future workspace-scoped access
+        tokens); on success set request.state.user_id; on missing/invalid/expired
+        token return 401 {"detail": ...} with WWW-Authenticate: Bearer.
+      * Excluded paths and CORS preflight (OPTIONS) always pass through.
     """
-    Middleware to check password authentication for all API requests.
-    Auth is fully disabled (no hardcoded default password) if
-    OPEN_NOTEBOOK_PASSWORD is not set.
-    Supports Docker secrets via OPEN_NOTEBOOK_PASSWORD_FILE.
-    """
 
-    def __init__(
-        self, app: ASGIApp, excluded_paths: Optional[list[str]] = None
-    ) -> None:
+    def __init__(self, app: ASGIApp, excluded_paths: Optional[list[str]] = None) -> None:
         super().__init__(app)
-        self.password = get_secret_from_env("OPEN_NOTEBOOK_PASSWORD")
         self.excluded_paths: list[str] = excluded_paths or [
             "/",
             "/health",
@@ -30,53 +33,42 @@ class PasswordAuthMiddleware(BaseHTTPMiddleware):
             "/redoc",
         ]
 
+    @staticmethod
+    def _unauthorized(detail: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": detail},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        # Skip authentication if no password is set
-        if not self.password:
+        # Auth disabled (no secret configured) → open pass-through.
+        if not auth_enabled():
             return await call_next(request)
 
-        # Skip authentication for excluded paths
         if request.url.path in self.excluded_paths:
             return await call_next(request)
 
-        # Skip authentication for CORS preflight requests (OPTIONS)
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # Check authorization header
         auth_header = request.headers.get("Authorization")
-
         if not auth_header:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Missing authorization header"},
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            return self._unauthorized("Missing authorization header")
 
-        # Expected format: "Bearer {password}"
         try:
             scheme, credentials = auth_header.split(" ", 1)
             if scheme.lower() != "bearer":
                 raise ValueError("Invalid authentication scheme")
         except ValueError:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Invalid authorization header format"},
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            return self._unauthorized("Invalid authorization header format")
 
-        # Check password (constant-time to avoid a timing side-channel)
-        if not secrets.compare_digest(
-            credentials.encode("utf-8"), self.password.encode("utf-8")
-        ):
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Invalid password"},
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        try:
+            user_id = decode_identity_token(credentials)
+        except AuthenticationError:
+            return self._unauthorized("Invalid or expired token")
 
-        # Password is correct, proceed with the request
-        response = await call_next(request)
-        return response
+        request.state.user_id = user_id
+        return await call_next(request)
