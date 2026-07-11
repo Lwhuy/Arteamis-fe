@@ -3,13 +3,18 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from api.source_permissions import PermissionContext, get_permission_context
+
 
 @pytest.fixture
 def client():
     """Create test client after environment variables have been cleared by conftest."""
     from api.main import app
 
-    return TestClient(app)
+    ctx = PermissionContext(user_id="user:u1", workspace_id="workspace:w1", workspace_role="member")
+    app.dependency_overrides[get_permission_context] = lambda: ctx
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class TestSearchLimitValidation:
@@ -30,9 +35,11 @@ class TestSearchLimitValidation:
         )
         assert response.status_code == 422
 
+    @patch("api.routers.search.visible_source_ids", new_callable=AsyncMock)
     @patch("api.routers.search.text_search", new_callable=AsyncMock)
-    def test_valid_limit_returns_200(self, mock_text_search, client):
+    def test_valid_limit_returns_200(self, mock_text_search, mock_visible_ids, client):
         mock_text_search.return_value = []
+        mock_visible_ids.return_value = []
         response = client.post(
             "/api/search",
             json={"query": "x", "type": "text", "limit": 10},
@@ -65,7 +72,7 @@ class TestTextSearchHighlightOverflowFallback:
             result = await notebook_module.text_search("hello", 10)
 
         assert result == [{"id": "source:1"}]
-        mock_vector.assert_awaited_once_with("hello", 10, True, True)
+        mock_vector.assert_awaited_once_with("hello", 10, True, True, viewer_source_ids=None)
 
     @pytest.mark.asyncio
     async def test_position_overflow_raises_when_vector_also_fails(self):

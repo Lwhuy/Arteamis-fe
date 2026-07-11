@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from api.source_permissions import PermissionContext, get_permission_context
+
 SECRET = "connection to db-primary-7f3a.internal:5432 refused: password authentication failed"
 
 
@@ -22,7 +24,12 @@ SECRET = "connection to db-primary-7f3a.internal:5432 refused: password authenti
 def client():
     from api.main import app
 
-    return TestClient(app)
+    ctx = PermissionContext(
+        user_id="user:1", workspace_id="workspace:w1", workspace_role="owner"
+    )
+    app.dependency_overrides[get_permission_context] = lambda: ctx
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class TestSourcesRouterDoesNotLeakExceptionText:
@@ -42,7 +49,8 @@ class TestSourcesRouterDoesNotLeakExceptionText:
         mock_source.delete = AsyncMock(side_effect=RuntimeError(SECRET))
 
         with patch(
-            "api.routers.sources.Source.get", new=AsyncMock(return_value=mock_source)
+            "api.routers.sources.require_mutate_source",
+            new=AsyncMock(return_value=mock_source),
         ):
             response = client.delete("/api/sources/source:abc123")
 
@@ -55,7 +63,8 @@ class TestSourcesRouterDoesNotLeakExceptionText:
         mock_source.get_insights = AsyncMock(side_effect=RuntimeError(SECRET))
 
         with patch(
-            "api.routers.sources.Source.get", new=AsyncMock(return_value=mock_source)
+            "api.routers.sources.require_view_source",
+            new=AsyncMock(return_value=mock_source),
         ):
             response = client.get("/api/sources/source:abc123/insights")
 
@@ -69,7 +78,8 @@ class TestSourcesRouterDoesNotLeakExceptionText:
         mock_source.asset = None
 
         with patch(
-            "api.routers.sources.Source.get", new=AsyncMock(return_value=mock_source)
+            "api.routers.sources.require_mutate_source",
+            new=AsyncMock(return_value=mock_source),
         ):
             response = client.put(
                 "/api/sources/source:abc123", json={"title": "New Title"}
@@ -95,7 +105,8 @@ class TestInvalidInputErrorsStillReturnTheirOwnSafeMessage:
         mock_source.asset = None
 
         with patch(
-            "api.routers.sources.Source.get", new=AsyncMock(return_value=mock_source)
+            "api.routers.sources.require_mutate_source",
+            new=AsyncMock(return_value=mock_source),
         ):
             response = client.put(
                 "/api/sources/source:abc123", json={"title": "x"}

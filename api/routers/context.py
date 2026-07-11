@@ -1,7 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
 from api.models import ContextRequest, ContextResponse
+from api.source_permissions import (
+    PermissionContext,
+    get_permission_context,
+    visible_source_ids,
+)
 from open_notebook.domain.notebook import Note, Notebook, Source, SourceInsight
 from open_notebook.exceptions import InvalidInputError
 from open_notebook.utils import token_count
@@ -10,13 +15,20 @@ router = APIRouter()
 
 
 @router.post("/notebooks/{notebook_id}/context", response_model=ContextResponse)
-async def get_notebook_context(notebook_id: str, context_request: ContextRequest):
+async def get_notebook_context(
+    notebook_id: str,
+    context_request: ContextRequest,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Get context for a notebook based on configuration."""
     try:
         # Verify notebook exists
         notebook = await Notebook.get(notebook_id)
         if not notebook:
             raise HTTPException(status_code=404, detail="Notebook not found")
+
+        # Allow-list of source ids the caller may view in this project (3-scope).
+        visible = set(await visible_source_ids(ctx, notebook_id))
 
         context_data: dict[str, list[dict[str, str]]] = {"note": [], "source": []}
         total_content = ""
@@ -35,6 +47,12 @@ async def get_notebook_context(notebook_id: str, context_request: ContextRequest
                         if source_id.startswith("source:")
                         else f"source:{source_id}"
                     )
+
+                    # Skip sources the caller may not view (belt-and-braces
+                    # with the set filter on the default-branch get_sources()
+                    # call below).
+                    if full_source_id not in visible:
+                        continue
 
                     try:
                         source = await Source.get(full_source_id)
@@ -76,7 +94,7 @@ async def get_notebook_context(notebook_id: str, context_request: ContextRequest
                     continue
         else:
             # Default behavior - include all sources and notes with short context
-            sources = await notebook.get_sources()
+            sources = await notebook.get_sources(viewer_source_ids=visible)
             try:
                 insights_by_source = await SourceInsight.get_for_sources(
                     [source.id for source in sources if source.id]

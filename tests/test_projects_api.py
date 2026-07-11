@@ -234,10 +234,12 @@ class TestProjectSources:
     @patch("api.routers.projects.Source.get", new_callable=AsyncMock)
     @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
     def test_add_source_creates_reference(self, mock_pget, mock_sget, mock_q, client):
+        """Workspace admin authorizes via ctx.role short-circuit (no project_member
+        query needed) -- exercises the success path of _authorize_project_write."""
         from api.main import app
         from open_notebook.domain.notebook import Project
 
-        _override(app, _ctx(role="member", workspace_id="workspace:a", user_id="user:5"))
+        _override(app, _ctx(role="admin", workspace_id="workspace:a", user_id="user:5"))
         mock_pget.return_value = Project(
             id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
         )
@@ -249,6 +251,25 @@ class TestProjectSources:
     @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
     @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
     def test_remove_source_deletes_reference(self, mock_pget, mock_q, client):
+        """Workspace owner authorizes via ctx.role short-circuit."""
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="owner", workspace_id="workspace:a", user_id="user:5"))
+        mock_pget.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        mock_q.return_value = []
+        resp = client.delete("/api/projects/notebook:1/sources/source:1")
+        assert resp.status_code == 200
+
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Source.get", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_add_source_plain_member_forbidden(self, mock_pget, mock_sget, mock_q, client):
+        """A plain workspace member with no admin project_member row must be
+        denied -- linking a source is a project-write action, same gate as
+        update/delete."""
         from api.main import app
         from open_notebook.domain.notebook import Project
 
@@ -256,8 +277,41 @@ class TestProjectSources:
         mock_pget.return_value = Project(
             id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
         )
-        mock_q.return_value = []
+        mock_q.return_value = []  # no admin project_member row for user:5
+        resp = client.post("/api/projects/notebook:1/sources/source:1")
+        assert resp.status_code == 403
+        mock_sget.assert_not_called()
+
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_remove_source_plain_member_forbidden(self, mock_pget, mock_q, client):
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="member", workspace_id="workspace:a", user_id="user:5"))
+        mock_pget.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        mock_q.return_value = []  # no admin project_member row for user:5
         resp = client.delete("/api/projects/notebook:1/sources/source:1")
+        assert resp.status_code == 403
+
+    @patch("api.routers.projects.repo_query", new_callable=AsyncMock)
+    @patch("api.routers.projects.Source.get", new_callable=AsyncMock)
+    @patch("api.routers.projects.Project.get", new_callable=AsyncMock)
+    def test_add_source_project_admin_member_ok(self, mock_pget, mock_sget, mock_q, client):
+        """A workspace member who IS an active admin project_member is
+        authorized to link a source, via the project_member fallback branch."""
+        from api.main import app
+        from open_notebook.domain.notebook import Project
+
+        _override(app, _ctx(role="member", workspace_id="workspace:a", user_id="user:5"))
+        mock_pget.return_value = Project(
+            id="notebook:1", name="Acme", description="", workspace="workspace:a", owner="user:1"
+        )
+        # 1) admin project_member lookup -> found, 2) existing-ref check empty, 3) RELATE
+        mock_q.side_effect = [[{"id": "project_member:1"}], [], []]
+        resp = client.post("/api/projects/notebook:1/sources/source:1")
         assert resp.status_code == 200
 
 

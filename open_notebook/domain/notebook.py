@@ -50,7 +50,11 @@ class Project(ObjectModel):
             data["promoted_from"] = ensure_record_id(data["promoted_from"])
         return data
 
-    async def get_sources(self, include_full_text: bool = False) -> List["Source"]:
+    async def get_sources(
+        self,
+        include_full_text: bool = False,
+        viewer_source_ids: Optional[set] = None,
+    ) -> List["Source"]:
         try:
             source_projection = "" if include_full_text else " omit source.full_text"
             srcs = await repo_query(
@@ -62,7 +66,11 @@ class Project(ObjectModel):
             """,
                 {"id": ensure_record_id(self.id)},
             )
-            return [Source(**src["source"]) for src in srcs] if srcs else []
+            sources = [Source(**src["source"]) for src in srcs] if srcs else []
+            if viewer_source_ids is not None:
+                allowed = {str(s) for s in viewer_source_ids}
+                sources = [s for s in sources if str(s.id) in allowed]
+            return sources
         except Exception as e:
             logger.error(f"Error fetching sources for notebook {self.id}: {str(e)}")
             logger.exception(e)
@@ -456,11 +464,29 @@ class Source(ObjectModel):
     command: Optional[Union[str, RecordID]] = Field(
         default=None, description="Link to surreal-commands processing job"
     )
+    owner: Optional[Union[str, RecordID]] = Field(
+        default=None, description="Uploader user; NONE for legacy pre-auth sources"
+    )
+    scope: Literal["personal", "project", "company"] = "project"
+    promoted_from: Optional[Union[str, RecordID]] = Field(
+        default=None,
+        description="Schema hook only (P5 does not implement promotion): the "
+        "source this row was promoted from",
+    )
 
     @field_validator("command", mode="before")
     @classmethod
     def parse_command(cls, value):
         """Parse command field to ensure RecordID format"""
+        if isinstance(value, str) and value:
+            return ensure_record_id(value)
+        return value
+
+    @field_validator("owner", "promoted_from", mode="before")
+    @classmethod
+    def parse_record_link(cls, value):
+        """Coerce a str record id (owner or promoted_from) to RecordID; pass
+        through None."""
         if isinstance(value, str) and value:
             return ensure_record_id(value)
         return value
@@ -567,6 +593,15 @@ class Source(ObjectModel):
             logger.error(f"Error fetching insights for source {self.id}: {str(e)}")
             logger.exception(e)
             raise DatabaseOperationError("Failed to fetch insights for source")
+
+    async def get_project_ids(self) -> List[str]:
+        """Project (notebook) ids this source is referenced by, via the reference edge.
+        `reference` is RELATE source->reference->notebook (in=source, out=notebook)."""
+        result = await repo_query(
+            "SELECT VALUE out FROM reference WHERE in = $id",
+            {"id": ensure_record_id(self.id)},
+        )
+        return [str(pid) for pid in result] if result else []
 
     async def add_to_notebook(self, notebook_id: str) -> Any:
         if not notebook_id:
@@ -675,12 +710,17 @@ class Source(ObjectModel):
             raise DatabaseOperationError(e)
 
     def _prepare_save_data(self) -> dict:
-        """Override to ensure command field is always RecordID format for database"""
+        """Override to ensure command/owner/promoted_from fields are RecordID
+        format for the DB."""
         data = super()._prepare_save_data()
 
         # Ensure command field is RecordID format if not None
         if data.get("command") is not None:
             data["command"] = ensure_record_id(data["command"])
+        if data.get("owner") is not None:
+            data["owner"] = ensure_record_id(data["owner"])
+        if data.get("promoted_from") is not None:
+            data["promoted_from"] = ensure_record_id(data["promoted_from"])
 
         return data
 
@@ -810,17 +850,28 @@ class ChatSession(ObjectModel):
 
 
 async def text_search(
-    keyword: str, results: int, source: bool = True, note: bool = True
+    keyword: str,
+    results: int,
+    source: bool = True,
+    note: bool = True,
+    viewer_source_ids: Optional[List[str]] = None,
 ):
     if not keyword:
         raise InvalidInputError("Search keyword cannot be empty")
+    viewer_rids = [ensure_record_id(s) for s in (viewer_source_ids or [])]
     try:
         search_results = await repo_query(
             """
             select *
-            from fn::text_search($keyword, $results, $source, $note)
+            from fn::text_search($keyword, $results, $source, $note, $viewer_source_ids)
             """,
-            {"keyword": keyword, "results": results, "source": source, "note": note},
+            {
+                "keyword": keyword,
+                "results": results,
+                "source": source,
+                "note": note,
+                "viewer_source_ids": viewer_rids,
+            },
         )
         return search_results
     except RuntimeError as e:
@@ -833,7 +884,9 @@ async def text_search(
                 f"Highlight position overflow, falling back to vector search: {str(e)}"
             )
             try:
-                return await vector_search(keyword, results, source, note)
+                return await vector_search(
+                    keyword, results, source, note, viewer_source_ids=viewer_source_ids
+                )
             except Exception as ve:
                 # Both search paths failed (e.g. no embedding model configured).
                 # Surface the failure instead of returning [] — an empty list would
@@ -857,9 +910,11 @@ async def vector_search(
     source: bool = True,
     note: bool = True,
     minimum_score=0.2,
+    viewer_source_ids: Optional[List[str]] = None,
 ):
     if not keyword:
         raise InvalidInputError("Search keyword cannot be empty")
+    viewer_rids = [ensure_record_id(s) for s in (viewer_source_ids or [])]
     try:
         from open_notebook.utils.embedding import generate_embedding
 
@@ -867,7 +922,7 @@ async def vector_search(
         embed = await generate_embedding(keyword)
         search_results = await repo_query(
             """
-            SELECT * FROM fn::vector_search($embed, $results, $source, $note, $minimum_score);
+            SELECT * FROM fn::vector_search($embed, $results, $source, $note, $minimum_score, $viewer_source_ids);
             """,
             {
                 "embed": embed,
@@ -875,6 +930,7 @@ async def vector_search(
                 "source": source,
                 "note": note,
                 "minimum_score": minimum_score,
+                "viewer_source_ids": viewer_rids,
             },
         )
         return search_results

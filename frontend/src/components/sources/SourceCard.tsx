@@ -23,7 +23,10 @@ import {
   CheckCircle,
   AlertTriangle,
   Loader2,
-  Unlink
+  Unlink,
+  Lock,
+  Users,
+  Building2
 } from 'lucide-react'
 import { useSourceStatus } from '@/lib/hooks/use-sources'
 import { useTranslation } from '@/lib/hooks/use-translation'
@@ -280,6 +283,15 @@ function SourceCardImpl({
                 {sourceType === 'link' ? t('sources.addUrl') : sourceType === 'upload' ? t('sources.uploadFile') : t('sources.enterText')}
               </Badge>
 
+              <Badge variant="outline" className="text-xs flex items-center gap-1">
+                {source.scope === 'personal' && <Lock className="h-3 w-3" />}
+                {source.scope === 'project' && <Users className="h-3 w-3" />}
+                {source.scope === 'company' && <Building2 className="h-3 w-3" />}
+                {source.scope === 'personal' && t('sources.visibilityPersonal')}
+                {source.scope === 'project' && t('sources.visibilityProject')}
+                {source.scope === 'company' && t('sources.visibilityCompany')}
+              </Badge>
+
               {isCompleted && source.insights_count > 0 && (
                 <Badge variant="outline" className="text-xs">
                   {t('sources.insightsCount').replace('{count}', source.insights_count.toString())}
@@ -463,6 +475,7 @@ function areEqual(prev: SourceCardProps, next: SourceCardProps): boolean {
     p.insights_count === n.insights_count &&
     p.asset?.url === n.asset?.url &&
     p.asset?.file_path === n.asset?.file_path &&
+    p.scope === n.scope &&
     topicsEqual(p.topics, n.topics) &&
     prev.contextMode === next.contextMode &&
     prev.showRemoveFromNotebook === next.showRemoveFromNotebook &&

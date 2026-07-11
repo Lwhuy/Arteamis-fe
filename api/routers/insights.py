@@ -1,7 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
 from api.models import NoteResponse, SaveAsNoteRequest, SourceInsightResponse
+from api.source_permissions import (
+    PermissionContext,
+    get_permission_context,
+    require_mutate_source,
+    require_view_source,
+)
 from open_notebook.domain.notebook import SourceInsight
 from open_notebook.exceptions import InvalidInputError, NotFoundError
 
@@ -9,7 +15,9 @@ router = APIRouter()
 
 
 @router.get("/insights/{insight_id}", response_model=SourceInsightResponse)
-async def get_insight(insight_id: str):
+async def get_insight(
+    insight_id: str, ctx: PermissionContext = Depends(get_permission_context)
+):
     """Get a specific insight by ID."""
     try:
         insight = await SourceInsight.get(insight_id)
@@ -18,6 +26,7 @@ async def get_insight(insight_id: str):
 
         # Get source ID from the insight relationship
         source = await insight.get_source()
+        await require_view_source(source.id, ctx)
 
         return SourceInsightResponse(
             id=insight.id or "",
@@ -35,12 +44,17 @@ async def get_insight(insight_id: str):
 
 
 @router.delete("/insights/{insight_id}")
-async def delete_insight(insight_id: str):
+async def delete_insight(
+    insight_id: str, ctx: PermissionContext = Depends(get_permission_context)
+):
     """Delete a specific insight."""
     try:
         insight = await SourceInsight.get(insight_id)
         if not insight:
             raise HTTPException(status_code=404, detail="Insight not found")
+
+        source = await insight.get_source()
+        await require_mutate_source(source.id, ctx)
 
         await insight.delete()
 
@@ -53,12 +67,19 @@ async def delete_insight(insight_id: str):
 
 
 @router.post("/insights/{insight_id}/save-as-note", response_model=NoteResponse)
-async def save_insight_as_note(insight_id: str, request: SaveAsNoteRequest):
+async def save_insight_as_note(
+    insight_id: str,
+    request: SaveAsNoteRequest,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Convert an insight to a note."""
     try:
         insight = await SourceInsight.get(insight_id)
         if not insight:
             raise HTTPException(status_code=404, detail="Insight not found")
+
+        source = await insight.get_source()
+        await require_view_source(source.id, ctx)
 
         # Use the existing save_as_note method from the domain model
         note = await insight.save_as_note(request.notebook_id)

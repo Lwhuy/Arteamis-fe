@@ -149,10 +149,23 @@ async def test_delete_credential_missing_returns_404(mock_get, client):
 @patch("api.routers.embedding.Source.get", new_callable=AsyncMock)
 @patch("api.routers.embedding.model_manager.get_embedding_model", new_callable=AsyncMock)
 async def test_embed_missing_source_returns_404(mock_embed_model, mock_get, client):
+    from api.main import app
+    from api.source_permissions import PermissionContext, get_permission_context
+
     mock_embed_model.return_value = MagicMock()  # an embedding model is configured
     mock_get.side_effect = _nf
-    resp = client.post(
-        "/api/embed",
-        json={"item_id": "source:gone", "item_type": "source", "async_processing": False},
+    # embed_content now requires a PermissionContext (require_mutate_source on
+    # the source before the domain-model Source.get() call below is even
+    # reached); it 404s the same way, just via source_permissions' own
+    # NotFoundError -> 404 conversion.
+    app.dependency_overrides[get_permission_context] = lambda: PermissionContext(
+        user_id="user:1", workspace_id="workspace:a", workspace_role="owner"
     )
+    try:
+        resp = client.post(
+            "/api/embed",
+            json={"item_id": "source:gone", "item_type": "source", "async_processing": False},
+        )
+    finally:
+        app.dependency_overrides.clear()
     assert resp.status_code == 404

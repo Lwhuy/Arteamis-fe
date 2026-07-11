@@ -159,6 +159,10 @@ def test_google_callback_success_redirects_frontend(client, monkeypatch):
         )
     assert resp.status_code in (302, 307)
     assert resp.headers["location"].startswith("http://localhost:3000")
+    # /notebooks was retired by the P3 notebooks->projects rename; landing
+    # Google sign-ins there is a dead page. Must land on /projects instead.
+    assert resp.headers["location"] == "http://localhost:3000/projects"
+    assert "/notebooks" not in resp.headers["location"]
     assert "arteamis_refresh" in resp.cookies
 
 

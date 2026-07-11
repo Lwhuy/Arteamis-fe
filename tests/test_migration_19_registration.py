@@ -8,8 +8,9 @@ def test_migration_19_is_registered_in_both_lists():
     from open_notebook.database.async_migrate import AsyncMigrationManager
 
     manager = AsyncMigrationManager()
-    assert len(manager.up_migrations) == 22
-    assert len(manager.down_migrations) == 22
+    # Final main has migrations 1-23 (P4's 22 + P5's 23 both registered).
+    assert len(manager.up_migrations) == 23
+    assert len(manager.down_migrations) == 23
 
 
 def test_migration_19_defines_identity_tables():
