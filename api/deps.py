@@ -135,6 +135,12 @@ class PermissionContext:
         if self.workspace_role in ("owner", "admin"):
             return "admin"
         rows = await repo_query(
+            # scoped-raw: PermissionContext is deliberately not a
+            # ScopedRepository instance (see class docstring), so this can't
+            # go through the ScopedRepository raw escape hatch — the query
+            # itself filters natively by `workspace = $workspace`
+            # (project_member has a native workspace column), so this is
+            # workspace-filtered, not merely justified.
             "SELECT role FROM project_member "
             "WHERE user = $user AND project = $project "
             "AND workspace = $workspace AND status = 'active'",
