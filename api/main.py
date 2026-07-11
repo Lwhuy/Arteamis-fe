@@ -17,6 +17,7 @@ from api.auth import JWTAuthMiddleware
 from api.middleware import MaxBodySizeMiddleware, get_max_upload_size_bytes
 from api.routers import (
     auth,
+    brain,
     chat,
     config,
     context,
@@ -393,6 +394,7 @@ app.include_router(workspaces.router, prefix="/api", tags=["workspaces"])
 app.include_router(config.router, prefix="/api", tags=["config"])
 app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(search.router, prefix="/api", tags=["search"])
+app.include_router(brain.router, prefix="/api", tags=["brain"])
 app.include_router(models.router, prefix="/api", tags=["models"])
 app.include_router(transformations.router, prefix="/api", tags=["transformations"])
 app.include_router(notes.router, prefix="/api", tags=["notes"])
