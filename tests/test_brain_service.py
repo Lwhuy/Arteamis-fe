@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -30,6 +31,7 @@ async def test_get_brain_graph_assembles_nodes_and_edges(monkeypatch):
         return []
 
     monkeypatch.setattr(svc, "repo_query", fake_repo_query)
+    monkeypatch.setattr(svc, "get_source_relationships", AsyncMock(return_value=[]))
 
     result = await svc.get_brain_graph(_ctx(), domain=None, limit=200)
 
@@ -86,6 +88,7 @@ async def test_get_brain_graph_domain_filter(monkeypatch):
         return []
 
     monkeypatch.setattr(svc, "repo_query", fake_repo_query)
+    monkeypatch.setattr(svc, "get_source_relationships", AsyncMock(return_value=[]))
 
     result = await svc.get_brain_graph(_ctx(), domain="Engineering", limit=200)
 

@@ -134,7 +134,20 @@ async def test_brain_graph_never_leaks_across_workspaces(monkeypatch, workspace_
     scoped_queries: list = []
     monkeypatch.setattr(svc, "repo_query", _make_fake_repo_query(scoped_queries))
 
+    relationship_calls: list = []
+
+    async def fake_get_source_relationships(workspace):
+        relationship_calls.append(workspace)
+        return []
+
+    monkeypatch.setattr(
+        svc, "get_source_relationships", fake_get_source_relationships
+    )
+
     result = await svc.get_brain_graph(_ctx(workspace_id), domain=None, limit=200)
+
+    # relates lookup (P7.2) must also be bound to THIS ctx's workspace only.
+    assert relationship_calls == [workspace_id]
 
     node_ids = {n.id for n in result.nodes}
     edge_tuples = {(e.source, e.target, e.type) for e in result.edges}
