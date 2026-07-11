@@ -25,8 +25,12 @@ class TestNoteCreation:
     """Test suite for Note API endpoints."""
 
     @patch("api.routers.notes.Note")
-    def test_create_note_returns_command_id(self, mock_note_cls, client):
+    @patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
+    def test_create_note_returns_command_id(self, mock_scoped_q, mock_note_cls, client):
         """Test that creating a note returns the embed command_id."""
+        mock_scoped_q.return_value = [
+            {"id": "notebook:1", "workspace": "workspace:a"}
+        ]  # repo.get(notebook_id) ownership check
         mock_note = AsyncMock()
         mock_note.id = "note:abc123"
         mock_note.title = "Test Note"
@@ -40,7 +44,11 @@ class TestNoteCreation:
 
         response = client.post(
             "/api/notes",
-            json={"content": "Some content", "note_type": "human"},
+            json={
+                "content": "Some content",
+                "note_type": "human",
+                "notebook_id": "notebook:1",
+            },
         )
 
         assert response.status_code == 200
@@ -49,10 +57,14 @@ class TestNoteCreation:
         assert data["id"] == "note:abc123"
 
     @patch("api.routers.notes.Note")
+    @patch("open_notebook.database.scoping.repo_query", new_callable=AsyncMock)
     def test_create_note_command_id_none_when_no_content_embedding(
-        self, mock_note_cls, client
+        self, mock_scoped_q, mock_note_cls, client
     ):
         """Test that command_id is None when save returns None (no embedding)."""
+        mock_scoped_q.return_value = [
+            {"id": "notebook:1", "workspace": "workspace:a"}
+        ]  # repo.get(notebook_id) ownership check
         mock_note = AsyncMock()
         mock_note.id = "note:abc456"
         mock_note.title = "Empty Note"
@@ -66,12 +78,26 @@ class TestNoteCreation:
 
         response = client.post(
             "/api/notes",
-            json={"content": "Some content", "note_type": "human"},
+            json={
+                "content": "Some content",
+                "note_type": "human",
+                "notebook_id": "notebook:1",
+            },
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["command_id"] is None
+
+    def test_create_note_without_notebook_id_is_422(self, client):
+        """notebook_id is required (see api/models.py's NoteCreate and
+        api/routers/notes.py's create_note docstring): an orphan note has no
+        `artifact` edge to a notebook and, since `note` has no native
+        `workspace` column, would be permanently unreachable afterward."""
+        response = client.post(
+            "/api/notes", json={"content": "Some content", "note_type": "human"}
+        )
+        assert response.status_code == 422
 
 
 class TestNoteUpdate:

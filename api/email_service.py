@@ -90,9 +90,14 @@ async def send_invite_email(
         if provider == "smtp":
             await _send_smtp(to_email, subject, body)
             return True
-        # console (default): do not deliver; only log the link in DEBUG dev.
+        # console (default): do not deliver. In DEBUG dev, log that an invite
+        # was generated -- WITHOUT the raw invite URL/token: `invite_url`
+        # embeds the raw invitation token, which grants the same access as a
+        # password-reset link, so it must never be written to logs. The
+        # shareable-link return value below is unaffected -- callers still
+        # get the real URL back for the API response.
         if os.getenv("DEBUG", "").lower() in ("1", "true", "yes"):
-            logger.info(f"[invite] {to_email} -> {invite_url}")
+            logger.info(f"[invite] generated for {to_email} (link redacted from logs)")
         return False
     except Exception as e:
         logger.warning(f"Invite email delivery failed for {to_email}: {e}")

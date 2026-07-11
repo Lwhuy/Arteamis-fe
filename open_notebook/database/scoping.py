@@ -39,6 +39,23 @@ GLOBAL_TABLES: frozenset[str] = frozenset(
     {"user", "auth_identity", "workspace", "membership"}
 )
 
+# GLOBAL_TABLES above is NOT an exhaustive list of every table this module
+# doesn't put through the generic per-workspace filter -- two more tables sit
+# outside the GLOBAL_TABLES / NATIVE_WORKSPACE_TABLES / INHERITED_WORKSPACE_
+# TABLES three-way split entirely, each for its own reason, detailed below:
+#   - `transformation` — genuinely global app-config (the set of available
+#     content transformations, e.g. "summarize", "extract key points"), no
+#     different in kind from a GLOBAL_TABLES row; shared read-only-ish
+#     config across every workspace, not per-tenant data. It is simply never
+#     routed through ScopedRepository at all (open_notebook/domain/
+#     transformation.py's Transformation model talks to the DB directly), so
+#     it was left out of GLOBAL_TABLES itself to avoid implying
+#     `_assert_scoped` needs to reject it — there's no call site that would
+#     ever pass it in.
+#   - `command` — NOT global config; see the dedicated NOTE immediately
+#     below for why it needs its own bespoke per-row check instead of either
+#     GLOBAL_TABLES or NATIVE_WORKSPACE_TABLES.
+
 # NOTE on `command` (surreal-commands' own job-queue table): deliberately NOT
 # listed in GLOBAL_TABLES, NATIVE_WORKSPACE_TABLES, or
 # INHERITED_WORKSPACE_TABLES above -- it doesn't fit this module's model at
@@ -56,7 +73,9 @@ GLOBAL_TABLES: frozenset[str] = frozenset(
 # any mismatch or missing stamp. This is a bespoke context-field check, NOT a
 # ScopedRepository path -- `command` still does not belong in
 # NATIVE_WORKSPACE_TABLES (it has no native `workspace` column for the
-# generic methods to filter on).
+# generic methods to filter on). In short: `transformation` is global because
+# its DATA is global; `command` is workspace-checked, just at the /jobs
+# status endpoints rather than via ScopedRepository.
 
 # Tenant/content plane — every row belongs to exactly one workspace (personal OR
 # company — the filter is identical either way) and MUST be filtered by
