@@ -1023,6 +1023,11 @@ export const zhTW = {
     decryptionError: "解密錯誤",
     decryptionErrorDescription: "此憑證的 API 金鑰無法解密。加密金鑰可能已變更。請刪除此憑證並使用正確的金鑰重新建立。",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "未設定加密金鑰",
     encryptionRequiredDescription: "請設定 OPEN_NOTEBOOK_ENCRYPTION_KEY 環境變數以啟用安全憑據儲存。",

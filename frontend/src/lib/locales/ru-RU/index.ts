@@ -1023,6 +1023,11 @@ export const ruRU = {
     decryptionError: "Ошибка расшифровки",
     decryptionErrorDescription: "API-ключ этих учётных данных не удалось расшифровать. Возможно, ключ шифрования был изменён. Удалите эти учётные данные и создайте заново с правильным ключом.",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "Ключ шифрования не настроен",
     encryptionRequiredDescription: "Установите переменную окружения OPEN_NOTEBOOK_ENCRYPTION_KEY для безопасного хранения учётных данных.",

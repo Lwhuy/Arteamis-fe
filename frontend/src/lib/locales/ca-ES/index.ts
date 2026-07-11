@@ -1023,6 +1023,11 @@ export const caES = {
     decryptionError: "Error de desencriptació",
     decryptionErrorDescription: "No s'ha pogut desencriptar la clau de l'API d'aquesta credencial. La clau d'encriptació pot haver canviat. Suprimeix aquesta credencial i torna-la a crear amb la clau correcta.",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "Clau de xifratge no configurada",
     encryptionRequiredDescription: "Estableix la variable d'entorn OPEN_NOTEBOOK_ENCRYPTION_KEY per habilitar l'emmagatzematge segur de credencials.",

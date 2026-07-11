@@ -1023,6 +1023,11 @@ export const itIT = {
     decryptionError: "Errore di decrittazione",
     decryptionErrorDescription: "La chiave API di questa credenziale non può essere decrittata. La chiave di crittografia potrebbe essere cambiata. Elimina questa credenziale e ricreala con la chiave corretta.",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "Chiave di crittografia non configurata",
     encryptionRequiredDescription: "Imposta la variabile d'ambiente OPEN_NOTEBOOK_ENCRYPTION_KEY per abilitare l'archiviazione sicura delle credenziali.",

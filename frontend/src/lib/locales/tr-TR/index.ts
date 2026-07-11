@@ -1023,6 +1023,11 @@ export const trTR = {
     decryptionError: "Şifre Çözme Hatası",
     decryptionErrorDescription: "Bu kimlik bilgisinin API anahtarı çözülemedi. Şifreleme anahtarı değişmiş olabilir. Bu kimlik bilgisini silin ve doğru anahtarla yeniden oluşturun.",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "Şifreleme anahtarı yapılandırılmadı",
     encryptionRequiredDescription: "Güvenli kimlik bilgisi depolamayı etkinleştirmek için OPEN_NOTEBOOK_ENCRYPTION_KEY ortam değişkenini ayarlayın.",

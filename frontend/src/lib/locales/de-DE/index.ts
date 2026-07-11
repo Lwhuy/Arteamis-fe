@@ -1026,6 +1026,11 @@ export const deDE = {
     decryptionError: "Entschlüsselungsfehler",
     decryptionErrorDescription: "Der API-Schlüssel dieser Zugangsdaten konnte nicht entschlüsselt werden. Möglicherweise hat sich der Verschlüsselungsschlüssel geändert. Lösche diese Zugangsdaten und erstelle sie mit dem richtigen Schlüssel neu.",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "Verschlüsselungsschlüssel nicht konfiguriert",
     encryptionRequiredDescription: "Setze die Umgebungsvariable OPEN_NOTEBOOK_ENCRYPTION_KEY, um Zugangsdaten sicher zu speichern.",

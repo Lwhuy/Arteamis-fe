@@ -1024,6 +1024,11 @@ export const esES = {
     decryptionError: "Error de desencriptación",
     decryptionErrorDescription: "La clave API de esta credencial no pudo ser desencriptada. La clave de encriptación puede haber cambiado. Elimina esta credencial y créala de nuevo con la clave correcta.",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "Clave de encriptación no configurada",
     encryptionRequiredDescription: "Establece la variable de entorno OPEN_NOTEBOOK_ENCRYPTION_KEY para habilitar el almacenamiento seguro de credenciales.",

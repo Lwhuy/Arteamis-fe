@@ -1023,6 +1023,11 @@ export const frFR = {
     decryptionError: "Erreur de déchiffrement",
     decryptionErrorDescription: "La clé API de cette configuration n'a pas pu être déchiffrée. La clé de chiffrement a peut-être changé. Supprimez cette configuration et recréez-la avec la bonne clé.",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "Clé de chiffrement non configurée",
     encryptionRequiredDescription: "Définissez la variable d'environnement OPEN_NOTEBOOK_ENCRYPTION_KEY pour activer le stockage sécurisé des identifiants.",

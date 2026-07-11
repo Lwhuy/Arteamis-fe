@@ -1023,6 +1023,11 @@ export const plPL = {
     decryptionError: "Błąd odszyfrowywania",
     decryptionErrorDescription: "Nie udało się odszyfrować klucza API tego poświadczenia. Klucz szyfrowania mógł ulec zmianie. Usuń to poświadczenie i utwórz je ponownie z prawidłowym kluczem.",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "Klucz szyfrowania nie został skonfigurowany",
     encryptionRequiredDescription: "Ustaw zmienną środowiskową OPEN_NOTEBOOK_ENCRYPTION_KEY, aby umożliwić bezpieczne przechowywanie poświadczeń.",

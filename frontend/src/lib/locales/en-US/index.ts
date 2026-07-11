@@ -1024,6 +1024,11 @@ export const enUS = {
     decryptionError: "Decryption Error",
     decryptionErrorDescription: "This credential's API key could not be decrypted. The encryption key may have changed. Delete this credential and re-create it with the correct key.",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "Encryption key not configured",
     encryptionRequiredDescription: "Set the OPEN_NOTEBOOK_ENCRYPTION_KEY environment variable to enable secure credential storage.",

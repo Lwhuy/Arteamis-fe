@@ -1023,6 +1023,11 @@ export const zhCN = {
     decryptionError: "解密错误",
     decryptionErrorDescription: "此凭证的 API 密钥无法解密。加密密钥可能已更改。请删除此凭证并使用正确的密钥重新创建。",
   },
+  governance: {
+    toastProposed: "Proposed to company",
+    toastAccepted: "Accepted into Company Brain",
+    toastChangesRequested: "Sent back for changes",
+  },
   setupBanner: {
     encryptionRequired: "未配置加密密钥",
     encryptionRequiredDescription: "请设置 OPEN_NOTEBOOK_ENCRYPTION_KEY 环境变量以启用安全凭据存储。",
