@@ -1,8 +1,8 @@
--- Migration 23: decision + rule tables (Decision + Rule objects that reference
--- accepted beliefs). Mirrors migration 22's workspace-ready idiom:
+-- Migration 30: decision + rule tables (Decision + Rule objects that reference
+-- accepted beliefs). Mirrors migration 29's workspace-ready idiom:
 -- option<record<workspace>>, FLEXIBLE, nullable. `supports` is a shared
 -- RELATION edge used both decision->belief and rule->belief -- same idiom as
--- derived_from/promotes_to in migration 22 (no endpoint-table constraint
+-- derived_from/promotes_to in migration 29 (no endpoint-table constraint
 -- needed; SurrealDB RELATION tables don't require declaring in/out tables).
 
 DEFINE TABLE decision SCHEMAFULL;

@@ -1,10 +1,10 @@
--- Migration 24: work_package table + executes edge (Handoff, P8.4).
+-- Migration 31: work_package table + executes edge (Handoff, P8.4).
 -- A work_package turns an accepted decision/belief into a governed unit of
 -- work: a human or an agent is assigned, and — for agent assignees — an
 -- agent_brief records objective/allowed_context/budget/approval_gate so the
 -- brief can be reviewed before any agent actually runs. Agent execution
 -- itself is out of scope for this migration/plan: work_package only
--- *records* the handoff. Mirrors migration 20-23's workspace-ready idiom
+-- *records* the handoff. Mirrors migration 20/28-30's workspace-ready idiom
 -- (option<record<workspace>>, nullable, FLEXIBLE).
 
 DEFINE TABLE work_package SCHEMAFULL;

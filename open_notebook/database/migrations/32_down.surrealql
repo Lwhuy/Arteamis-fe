@@ -1,4 +1,4 @@
--- Migration 25 rollback: drop edges before the tables they reference, then
+-- Migration 32 rollback: drop edges before the tables they reference, then
 -- the trace table itself.
 REMOVE TABLE updates;
 REMOVE TABLE learned_from;

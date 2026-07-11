@@ -1,12 +1,12 @@
--- Migration 25: trace + learning tables (Trace + Learning loop closure, P8.5).
--- A work_package (P8.4, migration 24) produces a trace of what actually
+-- Migration 32: trace + learning tables (Trace + Learning loop closure, P8.5).
+-- A work_package (P8.4, migration 31) produces a trace of what actually
 -- happened; a trace can spawn a learning proposal (kind='learning' on the
--- existing `proposal` table from migration 22 -- PROPOSAL_KINDS already
+-- existing `proposal` table from migration 29 -- PROPOSAL_KINDS already
 -- includes 'learning') that, once accepted, updates the belief it traces
--- back to. Mirrors migration 22/23's workspace-ready idiom: nullable
+-- back to. Mirrors migration 29/30's workspace-ready idiom: nullable
 -- option<record<workspace>>, FLEXIBLE. `learned_from` carries the target
 -- belief id and `updates` carries the trace id that justified the update --
--- same idiom as `derived_from`'s `locator` field in migration 22.
+-- same idiom as `derived_from`'s `locator` field in migration 29.
 
 DEFINE TABLE trace SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS workspace     ON TABLE trace FLEXIBLE TYPE option<record<workspace>>;

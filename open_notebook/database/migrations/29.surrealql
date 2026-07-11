@@ -1,6 +1,6 @@
--- Migration 22: governance tables (Promotion Bridge, P8.2).
+-- Migration 29: governance tables (Promotion Bridge, P8.2).
 -- proposal/belief/audit_event carry an optional workspace scope (mirrors
--- migration 20/21's workspace-ready idiom: option<record<workspace>>, not
+-- migration 20/28's workspace-ready idiom: option<record<workspace>>, not
 -- required, so existing single-tenant data keeps working). derived_from and
 -- promotes_to are edge tables recording provenance and promotion lineage.
 

@@ -1,4 +1,4 @@
--- Migration 23 rollback: drop the edge before the tables it references, then
+-- Migration 30 rollback: drop the edge before the tables it references, then
 -- decision/rule themselves.
 REMOVE TABLE supports;
 REMOVE TABLE rule;
