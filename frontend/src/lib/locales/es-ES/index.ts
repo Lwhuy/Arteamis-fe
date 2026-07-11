@@ -1050,6 +1050,8 @@ export const esES = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "Decisión creada",
     toastRuleCreated: "Regla creada",
+    toastWorkPackageCreated: "Paquete de trabajo creado",
+    toastWorkPackageStatusUpdated: "Estado del paquete de trabajo actualizado",
   },
   setupBanner: {
     encryptionRequired: "Clave de encriptación no configurada",

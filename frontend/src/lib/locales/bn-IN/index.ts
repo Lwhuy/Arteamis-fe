@@ -1050,6 +1050,8 @@ export const bnIN = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "সিদ্ধান্ত তৈরি হয়েছে",
     toastRuleCreated: "নিয়ম তৈরি হয়েছে",
+    toastWorkPackageCreated: "কাজের প্যাকেজ তৈরি হয়েছে",
+    toastWorkPackageStatusUpdated: "কাজের প্যাকেজের অবস্থা আপডেট হয়েছে",
   },
   setupBanner: {
     encryptionRequired: "এনক্রিপশন কী কনফিগার করা হয়নি",

@@ -1050,6 +1050,8 @@ export const enUS = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "Decision created",
     toastRuleCreated: "Rule created",
+    toastWorkPackageCreated: "Work package created",
+    toastWorkPackageStatusUpdated: "Work package status updated",
   },
   setupBanner: {
     encryptionRequired: "Encryption key not configured",

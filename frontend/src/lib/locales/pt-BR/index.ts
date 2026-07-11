@@ -1049,6 +1049,8 @@ export const ptBR = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "Decisão criada",
     toastRuleCreated: "Regra criada",
+    toastWorkPackageCreated: "Pacote de trabalho criado",
+    toastWorkPackageStatusUpdated: "Status do pacote de trabalho atualizado",
   },
   setupBanner: {
     encryptionRequired: "Chave de criptografia não configurada",

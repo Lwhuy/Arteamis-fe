@@ -1049,6 +1049,8 @@ export const frFR = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "Décision créée",
     toastRuleCreated: "Règle créée",
+    toastWorkPackageCreated: "Lot de travail créé",
+    toastWorkPackageStatusUpdated: "Statut du lot de travail mis à jour",
   },
   setupBanner: {
     encryptionRequired: "Clé de chiffrement non configurée",

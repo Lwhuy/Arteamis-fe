@@ -4,6 +4,8 @@ import {
   type CreateProposalPayload,
   type CreateDecisionPayload,
   type CreateRulePayload,
+  type CreateWorkPackagePayload,
+  type WorkPackage,
 } from '@/lib/api/governance'
 import { useToast } from '@/lib/hooks/use-toast'
 import { useTranslation } from '@/lib/hooks/use-translation'
@@ -13,6 +15,7 @@ const KEYS = {
   beliefs: ['beliefs'] as const,
   decisions: ['decisions'] as const,
   rules: ['rules'] as const,
+  workPackages: ['workPackages'] as const,
 }
 
 export const useProposals = (status?: string) =>
@@ -113,6 +116,48 @@ export function useCreateRule() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: KEYS.rules })
       toast({ title: t('governance.toastRuleCreated') })
+    },
+  })
+}
+
+export const useWorkPackages = (status?: string) =>
+  useQuery({
+    queryKey: [...KEYS.workPackages, status ?? 'all'],
+    queryFn: () => governanceApi.listWorkPackages(status),
+  })
+
+export const useWorkPackage = (id?: string) =>
+  useQuery({
+    queryKey: [...KEYS.workPackages, id],
+    queryFn: () => governanceApi.getWorkPackage(id as string),
+    enabled: !!id,
+  })
+
+export function useCreateWorkPackage() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const { t } = useTranslation()
+
+  return useMutation({
+    mutationFn: (payload: CreateWorkPackagePayload) => governanceApi.createWorkPackage(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: KEYS.workPackages })
+      toast({ title: t('governance.toastWorkPackageCreated') })
+    },
+  })
+}
+
+export function useUpdateWorkPackageStatus() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const { t } = useTranslation()
+
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: WorkPackage['status'] }) =>
+      governanceApi.updateWorkPackageStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: KEYS.workPackages })
+      toast({ title: t('governance.toastWorkPackageStatusUpdated') })
     },
   })
 }

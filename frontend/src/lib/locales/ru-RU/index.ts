@@ -1049,6 +1049,8 @@ export const ruRU = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "Решение создано",
     toastRuleCreated: "Правило создано",
+    toastWorkPackageCreated: "Рабочий пакет создан",
+    toastWorkPackageStatusUpdated: "Статус рабочего пакета обновлён",
   },
   setupBanner: {
     encryptionRequired: "Ключ шифрования не настроен",

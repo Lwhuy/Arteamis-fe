@@ -1049,6 +1049,8 @@ export const zhCN = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "决策已创建",
     toastRuleCreated: "规则已创建",
+    toastWorkPackageCreated: "工作包已创建",
+    toastWorkPackageStatusUpdated: "工作包状态已更新",
   },
   setupBanner: {
     encryptionRequired: "未配置加密密钥",

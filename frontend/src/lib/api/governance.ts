@@ -52,6 +52,30 @@ export interface CreateRulePayload {
   belief_ids: string[]
 }
 
+export interface AgentBrief {
+  objective: string
+  allowed_context: string[]
+  budget?: string
+  approval_gate: boolean
+}
+
+export interface WorkPackage {
+  id: string
+  title: string
+  assignee_kind: 'human' | 'agent'
+  assignee?: string
+  status: 'open' | 'running' | 'done'
+  agent_brief?: AgentBrief
+}
+
+export interface CreateWorkPackagePayload {
+  title: string
+  assignee_kind?: 'human' | 'agent'
+  assignee?: string
+  agent_brief?: AgentBrief
+  executes_ids: string[]
+}
+
 export const governanceApi = {
   createProposal: (payload: CreateProposalPayload) =>
     apiClient.post<Proposal>('/proposals', payload).then((r) => r.data),
@@ -80,4 +104,16 @@ export const governanceApi = {
 
   listRules: (status?: string) =>
     apiClient.get<Rule[]>('/rules', { params: { status } }).then((r) => r.data),
+
+  createWorkPackage: (payload: CreateWorkPackagePayload) =>
+    apiClient.post<WorkPackage>('/work-packages', payload).then((r) => r.data),
+
+  listWorkPackages: (status?: string) =>
+    apiClient.get<WorkPackage[]>('/work-packages', { params: { status } }).then((r) => r.data),
+
+  getWorkPackage: (id: string) =>
+    apiClient.get<WorkPackage>(`/work-packages/${id}`).then((r) => r.data),
+
+  updateWorkPackageStatus: (id: string, status: WorkPackage['status']) =>
+    apiClient.post<WorkPackage>(`/work-packages/${id}/status`, { status }).then((r) => r.data),
 }

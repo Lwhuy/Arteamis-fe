@@ -1049,6 +1049,8 @@ export const caES = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "Decisió creada",
     toastRuleCreated: "Regla creada",
+    toastWorkPackageCreated: "Paquet de treball creat",
+    toastWorkPackageStatusUpdated: "Estat del paquet de treball actualitzat",
   },
   setupBanner: {
     encryptionRequired: "Clau de xifratge no configurada",

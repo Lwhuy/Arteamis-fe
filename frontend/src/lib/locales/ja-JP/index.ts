@@ -1049,6 +1049,8 @@ export const jaJP = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "決定を作成しました",
     toastRuleCreated: "ルールを作成しました",
+    toastWorkPackageCreated: "作業パッケージを作成しました",
+    toastWorkPackageStatusUpdated: "作業パッケージのステータスを更新しました",
   },
   setupBanner: {
     encryptionRequired: "暗号化キーが設定されていません",

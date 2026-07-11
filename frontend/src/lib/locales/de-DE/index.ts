@@ -1052,6 +1052,8 @@ export const deDE = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "Entscheidung erstellt",
     toastRuleCreated: "Regel erstellt",
+    toastWorkPackageCreated: "Arbeitspaket erstellt",
+    toastWorkPackageStatusUpdated: "Arbeitspaketstatus aktualisiert",
   },
   setupBanner: {
     encryptionRequired: "Verschlüsselungsschlüssel nicht konfiguriert",

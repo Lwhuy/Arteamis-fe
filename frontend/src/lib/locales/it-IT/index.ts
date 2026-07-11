@@ -1049,6 +1049,8 @@ export const itIT = {
     toastChangesRequested: "Sent back for changes",
     toastDecisionCreated: "Decisione creata",
     toastRuleCreated: "Regola creata",
+    toastWorkPackageCreated: "Pacchetto di lavoro creato",
+    toastWorkPackageStatusUpdated: "Stato del pacchetto di lavoro aggiornato",
   },
   setupBanner: {
     encryptionRequired: "Chiave di crittografia non configurata",

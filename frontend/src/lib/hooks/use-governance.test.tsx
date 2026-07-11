@@ -12,11 +12,12 @@ vi.mock('@/lib/api/governance', async () => {
       ...actual.governanceApi,
       listProposals: vi.fn().mockResolvedValue([{ id: 'proposal:1', title: 'SMB', status: 'pending' }]),
       listDecisions: vi.fn().mockResolvedValue([{ id: 'decision:1', title: 'Ship SMB pricing', status: 'active' }]),
+      listWorkPackages: vi.fn().mockResolvedValue([{ id: 'work_package:1', title: 'Draft plan', status: 'open' }]),
     },
   }
 })
 
-import { useProposals, useDecisions } from './use-governance'
+import { useProposals, useDecisions, useWorkPackages } from './use-governance'
 
 const wrapper = ({ children }: { children: React.ReactNode }) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -34,5 +35,12 @@ describe('useDecisions', () => {
   it('fetches active decisions', async () => {
     const { result } = renderHook(() => useDecisions('active'), { wrapper })
     await waitFor(() => expect(result.current.data?.[0].title).toBe('Ship SMB pricing'))
+  })
+})
+
+describe('useWorkPackages', () => {
+  it('fetches work packages', async () => {
+    const { result } = renderHook(() => useWorkPackages(), { wrapper })
+    await waitFor(() => expect(result.current.data?.[0].title).toBe('Draft plan'))
   })
 })
