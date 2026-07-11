@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -96,15 +97,42 @@ async def test_login_unknown_email_runs_dummy_verify_for_timing():
     dummy_verify.assert_awaited_once_with("whatever")
 
 
-def test_build_session_payload_shape():
+@pytest.mark.asyncio
+async def test_build_session_payload_shape():
+    """P2: build_session_payload is now async and workspace-scoped — it
+    auto-provisions the caller's personal workspace (see
+    tests/test_p2_session_payload.py for the dedicated, thorough coverage of
+    that behavior) and mints an access token for it instead of P1's bare
+    identity token."""
     from api import auth_service
-    from api.security import decode_identity_token
+    from api.security import decode_access_token
 
     user = User(id="user:1", email="a@b.com", display_name="A")
-    payload = auth_service.build_session_payload(user)
+    workspace = SimpleNamespace(id="workspace:p1", kind="personal")
+    memberships = [
+        {
+            "workspace_id": "workspace:p1",
+            "name": "Personal",
+            "slug": "personal-1",
+            "kind": "personal",
+            "role": "owner",
+            "created": "",
+            "updated": "",
+        }
+    ]
+    with patch.object(
+        auth_service, "ensure_personal_workspace", new=AsyncMock(return_value=workspace)
+    ), patch.object(
+        auth_service, "list_memberships", new=AsyncMock(return_value=memberships)
+    ):
+        payload = await auth_service.build_session_payload(user)
+
     assert payload["token_type"] == "bearer"
-    assert payload["needs_onboarding"] is True
-    assert payload["active_workspace_id"] is None
-    assert payload["memberships"] == []
+    assert payload["needs_onboarding"] is True  # no company workspace yet
+    assert payload["active_workspace_id"] == "workspace:p1"
+    assert payload["memberships"] == memberships
     assert payload["user"] == {"id": "user:1", "email": "a@b.com", "display_name": "A"}
-    assert decode_identity_token(payload["access_token"]) == "user:1"
+    ctx = decode_access_token(payload["access_token"])
+    assert ctx.user_id == "user:1"
+    assert ctx.workspace_id == "workspace:p1"
+    assert ctx.role == "owner"

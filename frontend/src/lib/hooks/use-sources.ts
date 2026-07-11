@@ -296,11 +296,11 @@ export function useAddSourcesToNotebook() {
 
   return useMutation({
     mutationFn: async ({ notebookId, sourceIds }: { notebookId: string; sourceIds: string[] }) => {
-      const { notebooksApi } = await import('@/lib/api/notebooks')
+      const { projectsApi } = await import('@/lib/api/projects')
 
       // Use Promise.allSettled to handle partial failures gracefully
       const results = await Promise.allSettled(
-        sourceIds.map(sourceId => notebooksApi.addSource(notebookId, sourceId))
+        sourceIds.map(sourceId => projectsApi.addSource(notebookId, sourceId))
       )
 
       // Count successes and failures
@@ -359,8 +359,8 @@ export function useRemoveSourceFromNotebook() {
   return useMutation({
     mutationFn: async ({ notebookId, sourceId }: { notebookId: string; sourceId: string }) => {
       // This will call the API we created
-      const { notebooksApi } = await import('@/lib/api/notebooks')
-      return notebooksApi.removeSource(notebookId, sourceId)
+      const { projectsApi } = await import('@/lib/api/projects')
+      return projectsApi.removeSource(notebookId, sourceId)
     },
     onSuccess: (_, { notebookId, sourceId }) => {
       // Invalidate ALL sources queries to refresh all lists

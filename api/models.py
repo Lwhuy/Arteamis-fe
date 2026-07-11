@@ -29,7 +29,7 @@ class NotebookResponse(BaseModel):
 
 
 class RecentlyViewedResponse(BaseModel):
-    type: Literal["notebook", "source"]
+    type: Literal["notebook", "source", "project"]
     id: str
     title: str
     last_viewed_at: str
@@ -324,6 +324,12 @@ class SourceCreate(BaseModel):
     async_processing: bool = Field(
         False, description="Whether to process source asynchronously"
     )
+    scope: Optional[Literal["personal", "project", "company"]] = Field(
+        None,
+        description="Source scope: personal, project, or company. Omitted -> "
+        "resolved server-side from the target project's default_source_scope, "
+        "falling back to 'project'.",
+    )
 
     @model_validator(mode="after")
     def validate_notebook_fields(self):
@@ -348,6 +354,9 @@ class SourceCreate(BaseModel):
 class SourceUpdate(BaseModel):
     title: Optional[str] = Field(None, description="Source title")
     topics: Optional[List[str]] = Field(None, description="Source topics")
+    scope: Optional[Literal["personal", "project", "company"]] = Field(
+        None, description="Source scope: personal, project, or company"
+    )
 
 
 class SourceResponse(BaseModel):
@@ -367,6 +376,8 @@ class SourceResponse(BaseModel):
     processing_info: Optional[Dict] = None
     # Notebook associations
     notebooks: Optional[List[str]] = None
+    scope: str = "project"
+    owner: Optional[str] = None
 
 
 class SourceListResponse(BaseModel):
@@ -384,6 +395,8 @@ class SourceListResponse(BaseModel):
     command_id: Optional[str] = None
     status: Optional[str] = None
     processing_info: Optional[Dict[str, Any]] = None
+    scope: str = "project"
+    owner: Optional[str] = None
 
 
 # Context API models
@@ -781,3 +794,174 @@ class ImportFailure(BaseModel):
 class ImportResponse(BaseModel):
     accepted: List[str]
     failed: List[ImportFailure]
+# Auth API models (P1)
+from pydantic import EmailStr
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr = Field(..., description="Account email")
+    password: str = Field(..., min_length=8, description="Account password (min 8 chars)")
+    display_name: Optional[str] = Field(None, description="Display name")
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr = Field(..., description="Account email")
+    password: str = Field(..., description="Account password")
+
+
+class AuthUser(BaseModel):
+    id: str
+    email: str
+    display_name: Optional[str] = None
+
+
+class SessionPayload(BaseModel):
+    access_token: str
+    token_type: str
+    needs_onboarding: bool
+    active_workspace_id: Optional[str] = None
+    user: AuthUser
+    memberships: List[Any] = Field(default_factory=list)
+
+
+class MeResponse(BaseModel):
+    user: AuthUser
+    memberships: List[Any] = Field(default_factory=list)
+
+
+# Project schemas (P3). Physical table is still `notebook`; the API surface is
+# "project", scoped to the caller's active workspace (personal or company).
+# These supersede the Notebook* schemas for the /projects router.
+class ProjectCreate(BaseModel):
+    name: str = Field(..., min_length=1, description="Name of the project")
+    description: str = Field(default="", description="Description of the project")
+    default_source_scope: Optional[Literal["personal", "project", "company"]] = Field(
+        None, description="Default source scope (server defaults to 'personal')"
+    )
+
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="Name of the project")
+    description: Optional[str] = Field(None, description="Description of the project")
+    archived: Optional[bool] = Field(None, description="Whether the project is archived")
+    default_source_scope: Optional[Literal["personal", "project", "company"]] = Field(
+        None, description="Default source scope"
+    )
+
+
+class ProjectResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    archived: bool
+    created: str
+    updated: str
+    source_count: int
+    note_count: int
+    workspace: Optional[str] = None
+    owner: Optional[str] = None
+    default_source_scope: str = "personal"
+    promoted_from: Optional[str] = None
+
+
+class ProjectMemberResponse(BaseModel):
+    id: str
+    project: str
+    user: str
+    role: str
+    status: str
+
+
+class ProjectDeletePreview(BaseModel):
+    project_id: str = Field(..., description="ID of the project")
+    project_name: str = Field(..., description="Name of the project")
+    note_count: int = Field(..., description="Number of notes that will be deleted")
+    exclusive_source_count: int = Field(
+        ..., description="Number of sources only in this project"
+    )
+    shared_source_count: int = Field(
+        ..., description="Number of sources shared with other projects"
+    )
+
+
+class ProjectDeleteResponse(BaseModel):
+    message: str = Field(..., description="Success message")
+    deleted_notes: int = Field(..., description="Number of notes deleted")
+    deleted_sources: int = Field(..., description="Number of exclusive sources deleted")
+    unlinked_sources: int = Field(
+        ..., description="Number of sources unlinked from project"
+    )
+
+
+# Workspace API models (P2)
+class WorkspaceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    slug: Optional[str] = None  # optional explicit slug; else derived from name
+    # NOTE: intentionally no `kind` field. POST /workspaces always creates
+    # kind="company" — a client cannot request/relabel a personal workspace.
+
+
+class WorkspaceResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    kind: str  # "personal" | "company"
+    role: str  # caller's role in this workspace
+    created: str
+    updated: str
+
+
+class TokenResponse(BaseModel):  # returned by workspace create + switch (+ reused by login/register)
+    access_token: str
+    token_type: str = "bearer"
+    active_workspace_id: str
+    role: str
+
+
+# --- Invitations (P4) ---
+class InvitationCreate(BaseModel):
+    email: EmailStr
+    role: Literal["admin", "member"]
+    project_id: Optional[str] = None
+
+
+class InvitationResponse(BaseModel):
+    id: str
+    email: str
+    role: str
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+    status: str
+    invited_by: str
+    expires_at: str
+    created: str
+
+
+class InvitationCreateResponse(BaseModel):
+    invitation: InvitationResponse
+    email_sent: bool
+    share_url: Optional[str] = None
+
+
+class InvitationPreviewResponse(BaseModel):
+    workspace_name: str
+    role: str
+    email: str
+    project_name: Optional[str] = None
+    status: str
+    expired: bool
+
+
+class AcceptInvitationResponse(BaseModel):
+    workspace_id: str
+    role: str
+    project_id: Optional[str] = None
+    membership_status: str
+
+
+class MemberResponse(BaseModel):
+    user_id: str
+    email: str
+    display_name: Optional[str] = None
+    role: str
+    status: str

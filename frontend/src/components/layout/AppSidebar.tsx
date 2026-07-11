@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 
 import { cn } from '@/lib/utils'
+import { Logo } from '@/components/common/Logo'
 import { Button } from '@/components/ui/button'
+import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher'
+import { RoleGate } from '@/components/common/RoleGate'
+import { useRole } from '@/lib/hooks/use-role'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useSidebarStore } from '@/lib/stores/sidebar-store'
 import { useCreateDialogs } from '@/lib/hooks/use-create-dialogs'
@@ -42,6 +45,7 @@ import {
   Wrench,
   Command,
   Plug,
+  Users,
 } from 'lucide-react'
 
 const getNavigation = (t: TFunction) => [
@@ -55,7 +59,7 @@ const getNavigation = (t: TFunction) => [
   {
     title: t('navigation.process'),
     items: [
-      { name: t('navigation.notebooks'), href: '/notebooks', icon: Book },
+      { name: t('navigation.projects'), href: '/projects', icon: Book },
       { name: t('navigation.askAndSearch'), href: '/search', icon: Search },
     ],
   },
@@ -69,6 +73,7 @@ const getNavigation = (t: TFunction) => [
     title: t('navigation.manage'),
     items: [
       { name: t('navigation.models'), href: '/settings/api-keys', icon: Bot },
+      { name: t('navigation.manageMembers'), href: '/settings/members', icon: Users },
       { name: t('navigation.transformations'), href: '/transformations', icon: Shuffle },
       { name: t('navigation.settings'), href: '/settings', icon: Settings },
       { name: t('navigation.advanced'), href: '/advanced', icon: Wrench },
@@ -83,7 +88,15 @@ export function AppSidebar() {
   const navigation = getNavigation(t)
   const pathname = usePathname()
   const { logout } = useAuth()
+  const { role } = useRole()
   const { isCollapsed, toggleCollapse } = useSidebarStore()
+
+  // Literal keys (not a template string) so the i18n usage test can find them.
+  const currentRoleLabels: Record<string, string> = {
+    owner: t('roles.owner'),
+    admin: t('roles.admin'),
+    member: t('roles.member'),
+  }
   const { openSourceDialog, openNotebookDialog, openPodcastDialog } = useCreateDialogs()
 
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
@@ -122,12 +135,9 @@ export function AppSidebar() {
         >
           {isCollapsed ? (
             <div className="relative flex items-center justify-center w-full">
-              <Image
-                src="/logo.svg"
-                alt="Open Notebook"
-                width={32}
-                height={32}
-                className="transition-opacity group-hover:opacity-0"
+              <Logo
+                aria-label={t('common.appName')}
+                className="h-8 w-8 text-sidebar-foreground transition-opacity group-hover:opacity-0"
               />
               <Button
                 variant="ghost"
@@ -141,7 +151,7 @@ export function AppSidebar() {
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <Image src="/logo.svg" alt={t('common.appName')} width={32} height={32} />
+                <Logo aria-label={t('common.appName')} className="h-8 w-8 text-sidebar-foreground" />
                 <span className="text-base font-medium text-sidebar-foreground">
                   {t('common.appName')}
                 </span>
@@ -165,6 +175,17 @@ export function AppSidebar() {
             isCollapsed ? 'px-2' : 'px-3'
           )}
         >
+          {!isCollapsed && (
+            <div className="mb-4 px-3">
+              <WorkspaceSwitcher />
+              {role && (
+                <p className="mt-1 px-3 text-[10px] uppercase tracking-wide text-sidebar-foreground/50">
+                  {currentRoleLabels[role] ?? role}
+                </p>
+              )}
+            </div>
+          )}
+
           <div
             className={cn(
               'mb-4',
@@ -218,16 +239,18 @@ export function AppSidebar() {
                    <FileText className="h-4 w-4" />
                   {t('common.source')}
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    handleCreateSelection('notebook')
-                  }}
-                  className="gap-2"
-                >
-                   <Book className="h-4 w-4" />
-                  {t('common.notebook')}
-                </DropdownMenuItem>
+                <RoleGate allow={['owner', 'admin']}>
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault()
+                      handleCreateSelection('notebook')
+                    }}
+                    className="gap-2"
+                  >
+                     <Book className="h-4 w-4" />
+                    {t('common.notebook')}
+                  </DropdownMenuItem>
+                </RoleGate>
                 <DropdownMenuItem
                   onSelect={(event) => {
                     event.preventDefault()
@@ -242,36 +265,36 @@ export function AppSidebar() {
             </DropdownMenu>
           </div>
 
-          {navigation.map((section, index) => (
-            <div key={section.title}>
-              {index > 0 && (
-                <Separator className="my-3" />
-              )}
-              <div className="space-y-1">
-                {!isCollapsed && (
-                  <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
-                    {section.title}
-                  </h3>
+          {navigation.map((section, index) => {
+            const sectionNode = (
+              <div key={section.title}>
+                {index > 0 && (
+                  <Separator className="my-3" />
                 )}
+                <div className="space-y-1">
+                  {!isCollapsed && (
+                    <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
+                      {section.title}
+                    </h3>
+                  )}
 
-                {section.items.map((item) => {
-                  const isActive = pathname?.startsWith(item.href) || false
-                  const button = (
-                    <Button
-                      variant={isActive ? 'secondary' : 'ghost'}
-                      className={cn(
-                        'w-full gap-3 text-sidebar-foreground sidebar-menu-item',
-                        isActive && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                        isCollapsed ? 'justify-center px-2' : 'justify-start'
-                      )}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {!isCollapsed && <span>{item.name}</span>}
-                    </Button>
-                  )
+                  {section.items.map((item) => {
+                    const isActive = pathname?.startsWith(item.href) || false
+                    const button = (
+                      <Button
+                        variant={isActive ? 'secondary' : 'ghost'}
+                        className={cn(
+                          'w-full gap-3 text-sidebar-foreground sidebar-menu-item',
+                          isActive && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                          isCollapsed ? 'justify-center px-2' : 'justify-start'
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {!isCollapsed && <span>{item.name}</span>}
+                      </Button>
+                    )
 
-                  if (isCollapsed) {
-                    return (
+                    const linkNode = isCollapsed ? (
                       <Tooltip key={item.name}>
                         <TooltipTrigger asChild>
                           <Link href={item.href}>
@@ -280,18 +303,41 @@ export function AppSidebar() {
                         </TooltipTrigger>
                         <TooltipContent side="right">{item.name}</TooltipContent>
                       </Tooltip>
+                    ) : (
+                      <Link key={item.name} href={item.href}>
+                        {button}
+                      </Link>
                     )
-                  }
 
-                  return (
-                    <Link key={item.name} href={item.href}>
-                      {button}
-                    </Link>
-                  )
-                })}
+                    // "Manage members" has no meaning for a solo tenant - gate
+                    // it (on top of the section-level role gate below) to
+                    // company workspaces only.
+                    if (item.name === t('navigation.manageMembers')) {
+                      return (
+                        <RoleGate key={item.name} allow={['owner', 'admin']} requireCompanyWorkspace>
+                          {linkNode}
+                        </RoleGate>
+                      )
+                    }
+
+                    return linkNode
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+
+            // Manage is owner/admin-only (true in a personal workspace too,
+            // since its sole member is always "owner" - this is a role gate,
+            // not a kind gate).
+            if (section.title === t('navigation.manage')) {
+              return (
+                <RoleGate key={section.title} allow={['owner', 'admin']}>
+                  {sectionNode}
+                </RoleGate>
+              )
+            }
+            return sectionNode
+          })}
         </nav>
 
         <div

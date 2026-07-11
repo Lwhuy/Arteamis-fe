@@ -12,6 +12,11 @@ from open_notebook.exceptions import AuthenticationError
 
 _CONNECTOR_CALLBACK_RE = re.compile(r"^/api/connectors/[^/]+/callback$")
 
+# Public route prefixes (token-scoped, reachable before a workspace is active).
+# `/api/invitations/{token}` preview is fully public; `/accept` under it
+# re-checks auth via its own get_identity dependency.
+PUBLIC_PATH_PREFIXES = ("/api/invitations/",)
+
 
 class JWTAuthMiddleware(BaseHTTPMiddleware):
     """Authenticate every request from a JWT Bearer token.
@@ -57,6 +62,9 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         # OAuth provider callbacks arrive without a Bearer token; the CSRF state
         # (validated in connectors_service) is the protection here.
         if _CONNECTOR_CALLBACK_RE.match(request.url.path):
+            return await call_next(request)
+
+        if any(request.url.path.startswith(p) for p in PUBLIC_PATH_PREFIXES):
             return await call_next(request)
 
         if request.method == "OPTIONS":

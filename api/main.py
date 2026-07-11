@@ -26,17 +26,19 @@ from api.routers import (
     embedding_rebuild,
     episode_profiles,
     insights,
+    invitations,
     languages,
     models,
-    notebooks,
     notes,
     podcasts,
+    projects,
     search,
     settings,
     source_chat,
     sources,
     speaker_profiles,
     transformations,
+    workspaces,
 )
 from api.routers import commands as commands_router
 from open_notebook.database.async_migrate import AsyncMigrationManager
@@ -219,8 +221,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Open Notebook API",
-    description="API for Open Notebook - Research Assistant",
+    title="Arteamis API",
+    description="API for Arteamis - Research Assistant",
     lifespan=lifespan,
 )
 
@@ -388,8 +390,9 @@ async def open_notebook_error_handler(request: Request, exc: OpenNotebookError):
 
 # Include routers
 app.include_router(auth.router, prefix="/api", tags=["auth"])
+app.include_router(workspaces.router, prefix="/api", tags=["workspaces"])
 app.include_router(config.router, prefix="/api", tags=["config"])
-app.include_router(notebooks.router, prefix="/api", tags=["notebooks"])
+app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(search.router, prefix="/api", tags=["search"])
 app.include_router(models.router, prefix="/api", tags=["models"])
 app.include_router(transformations.router, prefix="/api", tags=["transformations"])
@@ -402,6 +405,7 @@ app.include_router(settings.router, prefix="/api", tags=["settings"])
 app.include_router(context.router, prefix="/api", tags=["context"])
 app.include_router(sources.router, prefix="/api", tags=["sources"])
 app.include_router(insights.router, prefix="/api", tags=["insights"])
+app.include_router(invitations.router, prefix="/api", tags=["invitations"])
 app.include_router(commands_router.router, prefix="/api", tags=["commands"])
 app.include_router(podcasts.router, prefix="/api", tags=["podcasts"])
 app.include_router(episode_profiles.router, prefix="/api", tags=["episode-profiles"])
@@ -415,7 +419,7 @@ app.include_router(languages.router, prefix="/api", tags=["languages"])
 
 @app.get("/")
 async def root():
-    return {"message": "Open Notebook API is running"}
+    return {"message": "Arteamis API is running"}
 
 
 @app.get("/health")

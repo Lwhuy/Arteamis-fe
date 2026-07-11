@@ -1,1 +1,3 @@
-REMOVE TABLE IF EXISTS connection;
+-- Migration 20 rollback: drop membership first (references workspace), then workspace.
+REMOVE TABLE IF EXISTS membership;
+REMOVE TABLE IF EXISTS workspace;

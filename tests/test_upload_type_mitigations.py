@@ -28,6 +28,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from api.source_permissions import PermissionContext, get_permission_context
 from open_notebook.domain.notebook import Asset, Source
 
 
@@ -41,7 +42,12 @@ def make_source(file_path, **overrides):
 def client():
     from api.main import app
 
-    return TestClient(app)
+    ctx = PermissionContext(
+        user_id="user:1", workspace_id="workspace:w1", workspace_role="owner"
+    )
+    app.dependency_overrides[get_permission_context] = lambda: ctx
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class TestDownloadsAlwaysServedAsOctetStream:
@@ -56,7 +62,7 @@ class TestDownloadsAlwaysServedAsOctetStream:
         malicious_html.write_text("<script>alert(document.cookie)</script>")
 
         source = make_source(file_path=str(malicious_html))
-        with patch("api.routers.sources.Source.get", new=AsyncMock(return_value=source)):
+        with patch("api.routers.sources.require_view_source", new=AsyncMock(return_value=source)):
             response = client.get("/api/sources/source:test123/download")
 
         assert response.status_code == 200
@@ -73,7 +79,7 @@ class TestDownloadsAlwaysServedAsOctetStream:
         )
 
         source = make_source(file_path=str(malicious_svg))
-        with patch("api.routers.sources.Source.get", new=AsyncMock(return_value=source)):
+        with patch("api.routers.sources.require_view_source", new=AsyncMock(return_value=source)):
             response = client.get("/api/sources/source:test123/download")
 
         assert response.status_code == 200

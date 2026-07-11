@@ -1,5 +1,5 @@
 """
-Generic ContextBuilder for the Open Notebook project.
+Generic ContextBuilder for the Arteamis project.
 
 This module provides a flexible ContextBuilder class that can handle any parameters
 and build context from sources, notebooks, insights, and notes.
@@ -419,6 +419,7 @@ class ContextBuilder:
 # Convenience functions for common use cases
 
 
+# TODO: needs viewer_source_ids before use
 async def build_notebook_context(
     notebook_id: str,
     context_config: Optional[ContextConfig] = None,
@@ -461,6 +462,7 @@ async def build_source_context(
     return await builder.build()
 
 
+# TODO: needs viewer_source_ids before use
 async def build_mixed_context(
     source_ids: Optional[List[str]] = None,
     note_ids: Optional[List[str]] = None,

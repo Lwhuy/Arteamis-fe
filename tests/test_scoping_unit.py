@@ -1,0 +1,109 @@
+# tests/test_scoping_unit.py
+"""Unit tests for ScopedRepository guard logic (no live DB — repo_* patched)."""
+import inspect
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from open_notebook.database.scoping import (
+    GLOBAL_TABLES,
+    WORKSPACE_SCOPED_TABLES,
+    ScopedRepository,
+)
+from open_notebook.exceptions import InvalidInputError, NotFoundError
+
+
+def _repo() -> ScopedRepository:
+    return ScopedRepository(workspace_id="workspace:A", user_id="user:1", role="owner")
+
+
+def test_policy_sets_are_disjoint_and_cover_expected_tables():
+    assert GLOBAL_TABLES.isdisjoint(WORKSPACE_SCOPED_TABLES)
+    assert {"user", "auth_identity", "workspace", "membership"} <= GLOBAL_TABLES
+    assert {
+        "notebook", "source", "note", "chat_session",
+        "source_insight", "source_embedding", "project_member", "invitation",
+    } <= WORKSPACE_SCOPED_TABLES
+
+
+@pytest.mark.asyncio
+async def test_list_rejects_global_table():
+    with pytest.raises(InvalidInputError, match="GLOBAL table"):
+        await _repo().list("user")
+
+
+@pytest.mark.asyncio
+async def test_list_rejects_unknown_table_fails_closed():
+    with pytest.raises(InvalidInputError, match="Unknown table"):
+        await _repo().list("widget")
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_global_table():
+    with pytest.raises(InvalidInputError, match="GLOBAL table"):
+        await _repo().create("membership", {"role": "owner"})
+
+
+@pytest.mark.asyncio
+async def test_list_ands_workspace_filter_onto_caller_predicate():
+    with patch("open_notebook.database.scoping.repo_query", new=AsyncMock(return_value=[])) as q:
+        await _repo().list("notebook", where="archived = false", order_by="updated desc")
+    query, params = q.call_args[0]
+    assert "workspace = $workspace_id" in query
+    assert "(archived = false)" in query
+    assert " AND " in query  # caller predicate AND-ed, never replaces the scope
+    assert "ORDER BY updated desc" in query
+    assert str(params["workspace_id"]) == "workspace:A"
+
+
+@pytest.mark.asyncio
+async def test_get_filters_by_workspace_and_404s_on_empty():
+    with patch("open_notebook.database.scoping.repo_query", new=AsyncMock(return_value=[])) as q:
+        with pytest.raises(NotFoundError):
+            await _repo().get("notebook:guessed")
+    query, params = q.call_args[0]
+    assert "workspace = $workspace_id" in query
+    assert str(params["rid"]) == "notebook:guessed"
+
+
+@pytest.mark.asyncio
+async def test_create_stamps_workspace_and_overwrites_client_value():
+    async def _fake_create(table, data):
+        return {"id": f"{table}:new", **data}
+    with patch("open_notebook.database.scoping.repo_create", new=AsyncMock(side_effect=_fake_create)) as c:
+        await _repo().create("notebook", {"name": "x", "workspace": "workspace:EVIL"})
+    _table, data = c.call_args[0]
+    assert str(data["workspace"]) == "workspace:A"  # server-set, client value discarded
+
+
+@pytest.mark.asyncio
+async def test_update_strips_workspace_and_ownership_checks_first():
+    calls = {"n": 0}
+    async def _fake_query(q, params=None):
+        calls["n"] += 1
+        return [{"id": "notebook:1", "workspace": "workspace:A"}]  # get() ownership check passes
+    with patch("open_notebook.database.scoping.repo_query", new=AsyncMock(side_effect=_fake_query)), \
+         patch("open_notebook.database.scoping.repo_update", new=AsyncMock(return_value=[{"id": "notebook:1"}])) as u:
+        await _repo().update("notebook:1", {"name": "y", "workspace": "workspace:EVIL"})
+    _table, _id, data = u.call_args[0]
+    assert "workspace" not in data  # workspace immutable post-create
+    assert calls["n"] == 1  # get() ran before update
+
+
+def test_scoped_repository_has_no_kind_parameter():
+    """Structural guard for Option A's uniformity: the isolation layer must never
+    branch on workspace.kind. If a future change adds a `kind` param or the
+    literal strings "personal"/"company" to this module, that's a regression —
+    fail loudly here rather than discovering it via a leaked personal workspace."""
+    sig = inspect.signature(ScopedRepository.__init__)
+    assert "kind" not in sig.parameters
+
+    src = Path(inspect.getfile(ScopedRepository)).read_text(encoding="utf-8")
+    # Comments are allowed to explain the invariant (this test's own docstring
+    # references the words); the PRODUCTION module must not contain the
+    # branching literals as quoted strings.
+    assert '"personal"' not in src
+    assert '"company"' not in src
+    assert "'personal'" not in src
+    assert "'company'" not in src

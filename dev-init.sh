@@ -1,10 +1,10 @@
 #!/bin/bash
-# Development environment startup for Open Notebook
+# Development environment startup for Arteamis
 # Assumes SurrealDB is already running externally (per .env config)
 
 set -e
 
-echo "=== Open Notebook Dev Startup ==="
+echo "=== Arteamis Dev Startup ==="
 
 # Check SurrealDB connectivity
 SURREAL_PORT=${SURREAL_PORT:-8018}

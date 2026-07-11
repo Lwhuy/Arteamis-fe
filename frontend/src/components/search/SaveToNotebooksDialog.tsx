@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { CheckboxList } from '@/components/ui/checkbox-list'
-import { useNotebooks } from '@/lib/hooks/use-notebooks'
+import { useProjects } from '@/lib/hooks/use-projects'
 import { useCreateNote } from '@/lib/hooks/use-notes'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { toast } from 'sonner'
@@ -32,7 +32,7 @@ export function SaveToNotebooksDialog({
 }: SaveToNotebooksDialogProps) {
   const { t } = useTranslation()
   const [selectedNotebooks, setSelectedNotebooks] = useState<string[]>([])
-  const { data: notebooks, isLoading } = useNotebooks(false) // false = not archived
+  const { data: notebooks, isLoading } = useProjects(false) // false = not archived
   const createNote = useCreateNote()
 
   const handleToggle = (notebookId: string) => {

@@ -1,14 +1,25 @@
--- Migration 20: connection table — encrypted OAuth connections to external source providers.
+-- Migration 20: workspace + membership (multi-tenancy identity plane).
+-- Identity-plane tables: NOT workspace-scoped. Login/onboarding must read a
+-- user's memberships before any workspace is active, so these carry no tenant
+-- filter; isolation is enforced by explicit user/workspace filters in the
+-- service. workspace.kind distinguishes a solo "personal" tenant
+-- (auto-provisioned at signup, exactly one member: its owner) from an
+-- explicitly-created "company" tenant that supports invites + RBAC (P4+).
 
-DEFINE TABLE IF NOT EXISTS connection SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS provider ON TABLE connection TYPE string;
-DEFINE FIELD IF NOT EXISTS account_label ON TABLE connection TYPE string;
-DEFINE FIELD IF NOT EXISTS access_token ON TABLE connection TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS refresh_token ON TABLE connection TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS token_expires_at ON TABLE connection TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS scopes ON TABLE connection TYPE array<string> DEFAULT [];
-DEFINE FIELD IF NOT EXISTS status ON TABLE connection TYPE string DEFAULT "connected";
-DEFINE FIELD IF NOT EXISTS workspace ON TABLE connection TYPE option<record<workspace>>;
-DEFINE FIELD IF NOT EXISTS created ON connection DEFAULT time::now() VALUE $before OR time::now();
-DEFINE FIELD IF NOT EXISTS updated ON connection DEFAULT time::now() VALUE time::now();
-DEFINE INDEX IF NOT EXISTS idx_connection_provider ON TABLE connection FIELDS provider;
+DEFINE TABLE IF NOT EXISTS workspace SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS name ON TABLE workspace TYPE string;
+DEFINE FIELD IF NOT EXISTS slug ON TABLE workspace TYPE string;
+DEFINE FIELD IF NOT EXISTS kind ON TABLE workspace TYPE string ASSERT $value IN ['personal', 'company'];
+DEFINE FIELD IF NOT EXISTS owner ON TABLE workspace TYPE record<user>;
+DEFINE FIELD IF NOT EXISTS created ON workspace DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON workspace DEFAULT time::now() VALUE time::now();
+DEFINE INDEX IF NOT EXISTS idx_workspace_slug ON TABLE workspace FIELDS slug UNIQUE;
+
+DEFINE TABLE IF NOT EXISTS membership SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS user ON TABLE membership TYPE record<user>;
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE membership TYPE record<workspace>;
+DEFINE FIELD IF NOT EXISTS role ON TABLE membership TYPE string ASSERT $value IN ['owner', 'admin', 'member'];
+DEFINE FIELD IF NOT EXISTS status ON TABLE membership TYPE string ASSERT $value IN ['active', 'invited', 'revoked'] DEFAULT 'active';
+DEFINE FIELD IF NOT EXISTS created ON membership DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON membership DEFAULT time::now() VALUE time::now();
+DEFINE INDEX IF NOT EXISTS idx_membership_user_workspace ON TABLE membership FIELDS user, workspace UNIQUE;

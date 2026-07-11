@@ -1,0 +1,17 @@
+-- Migration 22: Invitations (workspace + project scoped)
+DEFINE TABLE IF NOT EXISTS invitation SCHEMALESS;
+
+DEFINE FIELD IF NOT EXISTS workspace  ON TABLE invitation TYPE record<workspace>;
+DEFINE FIELD IF NOT EXISTS email      ON TABLE invitation TYPE string ASSERT string::is::email($value);
+DEFINE FIELD IF NOT EXISTS role       ON TABLE invitation TYPE string ASSERT $value IN ["owner", "admin", "member"];
+DEFINE FIELD IF NOT EXISTS project    ON TABLE invitation TYPE option<record<notebook>>;
+DEFINE FIELD IF NOT EXISTS token_hash ON TABLE invitation TYPE string;
+DEFINE FIELD IF NOT EXISTS status     ON TABLE invitation TYPE string ASSERT $value IN ["pending", "accepted", "revoked", "expired"] DEFAULT "pending";
+DEFINE FIELD IF NOT EXISTS invited_by ON TABLE invitation TYPE record<user>;
+DEFINE FIELD IF NOT EXISTS expires_at ON TABLE invitation TYPE datetime;
+DEFINE FIELD IF NOT EXISTS created    ON TABLE invitation TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS updated    ON TABLE invitation TYPE option<datetime>;
+
+DEFINE INDEX IF NOT EXISTS idx_invitation_token_hash ON TABLE invitation FIELDS token_hash UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_invitation_workspace_status ON TABLE invitation FIELDS workspace, status;
+DEFINE INDEX IF NOT EXISTS idx_invitation_workspace_email ON TABLE invitation FIELDS workspace, email;

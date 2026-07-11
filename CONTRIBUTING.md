@@ -1,4 +1,4 @@
-# Contributing to Open Notebook
+# Contributing to Arteamis
 
 **📍 This file has moved!**
 

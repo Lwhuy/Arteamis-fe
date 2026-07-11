@@ -2,15 +2,20 @@ import asyncio
 import json
 from typing import AsyncGenerator, List, Optional
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from api.source_permissions import (
+    PermissionContext,
+    get_permission_context,
+    require_view_source,
+)
 from open_notebook.database.repository import ensure_record_id, repo_query
-from open_notebook.domain.notebook import ChatSession, Source
+from open_notebook.domain.notebook import ChatSession
 from open_notebook.exceptions import (
     NotFoundError,
 )
@@ -90,16 +95,15 @@ class SuccessResponse(BaseModel):
 async def create_source_chat_session(
     request: CreateSourceChatSessionRequest,
     source_id: str = Path(..., description="Source ID"),
+    ctx: PermissionContext = Depends(get_permission_context),
 ):
     """Create a new chat session for a source."""
     try:
-        # Verify source exists
+        # Verify source exists and caller may view it
         full_source_id = (
             source_id if source_id.startswith("source:") else f"source:{source_id}"
         )
-        source = await Source.get(full_source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        await require_view_source(full_source_id, ctx)
 
         # Create new session with model_override support
         session = ChatSession(
@@ -120,6 +124,8 @@ async def create_source_chat_session(
             updated=str(session.updated),
             message_count=0,
         )
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Source not found")
     except Exception as e:
@@ -132,16 +138,17 @@ async def create_source_chat_session(
 @router.get(
     "/sources/{source_id}/chat/sessions", response_model=List[SourceChatSessionResponse]
 )
-async def get_source_chat_sessions(source_id: str = Path(..., description="Source ID")):
+async def get_source_chat_sessions(
+    source_id: str = Path(..., description="Source ID"),
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Get all chat sessions for a source."""
     try:
-        # Verify source exists
+        # Verify source exists and caller may view it
         full_source_id = (
             source_id if source_id.startswith("source:") else f"source:{source_id}"
         )
-        source = await Source.get(full_source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        await require_view_source(full_source_id, ctx)
 
         # Get sessions that refer to this source - first get relations, then sessions
         relations = await repo_query(
@@ -181,6 +188,8 @@ async def get_source_chat_sessions(source_id: str = Path(..., description="Sourc
         # Sort sessions by created date (newest first)
         sessions.sort(key=lambda x: x.created, reverse=True)
         return sessions
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Source not found")
     except Exception as e:
@@ -197,16 +206,15 @@ async def get_source_chat_sessions(source_id: str = Path(..., description="Sourc
 async def get_source_chat_session(
     source_id: str = Path(..., description="Source ID"),
     session_id: str = Path(..., description="Session ID"),
+    ctx: PermissionContext = Depends(get_permission_context),
 ):
     """Get a specific source chat session with its messages."""
     try:
-        # Verify source exists
+        # Verify source exists and caller may view it
         full_source_id = (
             source_id if source_id.startswith("source:") else f"source:{source_id}"
         )
-        source = await Source.get(full_source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        await require_view_source(full_source_id, ctx)
 
         # Get session
         full_session_id = (
@@ -278,6 +286,8 @@ async def get_source_chat_session(
             messages=messages,
             context_indicators=context_indicators,
         )
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Source or session not found")
     except Exception as e:
@@ -295,16 +305,15 @@ async def update_source_chat_session(
     request: UpdateSourceChatSessionRequest,
     source_id: str = Path(..., description="Source ID"),
     session_id: str = Path(..., description="Session ID"),
+    ctx: PermissionContext = Depends(get_permission_context),
 ):
     """Update source chat session title and/or model override."""
     try:
-        # Verify source exists
+        # Verify source exists and caller may view it
         full_source_id = (
             source_id if source_id.startswith("source:") else f"source:{source_id}"
         )
-        source = await Source.get(full_source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        await require_view_source(full_source_id, ctx)
 
         # Get session
         full_session_id = (
@@ -350,6 +359,8 @@ async def update_source_chat_session(
             updated=str(session.updated),
             message_count=msg_count,
         )
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Source or session not found")
     except Exception as e:
@@ -365,16 +376,15 @@ async def update_source_chat_session(
 async def delete_source_chat_session(
     source_id: str = Path(..., description="Source ID"),
     session_id: str = Path(..., description="Session ID"),
+    ctx: PermissionContext = Depends(get_permission_context),
 ):
     """Delete a source chat session."""
     try:
-        # Verify source exists
+        # Verify source exists and caller may view it
         full_source_id = (
             source_id if source_id.startswith("source:") else f"source:{source_id}"
         )
-        source = await Source.get(full_source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        await require_view_source(full_source_id, ctx)
 
         # Get session
         full_session_id = (
@@ -405,6 +415,8 @@ async def delete_source_chat_session(
         return SuccessResponse(
             success=True, message="Source chat session deleted successfully"
         )
+    except HTTPException:
+        raise
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Source or session not found")
     except Exception as e:
@@ -489,16 +501,15 @@ async def send_message_to_source_chat(
     request: SendMessageRequest,
     source_id: str = Path(..., description="Source ID"),
     session_id: str = Path(..., description="Session ID"),
+    ctx: PermissionContext = Depends(get_permission_context),
 ):
     """Send a message to source chat session with SSE streaming response."""
     try:
-        # Verify source exists
+        # Verify source exists and caller may view it
         full_source_id = (
             source_id if source_id.startswith("source:") else f"source:{source_id}"
         )
-        source = await Source.get(full_source_id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+        await require_view_source(full_source_id, ctx)
 
         # Verify session exists and is related to source
         full_session_id = (

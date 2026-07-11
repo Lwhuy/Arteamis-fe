@@ -25,6 +25,9 @@ export const ERROR_MAP: Record<string, string> = {
   "Answer model": "apiErrors.answerModelNotFound",
   "Final answer model": "apiErrors.finalAnswerModelNotFound",
   "No answer generated": "apiErrors.noAnswerGenerated",
+  "This invitation has expired": "apiErrors.invitationExpired",
+  "This invitation is no longer valid": "apiErrors.invitationExpired",
+  "This invitation was sent to a different email.": "apiErrors.emailMismatch",
 };
 
 /**

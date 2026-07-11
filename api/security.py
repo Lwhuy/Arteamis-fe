@@ -76,11 +76,29 @@ def decode_refresh_token(token: str) -> str:
 def create_access_token(
     user_id: str, workspace_id: str, role: str, minutes: Optional[int] = None
 ) -> str:
-    """Workspace-scoped access token. Implemented in P2 (workspaces/memberships)."""
-    raise NotImplementedError(
-        "create_access_token (workspace-scoped) is implemented in P2. "
-        "P1 issues identity tokens only via create_identity_token."
-    )
+    """Workspace-scoped access token (claims: sub, workspace_id, role, type="access").
+
+    Used for BOTH kinds of workspace: kind="personal" (auto-provisioned, minted
+    on every login) and kind="company" (minted on create/switch) — the claim
+    shape and validation are identical either way.
+
+    SurrealDB record ids are strings like ``user:abc`` / ``workspace:xyz`` (not
+    UUIDs), so sub/workspace_id are validated by prefix rather than as UUIDs.
+    """
+    sub = _require_user_id(user_id)
+    if not isinstance(workspace_id, str) or not workspace_id.startswith("workspace:"):
+        raise AuthenticationError("Access token workspace must be a workspace record id")
+    cfg = get_auth_config()
+    mins = cfg.access_token_expire_minutes if minutes is None else minutes
+    expire = datetime.now(timezone.utc) + timedelta(minutes=mins)
+    payload = {
+        "sub": sub,
+        "workspace_id": workspace_id,
+        "role": role,
+        "type": "access",
+        "exp": expire,
+    }
+    return jwt.encode(payload, cfg.jwt_secret, algorithm=cfg.jwt_algorithm)
 
 
 def decode_access_token(token: str) -> AuthContext:

@@ -1,0 +1,11 @@
+-- Remove only the seed this migration created (safe: deterministic ids, never
+-- touches a personal workspace P2 auto-provisioned for another user).
+DELETE membership:personal_default_owner;
+DELETE workspace:personal_default;
+REMOVE INDEX IF EXISTS idx_project_member_unique ON TABLE project_member;
+REMOVE TABLE IF EXISTS project_member;
+REMOVE INDEX IF EXISTS idx_notebook_workspace ON TABLE notebook;
+REMOVE FIELD IF EXISTS promoted_from ON TABLE notebook;
+REMOVE FIELD IF EXISTS default_source_scope ON TABLE notebook;
+REMOVE FIELD IF EXISTS owner ON TABLE notebook;
+REMOVE FIELD IF EXISTS workspace ON TABLE notebook;

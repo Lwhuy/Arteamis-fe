@@ -9,6 +9,57 @@ export interface NotebookResponse {
   note_count: number
 }
 
+export interface ProjectResponse {
+  id: string
+  name: string
+  description: string
+  archived: boolean
+  created: string
+  updated: string
+  source_count: number
+  note_count: number
+  workspace: string | null
+  owner: string | null
+  default_source_scope: 'personal' | 'project' | 'company'
+  promoted_from: string | null
+}
+
+export interface CreateProjectRequest {
+  name: string
+  description?: string
+  default_source_scope?: 'personal' | 'project' | 'company'
+}
+
+export interface UpdateProjectRequest {
+  name?: string
+  description?: string
+  archived?: boolean
+  default_source_scope?: 'personal' | 'project' | 'company'
+}
+
+export interface ProjectDeletePreview {
+  project_id: string
+  project_name: string
+  note_count: number
+  exclusive_source_count: number
+  shared_source_count: number
+}
+
+export interface ProjectDeleteResponse {
+  message: string
+  deleted_notes: number
+  deleted_sources: number
+  unlinked_sources: number
+}
+
+export interface ProjectMemberResponse {
+  id: string
+  project: string
+  user: string
+  role: 'admin' | 'member'
+  status: 'active' | 'invited' | 'revoked'
+}
+
 export interface NoteResponse {
   id: string
   title: string | null
@@ -36,6 +87,8 @@ export interface SourceListResponse {
   command_id?: string
   status?: string
   processing_info?: Record<string, unknown>
+  scope: 'personal' | 'project' | 'company'
+  owner?: string | null
 }
 
 export interface SourceDetailResponse extends SourceListResponse {
@@ -109,6 +162,7 @@ export interface CreateSourceRequest {
   delete_source?: boolean
   // New async processing support
   async_processing?: boolean
+  scope?: 'personal' | 'project' | 'company'
 }
 
 export interface UpdateNoteRequest {
@@ -122,6 +176,7 @@ export interface UpdateSourceRequest {
   type?: 'link' | 'upload' | 'text'
   url?: string
   content?: string
+  scope?: 'personal' | 'project' | 'company'
 }
 
 export interface APIError {
@@ -245,4 +300,86 @@ export interface RecentlyViewedResponse {
   id: string
   title: string
   last_viewed_at: string
+}
+
+// Workspace Types
+export interface WorkspaceResponse {
+  id: string
+  name: string
+  slug: string
+  kind: 'personal' | 'company'
+  role: string
+  created: string
+  updated: string
+}
+
+export interface CreateWorkspaceRequest {
+  name: string
+  slug?: string
+}
+
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+  active_workspace_id: string
+  role: string
+}
+
+// Shape of each row in the auth store's `memberships` (from GET /auth/me and
+// workspace_service.list_memberships). Always includes the personal workspace.
+export interface Membership {
+  workspace_id: string
+  name: string
+  slug: string
+  kind: 'personal' | 'company'
+  role: string
+}
+
+// --- Invitations (P4) ---
+export interface InvitationResponse {
+  id: string
+  email: string
+  role: 'admin' | 'member'
+  project_id: string | null
+  project_name: string | null
+  status: 'pending' | 'accepted' | 'revoked' | 'expired'
+  invited_by: string
+  expires_at: string
+  created: string
+}
+
+export interface CreateInvitationRequest {
+  email: string
+  role: 'admin' | 'member'
+  project_id?: string | null
+}
+
+export interface InvitationCreateResponse {
+  invitation: InvitationResponse
+  email_sent: boolean
+  share_url: string | null
+}
+
+export interface InvitationPreviewResponse {
+  workspace_name: string
+  role: 'admin' | 'member'
+  email: string
+  project_name: string | null
+  status: string
+  expired: boolean
+}
+
+export interface AcceptInvitationResponse {
+  workspace_id: string
+  role: string
+  project_id: string | null
+  membership_status: string
+}
+
+export interface MemberResponse {
+  user_id: string
+  email: string
+  display_name: string | null
+  role: 'owner' | 'admin' | 'member'
+  status: string
 }

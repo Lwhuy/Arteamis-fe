@@ -22,6 +22,7 @@ interface CreateSourceFormData {
   transformations?: string[]
   embed: boolean
   async_processing: boolean
+  scope: 'personal' | 'project' | 'company'
 }
 
 // Helper functions for batch URL parsing

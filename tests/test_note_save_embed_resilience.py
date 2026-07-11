@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from api.source_permissions import PermissionContext, get_permission_context
 from open_notebook.domain.notebook import Note
 
 
@@ -29,7 +30,10 @@ from open_notebook.domain.notebook import Note
 def client():
     from api.main import app
 
-    return TestClient(app)
+    ctx = PermissionContext(user_id="user:u1", workspace_id="workspace:w1", workspace_role="member")
+    app.dependency_overrides[get_permission_context] = lambda: ctx
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class TestNoteSaveEmbedResilience:

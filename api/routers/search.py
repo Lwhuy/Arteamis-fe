@@ -1,11 +1,16 @@
 import json
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
 from api.models import AskRequest, AskResponse, SearchRequest, SearchResponse
+from api.source_permissions import (
+    PermissionContext,
+    get_permission_context,
+    visible_source_ids,
+)
 from open_notebook.ai.models import Model, model_manager
 from open_notebook.domain.notebook import text_search, vector_search
 from open_notebook.exceptions import DatabaseOperationError, InvalidInputError
@@ -15,9 +20,17 @@ router = APIRouter()
 
 
 @router.post("/search", response_model=SearchResponse)
-async def search_knowledge_base(search_request: SearchRequest):
+async def search_knowledge_base(
+    search_request: SearchRequest,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Search the knowledge base using text or vector search."""
     try:
+        # Allow-list of source ids the caller may view, across all 3 scopes -
+        # both search paths filter to this set at the DB layer (migration 23's
+        # fn::text_search/fn::vector_search take $viewer_source_ids).
+        viewer_ids = await visible_source_ids(ctx, None)
+
         if search_request.type == "vector":
             # Check if embedding model is available for vector search
             if not await model_manager.get_embedding_model():
@@ -32,6 +45,7 @@ async def search_knowledge_base(search_request: SearchRequest):
                 source=search_request.search_sources,
                 note=search_request.search_notes,
                 minimum_score=search_request.minimum_score,
+                viewer_source_ids=viewer_ids,
             )
         else:
             # Text search
@@ -40,6 +54,7 @@ async def search_knowledge_base(search_request: SearchRequest):
                 results=search_request.limit,
                 source=search_request.search_sources,
                 note=search_request.search_notes,
+                viewer_source_ids=viewer_ids,
             )
 
         return SearchResponse(
@@ -59,7 +74,11 @@ async def search_knowledge_base(search_request: SearchRequest):
 
 
 async def stream_ask_response(
-    question: str, strategy_model: Model, answer_model: Model, final_answer_model: Model
+    question: str,
+    strategy_model: Model,
+    answer_model: Model,
+    final_answer_model: Model,
+    viewer_source_ids: list,
 ) -> AsyncGenerator[str, None]:
     """Stream the ask response as Server-Sent Events."""
     try:
@@ -72,6 +91,7 @@ async def stream_ask_response(
                     strategy_model=strategy_model.id,
                     answer_model=answer_model.id,
                     final_answer_model=final_answer_model.id,
+                    viewer_source_ids=viewer_source_ids,
                 )
             ),
             stream_mode="updates",
@@ -111,7 +131,10 @@ async def stream_ask_response(
 
 
 @router.post("/search/ask")
-async def ask_knowledge_base(ask_request: AskRequest):
+async def ask_knowledge_base(
+    ask_request: AskRequest,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Ask the knowledge base a question using AI models."""
     try:
         # Validate models exist
@@ -142,10 +165,17 @@ async def ask_knowledge_base(ask_request: AskRequest):
                 detail="Ask feature requires an embedding model. Please configure one in the Models section.",
             )
 
+        # Allow-list threaded into the ask graph's RAG search node (leakage fix).
+        viewer_ids = await visible_source_ids(ctx, None)
+
         # For streaming response
         return StreamingResponse(
             stream_ask_response(
-                ask_request.question, strategy_model, answer_model, final_answer_model
+                ask_request.question,
+                strategy_model,
+                answer_model,
+                final_answer_model,
+                viewer_ids,
             ),
             media_type="text/event-stream",
             headers={
@@ -163,7 +193,10 @@ async def ask_knowledge_base(ask_request: AskRequest):
 
 
 @router.post("/search/ask/simple", response_model=AskResponse)
-async def ask_knowledge_base_simple(ask_request: AskRequest):
+async def ask_knowledge_base_simple(
+    ask_request: AskRequest,
+    ctx: PermissionContext = Depends(get_permission_context),
+):
     """Ask the knowledge base a question and return a simple response (non-streaming)."""
     try:
         # Validate models exist
@@ -194,6 +227,9 @@ async def ask_knowledge_base_simple(ask_request: AskRequest):
                 detail="Ask feature requires an embedding model. Please configure one in the Models section.",
             )
 
+        # Allow-list threaded into the ask graph's RAG search node (leakage fix).
+        viewer_ids = await visible_source_ids(ctx, None)
+
         # Run the ask graph and get final result
         final_answer = None
         async for chunk in ask_graph.astream(
@@ -203,6 +239,7 @@ async def ask_knowledge_base_simple(ask_request: AskRequest):
                     strategy_model=strategy_model.id,
                     answer_model=answer_model.id,
                     final_answer_model=final_answer_model.id,
+                    viewer_source_ids=viewer_ids,
                 )
             ),
             stream_mode="updates",

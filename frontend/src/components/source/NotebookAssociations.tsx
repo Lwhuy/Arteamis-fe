@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useNotebooks } from '@/lib/hooks/use-notebooks'
+import { useProjects } from '@/lib/hooks/use-projects'
 import { useAddSourcesToNotebook, useRemoveSourceFromNotebook } from '@/lib/hooks/use-sources'
 import { useTranslation } from '@/lib/hooks/use-translation'
 
@@ -25,7 +25,7 @@ export function NotebookAssociations({
   const [selectedNotebookIds, setSelectedNotebookIds] = useState<string[]>(currentNotebookIds)
   const [isSaving, setIsSaving] = useState(false)
 
-  const { data: notebooks, isLoading } = useNotebooks()
+  const { data: notebooks, isLoading } = useProjects()
   const addSources = useAddSourcesToNotebook()
   const removeFromNotebook = useRemoveSourceFromNotebook()
 
