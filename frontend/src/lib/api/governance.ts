@@ -94,7 +94,10 @@ export interface RecordTracePayload {
 export interface CreateLearningProposalPayload {
   title: string
   body?: string
-  belief_id: string
+  // Resolved server-side from the trace (trace -> work_package -> executes
+  // -> belief, or one hop further via a decision's `supports` edge) when
+  // omitted — see api/governance_service.py::_resolve_belief_id_from_trace.
+  belief_id?: string
 }
 
 export const governanceApi = {
@@ -105,7 +108,9 @@ export const governanceApi = {
     apiClient.get<Proposal[]>('/proposals', { params: { status } }).then((r) => r.data),
 
   acceptProposal: (id: string) =>
-    apiClient.post<Belief>(`/proposals/${id}/accept`).then((r) => r.data),
+    apiClient
+      .post<{ proposal: Proposal; belief: Belief }>(`/proposals/${id}/accept`)
+      .then((r) => r.data),
 
   requestChanges: (id: string, note: string) =>
     apiClient.post<Proposal>(`/proposals/${id}/request-changes`, { note }).then((r) => r.data),

@@ -13,7 +13,7 @@ const OUTCOME_LABEL_KEY: Record<Outcome, string> = {
   mixed: 'controlPlane.trace.outcomes.mixed',
 };
 
-export function TraceSection({ workPackageId, beliefId }: { workPackageId: string; beliefId: string }) {
+export function TraceSection({ workPackageId }: { workPackageId: string }) {
   const { t } = useTranslation();
   const { data: traces, isLoading } = useTracesForWorkPackage(workPackageId);
   const recordTrace = useRecordTrace();
@@ -36,7 +36,10 @@ export function TraceSection({ workPackageId, beliefId }: { workPackageId: strin
     createLearning.mutate(
       {
         traceId: newTraceId,
-        payload: { title: t('controlPlane.trace.learningTitle'), body: learningNote, belief_id: beliefId },
+        // belief_id is resolved server-side from the trace (see
+        // api/governance_service.py::_resolve_belief_id_from_trace) — no
+        // need to look it up or thread it through props here.
+        payload: { title: t('controlPlane.trace.learningTitle'), body: learningNote },
       },
       { onSuccess: () => { setNewTraceId(null); setLearningNote(''); } },
     );

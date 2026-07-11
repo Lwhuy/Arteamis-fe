@@ -476,12 +476,109 @@ async def test_create_learning_proposal_links_trace_and_belief(mock_create, mock
 
     assert proposal.kind == "learning"
     assert proposal.status == "pending"
+    # learned_from.belief is a strict option<record<belief>> field (migration
+    # 25) — repo_relate does NOT ensure_record_id values inside `data`, so
+    # the service must pass a RecordID itself, not the raw string.
     mock_relate.assert_awaited_once_with(
-        "proposal:9", "learned_from", "trace:1", {"belief": "belief:1"}
+        "proposal:9", "learned_from", "trace:1", {"belief": RecordID.parse("belief:1")}
     )
     audit_data = mock_create.await_args_list[1].args[1]
     assert audit_data["action"] == "learning.proposed"
     assert audit_data["meta"] == {"trace": "trace:1", "belief": "belief:1"}
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_relate", new_callable=AsyncMock)
+@patch("api.governance_service.repo_query", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_create_learning_proposal_resolves_belief_via_direct_executes(
+    mock_base_query, mock_create, mock_gov_query, mock_relate
+):
+    # open_notebook.domain.base.repo_query backs Trace.get.
+    mock_base_query.return_value = [
+        {"id": "trace:1", "work_package": "work_package:1", "summary": "Ran playbook", "outcome": "success"}
+    ]
+    # api.governance_service.repo_query backs the executes edge lookup: the
+    # work package was created directly from a belief.
+    mock_gov_query.return_value = [{"out": "belief:1"}]
+    mock_create.side_effect = [
+        [{"id": "proposal:9", "kind": "learning", "status": "pending", "title": "Outcome"}],  # proposal.save()
+        [{"id": "audit_event:1"}],  # AuditEvent().save()
+    ]
+
+    proposal = await create_learning_proposal(
+        "user:1", "trace:1",
+        title="Outcome: SMB outreach worked",
+        body="Response rate was 3x higher for SMBs",
+    )
+
+    assert proposal.kind == "learning"
+    mock_gov_query.assert_awaited_once_with(
+        "SELECT out FROM executes WHERE in = $wp", {"wp": RecordID.parse("work_package:1")}
+    )
+    mock_relate.assert_awaited_once_with(
+        "proposal:9", "learned_from", "trace:1", {"belief": RecordID.parse("belief:1")}
+    )
+    audit_data = mock_create.await_args_list[1].args[1]
+    assert audit_data["meta"] == {"trace": "trace:1", "belief": "belief:1"}
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_relate", new_callable=AsyncMock)
+@patch("api.governance_service.repo_query", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_create_learning_proposal_resolves_belief_via_decision_hop(
+    mock_base_query, mock_create, mock_gov_query, mock_relate
+):
+    mock_base_query.return_value = [
+        {"id": "trace:2", "work_package": "work_package:2", "summary": "Ran playbook", "outcome": "success"}
+    ]
+    # First repo_query call is the executes lookup (-> a decision, not a
+    # belief); second is the decision's supports lookup one hop further.
+    mock_gov_query.side_effect = [
+        [{"out": "decision:1"}],
+        [{"out": "belief:3"}],
+    ]
+    mock_create.side_effect = [
+        [{"id": "proposal:10", "kind": "learning", "status": "pending", "title": "Outcome"}],
+        [{"id": "audit_event:2"}],
+    ]
+
+    proposal = await create_learning_proposal(
+        "user:1", "trace:2", title="Outcome", body="body",
+    )
+
+    assert proposal.kind == "learning"
+    assert mock_gov_query.await_args_list[0].args[0] == "SELECT out FROM executes WHERE in = $wp"
+    assert mock_gov_query.await_args_list[1] == (
+        (
+            "SELECT out FROM supports WHERE in = $decision",
+            {"decision": RecordID.parse("decision:1")},
+        ),
+        {},
+    )
+    mock_relate.assert_awaited_once_with(
+        "proposal:10", "learned_from", "trace:2", {"belief": RecordID.parse("belief:3")}
+    )
+    audit_data = mock_create.await_args_list[1].args[1]
+    assert audit_data["meta"] == {"trace": "trace:2", "belief": "belief:3"}
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_query", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_create_learning_proposal_raises_when_belief_unresolvable(
+    mock_base_query, mock_gov_query
+):
+    mock_base_query.return_value = [
+        {"id": "trace:3", "work_package": "work_package:3", "summary": "x", "outcome": "pending"}
+    ]
+    mock_gov_query.return_value = []  # no executes edge at all
+
+    with pytest.raises(ValueError):
+        await create_learning_proposal("user:1", "trace:3", title="t", body="b")
 
 
 @pytest.mark.asyncio
@@ -523,7 +620,11 @@ async def test_accept_learning_proposal_updates_belief_and_supersedes_original(
     assert result["belief"].confidence == pytest.approx(0.75)  # 0.6 + 0.15 for a 'success' outcome
     assert result["proposal"].status == "accepted"
 
-    mock_relate.assert_any_await("belief:2", "updates", "belief:1", {"trace": "trace:1"})
+    # updates.trace is a strict option<record<trace>> field (migration 25) —
+    # same RecordID-coercion requirement as learned_from.belief above.
+    mock_relate.assert_any_await(
+        "belief:2", "updates", "belief:1", {"trace": RecordID.parse("trace:1")}
+    )
     mock_relate.assert_any_await("belief:2", "derived_from", "source:1", {"locator": "p.4"})
 
     supersede_call = mock_update.await_args_list[0]

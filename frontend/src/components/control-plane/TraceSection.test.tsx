@@ -19,7 +19,7 @@ import { TraceSection } from './TraceSection';
 
 describe('TraceSection', () => {
   it('lists prior traces, records a new outcome, then proposes a learning update', () => {
-    render(<TraceSection workPackageId="work_package:1" beliefId="belief:1" />);
+    render(<TraceSection workPackageId="work_package:1" />);
 
     expect(screen.getByText('Earlier run')).toBeInTheDocument();
 
@@ -53,7 +53,6 @@ describe('TraceSection', () => {
         payload: {
           title: 'controlPlane.trace.learningTitle',
           body: 'SMBs respond 3x better to this outreach angle.',
-          belief_id: 'belief:1',
         },
       },
       expect.objectContaining({ onSuccess: expect.any(Function) }),

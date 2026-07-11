@@ -65,7 +65,7 @@ class RecordTraceBody(BaseModel):
 class CreateLearningProposalBody(BaseModel):
     title: str
     body: str = ""
-    belief_id: str
+    belief_id: Optional[str] = None
 
 
 class CreateDecisionBody(BaseModel):
@@ -178,10 +178,13 @@ async def get_trace_endpoint(trace_id: str) -> dict[str, Any]:
 async def create_learning_proposal_endpoint(
     trace_id: str, body: CreateLearningProposalBody, request: Request
 ) -> dict[str, Any]:
-    proposal = await create_learning_proposal(
-        _actor(request), trace_id,
-        title=body.title, body=body.body, belief_id=body.belief_id,
-    )
+    try:
+        proposal = await create_learning_proposal(
+            _actor(request), trace_id,
+            title=body.title, body=body.body, belief_id=body.belief_id,
+        )
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
     return proposal.model_dump()
 
 

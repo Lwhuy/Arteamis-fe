@@ -17,7 +17,7 @@ governance domain objects goes through the ObjectModel classmethods
 
 from typing import Any, Optional
 
-from open_notebook.database.repository import repo_query, repo_relate
+from open_notebook.database.repository import ensure_record_id, repo_query, repo_relate
 from open_notebook.domain.governance import (
     WORK_PACKAGE_STATUSES,
     AuditEvent,
@@ -182,7 +182,13 @@ async def _accept_learning_proposal(actor: str, proposal: Proposal) -> dict[str,
         status="current",
     )
     await updated_belief.save()
-    await repo_relate(updated_belief.id, "updates", original.id, {"trace": trace.id})
+    # `updates.trace` is a strict `option<record<trace>>` field (migration 25).
+    # repo_relate only ensure_record_id's source/target, NOT values inside
+    # `data` — so the record id must be coerced here or SurrealDB rejects the
+    # RELATE against the schema on a real database (masked by mocked tests).
+    await repo_relate(
+        updated_belief.id, "updates", original.id, {"trace": ensure_record_id(trace.id)}
+    )
 
     source_edges = await repo_query(
         "SELECT out AS source, locator FROM derived_from WHERE in = $id",
@@ -433,13 +439,56 @@ async def list_traces_for_work_package(work_package_id: str) -> list[dict[str, A
     )
 
 
+async def _resolve_belief_id_from_trace(trace: Trace) -> str:
+    """Resolve the belief a trace's real-world outcome should update.
+
+    A trace always points at a work package (`trace.work_package`); that work
+    package's `executes` edge points at whatever it was created to carry out
+    (`create_work_package`) — a belief or a decision. If it points directly
+    at a belief, that is the target. If it points at a decision, follow that
+    decision's `supports` edge one hop further to the belief it was
+    justified by (a work package created from a belief links directly; one
+    created from a decision is one hop away).
+
+    Raises:
+        ValueError: if no belief can be resolved via either path.
+    """
+    executes_rows = await repo_query(
+        "SELECT out FROM executes WHERE in = $wp",
+        {"wp": ensure_record_id(trace.work_package)},
+    )
+    if not executes_rows:
+        raise ValueError(
+            f"cannot resolve belief for trace {trace.id}: work package "
+            f"{trace.work_package} has no executes edge"
+        )
+    target_id = str(executes_rows[0]["out"])
+    if target_id.startswith("belief:"):
+        return target_id
+    if target_id.startswith("decision:"):
+        supports_rows = await repo_query(
+            "SELECT out FROM supports WHERE in = $decision",
+            {"decision": ensure_record_id(target_id)},
+        )
+        if not supports_rows:
+            raise ValueError(
+                f"cannot resolve belief for trace {trace.id}: decision "
+                f"{target_id} has no supports edge to a belief"
+            )
+        return str(supports_rows[0]["out"])
+    raise ValueError(
+        f"cannot resolve belief for trace {trace.id}: executes target "
+        f"{target_id} is neither a belief nor a decision"
+    )
+
+
 async def create_learning_proposal(
     actor: str,
     trace_id: str,
     *,
     title: str,
     body: str,
-    belief_id: str,
+    belief_id: Optional[str] = None,
 ) -> Proposal:
     """Draft a propose-only learning update from a trace's real-world outcome.
 
@@ -448,9 +497,32 @@ async def create_learning_proposal(
     other proposal. `belief_id` is the belief this outcome should update; it
     is carried on the `learned_from` edge so `accept_proposal` can find it
     without re-deriving it through the work_package -> decision/rule chain.
+
+    `belief_id` is optional: when the caller doesn't supply one (the normal
+    case — the frontend no longer resolves it client-side), it is derived
+    server-side from the trace via `_resolve_belief_id_from_trace`.
+
+    Raises:
+        ValueError: if `belief_id` is omitted and no belief can be resolved
+            from the trace.
     """
+    resolved_belief_id = belief_id
+    if not resolved_belief_id:
+        trace = await Trace.get(trace_id)
+        resolved_belief_id = await _resolve_belief_id_from_trace(trace)
+
     proposal = Proposal(author=actor, kind="learning", title=title, body=body, status="pending")
     await proposal.save()
-    await repo_relate(proposal.id, "learned_from", trace_id, {"belief": belief_id})
-    await _audit(actor, "learning.proposed", proposal.id, {"trace": trace_id, "belief": belief_id})
+    # `learned_from.belief` is a strict `option<record<belief>>` field
+    # (migration 25). repo_relate only ensure_record_id's source/target, NOT
+    # values inside `data` — so the record id must be coerced here or
+    # SurrealDB rejects the RELATE against the schema on a real database
+    # (masked by mocked tests).
+    await repo_relate(
+        proposal.id, "learned_from", trace_id, {"belief": ensure_record_id(resolved_belief_id)}
+    )
+    await _audit(
+        actor, "learning.proposed", proposal.id,
+        {"trace": trace_id, "belief": resolved_belief_id},
+    )
     return proposal
