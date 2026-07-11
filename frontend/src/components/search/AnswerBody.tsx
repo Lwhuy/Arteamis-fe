@@ -10,9 +10,10 @@ import { toast } from 'sonner'
 interface AnswerBodyProps {
   isStreaming: boolean
   finalAnswer: string | null
+  onReferenceClick?: (type: string, id: string) => void
 }
 
-export function AnswerBody({ isStreaming, finalAnswer }: AnswerBodyProps) {
+export function AnswerBody({ isStreaming, finalAnswer, onReferenceClick }: AnswerBodyProps) {
   const { openModal } = useModalManager()
   const { t } = useTranslation()
 
@@ -20,7 +21,11 @@ export function AnswerBody({ isStreaming, finalAnswer }: AnswerBodyProps) {
     const modalType = type === 'source_insight' ? 'insight' : type as 'source' | 'note' | 'insight'
 
     try {
-      openModal(modalType, id)
+      if (onReferenceClick) {
+        onReferenceClick(type, id)
+      } else {
+        openModal(modalType, id)
+      }
       // Note: The modal system uses URL parameters and doesn't throw errors for missing items.
       // The modal component itself will handle displaying "not found" states.
       // This try-catch is here for future enhancements or unexpected errors.

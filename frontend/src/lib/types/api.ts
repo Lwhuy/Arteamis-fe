@@ -89,6 +89,8 @@ export interface SourceListResponse {
   processing_info?: Record<string, unknown>
   scope: 'personal' | 'project' | 'company'
   owner?: string | null
+  // Governance: private-by-default visibility (§6.3)
+  visibility?: string
 }
 
 export interface SourceDetailResponse extends SourceListResponse {

@@ -177,6 +177,7 @@ class TestRetrySourceProcessing:
         source.full_text = None
         source.scope = "project"
         source.owner = None
+        source.visibility = "private"
         source.asset = MagicMock(file_path=None, url="https://example.com/post")
         source.save = AsyncMock()
         source.get_embedded_chunks = AsyncMock(return_value=0)

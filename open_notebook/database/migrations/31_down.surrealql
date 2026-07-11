@@ -1,0 +1,4 @@
+-- Migration 31 rollback: drop the edge before the table it references, then
+-- work_package itself.
+REMOVE TABLE executes;
+REMOVE TABLE work_package;

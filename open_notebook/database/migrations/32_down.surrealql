@@ -1,0 +1,6 @@
+-- Migration 32 rollback: drop edges before the tables they reference, then
+-- the trace table itself.
+REMOVE TABLE updates;
+REMOVE TABLE learned_from;
+REMOVE TABLE traced_by;
+REMOVE TABLE trace;

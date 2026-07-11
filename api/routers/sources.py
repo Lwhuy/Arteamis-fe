@@ -267,7 +267,7 @@ async def get_sources(
 
             # Query sources for specific notebook - include command field with FETCH
             query = f"""
-                SELECT id, asset, created, title, updated, topics, command, scope, owner,
+                SELECT id, asset, created, title, updated, topics, command, scope, owner, visibility,
                 string::lowercase(title OR '') AS title_sort,
                 ({SOURCE_TYPE_EXPRESSION}) AS type,
                 (SELECT VALUE count() FROM source_insight WHERE source = $parent.id GROUP ALL)[0].count OR 0 AS insights_count,
@@ -290,7 +290,7 @@ async def get_sources(
         else:
             # Query all sources - include command field with FETCH
             query = f"""
-                SELECT id, asset, created, title, updated, topics, command, scope, owner,
+                SELECT id, asset, created, title, updated, topics, command, scope, owner, visibility,
                 string::lowercase(title OR '') AS title_sort,
                 ({SOURCE_TYPE_EXPRESSION}) AS type,
                 (SELECT VALUE count() FROM source_insight WHERE source = $parent.id GROUP ALL)[0].count OR 0 AS insights_count,
@@ -351,6 +351,7 @@ async def get_sources(
                     embedded=row.get("embedded", False),
                     embedded_chunks=0,  # Not needed in list view
                     insights_count=row.get("insights_count", 0),
+                    visibility=row.get("visibility", "private"),
                     created=str(row["created"]),
                     updated=str(row["updated"]),
                     # Status fields from fetched command
@@ -532,6 +533,7 @@ async def create_source(
                     full_text=None,  # Will be populated after processing
                     embedded=False,  # Will be updated after processing
                     embedded_chunks=0,
+                    visibility=source.visibility,
                     created=str(source.created),
                     updated=str(source.updated),
                     command_id=command_id,
@@ -645,6 +647,7 @@ async def create_source(
                     full_text=processed_source.full_text,
                     embedded=embedded_chunks > 0,
                     embedded_chunks=embedded_chunks,
+                    visibility=processed_source.visibility,
                     created=str(processed_source.created),
                     updated=str(processed_source.updated),
                     # No command_id or status for sync processing (legacy behavior)
@@ -787,6 +790,7 @@ async def get_source(
             embedded=embedded_chunks > 0,
             embedded_chunks=embedded_chunks,
             file_available=_is_source_file_available(source),
+            visibility=source.visibility,
             created=str(source.created),
             updated=str(source.updated),
             # Status fields
@@ -949,6 +953,7 @@ async def update_source(
             full_text=source.full_text,
             embedded=embedded_chunks > 0,
             embedded_chunks=embedded_chunks,
+            visibility=source.visibility,
             created=str(source.created),
             updated=str(source.updated),
             scope=source.scope,
@@ -1070,6 +1075,7 @@ async def retry_source_processing(
                 full_text=source.full_text,
                 embedded=embedded_chunks > 0,
                 embedded_chunks=embedded_chunks,
+                visibility=source.visibility,
                 created=str(source.created),
                 updated=str(source.updated),
                 command_id=command_id,

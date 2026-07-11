@@ -5,8 +5,8 @@ def test_migration_24_is_registered_in_both_lists():
 
     manager = AsyncMigrationManager()
     # Final total after auth-mt-rollout merge: 1-23 (P0-P6) + 24 (connectors) + 25 (rollout: episode.workspace).
-    assert len(manager.up_migrations) == 27
-    assert len(manager.down_migrations) == 27
+    assert len(manager.up_migrations) == 32
+    assert len(manager.down_migrations) == 32
 
 
 def test_migration_24_defines_connection_table():

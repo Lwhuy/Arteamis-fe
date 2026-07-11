@@ -1,0 +1,25 @@
+-- Migration 30: decision + rule tables (Decision + Rule objects that reference
+-- accepted beliefs). Mirrors migration 29's workspace-ready idiom:
+-- option<record<workspace>>, FLEXIBLE, nullable. `supports` is a shared
+-- RELATION edge used both decision->belief and rule->belief -- same idiom as
+-- derived_from/promotes_to in migration 29 (no endpoint-table constraint
+-- needed; SurrealDB RELATION tables don't require declaring in/out tables).
+
+DEFINE TABLE decision SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE decision FLEXIBLE TYPE option<record<workspace>>;
+DEFINE FIELD IF NOT EXISTS title     ON TABLE decision TYPE string;
+DEFINE FIELD IF NOT EXISTS rationale ON TABLE decision TYPE string DEFAULT '';
+DEFINE FIELD IF NOT EXISTS status    ON TABLE decision TYPE string DEFAULT 'active' ASSERT $value IN ['active','superseded'];
+DEFINE FIELD IF NOT EXISTS created   ON decision DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated   ON decision DEFAULT time::now() VALUE time::now();
+
+DEFINE TABLE rule SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS workspace ON TABLE rule FLEXIBLE TYPE option<record<workspace>>;
+DEFINE FIELD IF NOT EXISTS title     ON TABLE rule TYPE string;
+DEFINE FIELD IF NOT EXISTS statement ON TABLE rule TYPE string;
+DEFINE FIELD IF NOT EXISTS status    ON TABLE rule TYPE string DEFAULT 'active' ASSERT $value IN ['active','superseded'];
+DEFINE FIELD IF NOT EXISTS created   ON rule DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated   ON rule DEFAULT time::now() VALUE time::now();
+
+-- edge: decision->supports->belief and rule->supports->belief
+DEFINE TABLE supports SCHEMAFULL TYPE RELATION;

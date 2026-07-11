@@ -9,8 +9,8 @@ MIGRATIONS = Path("open_notebook/database/migrations")
 def test_migration_23_registered():
     mgr = AsyncMigrationManager()
     # Migrations 1-23 (P0-P6) + 24 (connectors: connection table) + 25 (rollout: episode.workspace).
-    assert len(mgr.up_migrations) == 27
-    assert len(mgr.down_migrations) == 27
+    assert len(mgr.up_migrations) == 32
+    assert len(mgr.down_migrations) == 32
 
 
 def test_migration_23_up_defines_owner_scope_promoted_from_and_search_fns():

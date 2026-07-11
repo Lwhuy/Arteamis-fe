@@ -4,8 +4,8 @@ from open_notebook.database.async_migrate import AsyncMigration, AsyncMigrationM
 def test_migration_26_is_registered_in_both_lists():
     """Migration 26 must be appended to up and down lists (hard-coded, not auto-discovered)."""
     manager = AsyncMigrationManager()
-    assert len(manager.up_migrations) == 27
-    assert len(manager.down_migrations) == 27
+    assert len(manager.up_migrations) == 32
+    assert len(manager.down_migrations) == 32
 
 
 def test_migration_26_defines_brain_tables():

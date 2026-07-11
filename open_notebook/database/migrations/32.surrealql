@@ -1,0 +1,27 @@
+-- Migration 32: trace + learning tables (Trace + Learning loop closure, P8.5).
+-- A work_package (P8.4, migration 31) produces a trace of what actually
+-- happened; a trace can spawn a learning proposal (kind='learning' on the
+-- existing `proposal` table from migration 29 -- PROPOSAL_KINDS already
+-- includes 'learning') that, once accepted, updates the belief it traces
+-- back to. Mirrors migration 29/30's workspace-ready idiom: nullable
+-- option<record<workspace>>, FLEXIBLE. `learned_from` carries the target
+-- belief id and `updates` carries the trace id that justified the update --
+-- same idiom as `derived_from`'s `locator` field in migration 29.
+
+DEFINE TABLE trace SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS workspace     ON TABLE trace FLEXIBLE TYPE option<record<workspace>>;
+DEFINE FIELD IF NOT EXISTS work_package  ON TABLE trace TYPE record<work_package>;
+DEFINE FIELD IF NOT EXISTS summary       ON TABLE trace TYPE string;
+DEFINE FIELD IF NOT EXISTS sources_used  ON TABLE trace FLEXIBLE TYPE option<array>;
+DEFINE FIELD IF NOT EXISTS command       ON TABLE trace FLEXIBLE TYPE option<record>;
+DEFINE FIELD IF NOT EXISTS outcome       ON TABLE trace TYPE string DEFAULT 'pending' ASSERT $value IN ['pending','success','fail','mixed'];
+DEFINE FIELD IF NOT EXISTS created       ON trace DEFAULT time::now() VALUE $before OR time::now();
+
+-- edges
+DEFINE TABLE traced_by SCHEMAFULL TYPE RELATION;
+
+DEFINE TABLE learned_from SCHEMAFULL TYPE RELATION;
+DEFINE FIELD IF NOT EXISTS belief ON TABLE learned_from TYPE option<record<belief>>;
+
+DEFINE TABLE updates SCHEMAFULL TYPE RELATION;
+DEFINE FIELD IF NOT EXISTS trace ON TABLE updates TYPE option<record<trace>>;

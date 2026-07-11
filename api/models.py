@@ -373,6 +373,7 @@ class SourceResponse(BaseModel):
     embedded: bool
     embedded_chunks: int
     file_available: Optional[bool] = None
+    visibility: str = "private"  # 'private' | 'company' (P8.1)
     created: str
     updated: str
     # New fields for async processing
@@ -393,6 +394,7 @@ class SourceListResponse(BaseModel):
     embedded: bool  # Boolean flag indicating if source has embeddings
     embedded_chunks: int  # Number of embedded chunks
     insights_count: int
+    visibility: str = "private"  # 'private' | 'company' (P8.1)
     created: str
     updated: str
     file_available: Optional[bool] = None
