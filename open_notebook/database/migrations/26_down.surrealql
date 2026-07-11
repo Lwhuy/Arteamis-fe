@@ -1,0 +1,4 @@
+-- Roll back P7.1 brain schema
+REMOVE TABLE IF EXISTS mentions;
+REMOVE TABLE IF EXISTS part_of;
+REMOVE TABLE IF EXISTS entity;

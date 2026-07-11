@@ -46,6 +46,7 @@ import {
   Command,
   Plug,
   Users,
+  Network,
 } from 'lucide-react'
 
 const getNavigation = (t: TFunction) => [
@@ -61,6 +62,7 @@ const getNavigation = (t: TFunction) => [
     items: [
       { name: t('navigation.projects'), href: '/projects', icon: Book },
       { name: t('navigation.askAndSearch'), href: '/search', icon: Search },
+      { name: t('navigation.intelligence'), href: '/intelligence', icon: Network },
     ],
   },
   {

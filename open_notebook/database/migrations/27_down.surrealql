@@ -1,0 +1,3 @@
+-- Rollback migration 25: drop the relates edge.
+
+REMOVE TABLE IF EXISTS relates;

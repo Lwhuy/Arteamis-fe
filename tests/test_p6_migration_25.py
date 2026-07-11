@@ -21,8 +21,8 @@ MIGRATIONS = Path("open_notebook/database/migrations")
 
 def test_migration_25_registered():
     mgr = AsyncMigrationManager()
-    assert len(mgr.up_migrations) == 25
-    assert len(mgr.down_migrations) == 25
+    assert len(mgr.up_migrations) == 27
+    assert len(mgr.down_migrations) == 27
     assert "workspace" in mgr.up_migrations[24].sql
     assert "episode" in mgr.up_migrations[24].sql
 

@@ -9,8 +9,8 @@ def test_migration_19_is_registered_in_both_lists():
 
     manager = AsyncMigrationManager()
     # Migrations 1-23 (P0-P6) + 24 (connectors: connection table) + 25 (rollout: episode.workspace).
-    assert len(manager.up_migrations) == 25
-    assert len(manager.down_migrations) == 25
+    assert len(manager.up_migrations) == 27
+    assert len(manager.down_migrations) == 27
 
 
 def test_migration_19_defines_identity_tables():
