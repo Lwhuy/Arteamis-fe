@@ -98,10 +98,16 @@ async def trigger_queries(state: ThreadState, config: RunnableConfig):
 async def provide_answer(state: SubGraphState, config: RunnableConfig) -> dict:
     try:
         payload = state
+        # Allow-list of source ids the caller may view (3-scope), threaded in
+        # from api/routers/search.py's ask endpoints via configurable — closes
+        # the RAG-answer leak path (search-leakage fix, P5 T10).
+        viewer_source_ids = config.get("configurable", {}).get("viewer_source_ids") or []
         # if state["type"] == "text":
         #     results = text_search(state["term"], 10, True, True)
         # else:
-        results = await vector_search(state["term"], 10, True, True)
+        results = await vector_search(
+            state["term"], 10, True, True, viewer_source_ids=viewer_source_ids
+        )
         if len(results) == 0:
             return {"answers": []}
         payload["results"] = results

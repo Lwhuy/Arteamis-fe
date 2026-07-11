@@ -842,17 +842,28 @@ class ChatSession(ObjectModel):
 
 
 async def text_search(
-    keyword: str, results: int, source: bool = True, note: bool = True
+    keyword: str,
+    results: int,
+    source: bool = True,
+    note: bool = True,
+    viewer_source_ids: Optional[List[str]] = None,
 ):
     if not keyword:
         raise InvalidInputError("Search keyword cannot be empty")
+    viewer_rids = [ensure_record_id(s) for s in (viewer_source_ids or [])]
     try:
         search_results = await repo_query(
             """
             select *
-            from fn::text_search($keyword, $results, $source, $note)
+            from fn::text_search($keyword, $results, $source, $note, $viewer_source_ids)
             """,
-            {"keyword": keyword, "results": results, "source": source, "note": note},
+            {
+                "keyword": keyword,
+                "results": results,
+                "source": source,
+                "note": note,
+                "viewer_source_ids": viewer_rids,
+            },
         )
         return search_results
     except RuntimeError as e:
@@ -865,7 +876,9 @@ async def text_search(
                 f"Highlight position overflow, falling back to vector search: {str(e)}"
             )
             try:
-                return await vector_search(keyword, results, source, note)
+                return await vector_search(
+                    keyword, results, source, note, viewer_source_ids=viewer_source_ids
+                )
             except Exception as ve:
                 # Both search paths failed (e.g. no embedding model configured).
                 # Surface the failure instead of returning [] — an empty list would
@@ -889,9 +902,11 @@ async def vector_search(
     source: bool = True,
     note: bool = True,
     minimum_score=0.2,
+    viewer_source_ids: Optional[List[str]] = None,
 ):
     if not keyword:
         raise InvalidInputError("Search keyword cannot be empty")
+    viewer_rids = [ensure_record_id(s) for s in (viewer_source_ids or [])]
     try:
         from open_notebook.utils.embedding import generate_embedding
 
@@ -899,7 +914,7 @@ async def vector_search(
         embed = await generate_embedding(keyword)
         search_results = await repo_query(
             """
-            SELECT * FROM fn::vector_search($embed, $results, $source, $note, $minimum_score);
+            SELECT * FROM fn::vector_search($embed, $results, $source, $note, $minimum_score, $viewer_source_ids);
             """,
             {
                 "embed": embed,
@@ -907,6 +922,7 @@ async def vector_search(
                 "source": source,
                 "note": note,
                 "minimum_score": minimum_score,
+                "viewer_source_ids": viewer_rids,
             },
         )
         return search_results
