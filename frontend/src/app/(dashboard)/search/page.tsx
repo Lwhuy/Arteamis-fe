@@ -20,7 +20,11 @@ import { useAsk } from '@/lib/hooks/use-ask'
 import { useModelDefaults, useModels } from '@/lib/hooks/use-models'
 import { useModalManager } from '@/lib/hooks/use-modal-manager'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
-import { StreamingResponse } from '@/components/search/StreamingResponse'
+import { AnswerBody } from '@/components/search/AnswerBody'
+import { StrategyDisclosure } from '@/components/search/StrategyDisclosure'
+import { AnswerFeedback } from '@/components/search/AnswerFeedback'
+import { SourcesPanel } from '@/components/search/SourcesPanel'
+import { buildReferenceIndex } from '@/lib/utils/source-references'
 import { AdvancedModelsDialog } from '@/components/search/AdvancedModelsDialog'
 import { SaveToNotebooksDialog } from '@/components/search/SaveToNotebooksDialog'
 
@@ -77,6 +81,11 @@ export default function SearchPage() {
   }
 
   const hasEmbeddingModel = !!modelDefaults?.default_embedding_model
+
+  const referenceIndex = useMemo(
+    () => buildReferenceIndex(ask.finalAnswer ?? ''),
+    [ask.finalAnswer]
+  )
 
   // Track if we've already auto-triggered from URL params
   const hasAutoTriggeredRef = useRef(false)
@@ -177,50 +186,166 @@ export default function SearchPage() {
           </div>
 
           <TabsContent value="ask" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">{t('searchPage.askYourKb')}</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {t('searchPage.askYourKbDesc')}
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Question Input */}
-                <div className="space-y-2">
-                  <Label htmlFor="ask-question">{t('searchPage.question')}</Label>
-                  <Textarea
-                    id="ask-question"
-                    name="ask-question"
-                    placeholder={t('searchPage.enterQuestionPlaceholder')}
-                    value={askQuestion}
-                    onChange={(e) => setAskQuestion(e.target.value)}
-                    onKeyDown={(e) => {
-                      // Submit on Cmd/Ctrl+Enter
-                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !ask.isStreaming && askQuestion.trim()) {
-                        e.preventDefault()
-                        handleAsk()
-                      }
-                    }}
-                    disabled={ask.isStreaming}
-                    rows={3}
-                    aria-label={t('common.accessibility.enterQuestion')}
-                  />
-                  <p className="text-xs text-muted-foreground">{t('searchPage.pressToSubmit')}</p>
-                </div>
-
-                {/* Models Display */}
-                {!hasEmbeddingModel ? (
-                  <div className="flex items-center gap-2 p-3 text-sm text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-950/20 rounded-md">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>{t('searchPage.noEmbeddingModel')}</span>
+            {!ask.isStreaming && !ask.finalAnswer ? (
+              /* Empty state — unchanged Ask card */
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">{t('searchPage.askYourKb')}</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {t('searchPage.askYourKbDesc')}
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Question Input */}
+                  <div className="space-y-2">
+                    <Label htmlFor="ask-question">{t('searchPage.question')}</Label>
+                    <Textarea
+                      id="ask-question"
+                      name="ask-question"
+                      placeholder={t('searchPage.enterQuestionPlaceholder')}
+                      value={askQuestion}
+                      onChange={(e) => setAskQuestion(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Submit on Cmd/Ctrl+Enter
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !ask.isStreaming && askQuestion.trim()) {
+                          e.preventDefault()
+                          handleAsk()
+                        }
+                      }}
+                      disabled={ask.isStreaming}
+                      rows={3}
+                      aria-label={t('common.accessibility.enterQuestion')}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('searchPage.pressToSubmit')}</p>
                   </div>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs text-muted-foreground">
-                          {customModels ? t('searchPage.usingCustomModels') : t('searchPage.usingDefaultModels')}
-                        </Label>
+
+                  {/* Models Display */}
+                  {!hasEmbeddingModel ? (
+                    <div className="flex items-center gap-2 p-3 text-sm text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-950/20 rounded-md">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{t('searchPage.noEmbeddingModel')}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground">
+                            {customModels ? t('searchPage.usingCustomModels') : t('searchPage.usingDefaultModels')}
+                          </Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowAdvancedModels(true)}
+                            disabled={ask.isStreaming}
+                            className="h-auto py-1 px-2"
+                          >
+                            <Settings className="h-3 w-3 mr-1" />
+                            {t('searchPage.advanced')}
+                          </Button>
+                        </div>
+                        <div className="flex gap-2 text-xs flex-wrap">
+                          <Badge variant="secondary">
+                            {t('searchPage.strategy')}: {resolveModelName(customModels?.strategy || modelDefaults?.default_chat_model)}
+                          </Badge>
+                          <Badge variant="secondary">
+                            {t('searchPage.answer')}: {resolveModelName(customModels?.answer || modelDefaults?.default_chat_model)}
+                          </Badge>
+                          <Badge variant="secondary">
+                            {t('searchPage.final')}: {resolveModelName(customModels?.finalAnswer || modelDefaults?.default_chat_model)}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Button
+                          onClick={handleAsk}
+                          disabled={ask.isStreaming || !askQuestion.trim()}
+                          className="w-full"
+                        >
+                          {ask.isStreaming ? (
+                            <>
+                              <LoadingSpinner size="sm" className="mr-2" />
+                              {t('searchPage.processing')}
+                            </>
+                          ) : (
+                            t('searchPage.ask')
+                          )}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              /* Answered / streaming state — two-column layout */
+              <div className="flex flex-col lg:flex-row gap-6">
+                <div className="flex-1 min-w-0 space-y-4">
+                  {/* Question as title */}
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-xl font-semibold">{askQuestion}</h2>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        ask.reset()
+                        setAskQuestion('')
+                      }}
+                    >
+                      {t('searchPage.newQuestion')}
+                    </Button>
+                  </div>
+
+                  {/* Answer body */}
+                  <AnswerBody isStreaming={ask.isStreaming} finalAnswer={ask.finalAnswer} />
+
+                  {/* Feedback row with Save-to-Notebooks trigger */}
+                  {ask.finalAnswer && (
+                    <AnswerFeedback answer={ask.finalAnswer}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowSaveDialog(true)}
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        {t('searchPage.saveToNotebooks')}
+                      </Button>
+                    </AnswerFeedback>
+                  )}
+
+                  {/* Strategy disclosure */}
+                  <StrategyDisclosure strategy={ask.strategy} answers={ask.answers} />
+
+                  {/* Follow-up bar */}
+                  <div className="rounded-lg border p-3 space-y-2">
+                    <Textarea
+                      id="ask-followup"
+                      name="ask-followup"
+                      placeholder={t('searchPage.askFollowUp')}
+                      value={askQuestion}
+                      onChange={(e) => setAskQuestion(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Submit on Cmd/Ctrl+Enter
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !ask.isStreaming && askQuestion.trim()) {
+                          e.preventDefault()
+                          handleAsk()
+                        }
+                      }}
+                      disabled={ask.isStreaming}
+                      rows={2}
+                      aria-label={t('common.accessibility.enterQuestion')}
+                    />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex gap-2 text-xs flex-wrap">
+                          <Badge variant="secondary">
+                            {t('searchPage.strategy')}: {resolveModelName(customModels?.strategy || modelDefaults?.default_chat_model)}
+                          </Badge>
+                          <Badge variant="secondary">
+                            {t('searchPage.answer')}: {resolveModelName(customModels?.answer || modelDefaults?.default_chat_model)}
+                          </Badge>
+                          <Badge variant="secondary">
+                            {t('searchPage.final')}: {resolveModelName(customModels?.finalAnswer || modelDefaults?.default_chat_model)}
+                          </Badge>
+                        </div>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -232,24 +357,10 @@ export default function SearchPage() {
                           {t('searchPage.advanced')}
                         </Button>
                       </div>
-                      <div className="flex gap-2 text-xs flex-wrap">
-                        <Badge variant="secondary">
-                          {t('searchPage.strategy')}: {resolveModelName(customModels?.strategy || modelDefaults?.default_chat_model)}
-                        </Badge>
-                        <Badge variant="secondary">
-                          {t('searchPage.answer')}: {resolveModelName(customModels?.answer || modelDefaults?.default_chat_model)}
-                        </Badge>
-                        <Badge variant="secondary">
-                          {t('searchPage.final')}: {resolveModelName(customModels?.finalAnswer || modelDefaults?.default_chat_model)}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-2">
                       <Button
                         onClick={handleAsk}
                         disabled={ask.isStreaming || !askQuestion.trim()}
-                        className="w-full"
+                        className="w-full sm:w-auto"
                       >
                         {ask.isStreaming ? (
                           <>
@@ -260,52 +371,36 @@ export default function SearchPage() {
                           t('searchPage.ask')
                         )}
                       </Button>
-
-                      {ask.finalAnswer && (
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowSaveDialog(true)}
-                          className="w-full"
-                        >
-                          <Save className="h-4 w-4 mr-2" />
-                          {t('searchPage.saveToNotebooks')}
-                        </Button>
-                      )}
                     </div>
-                  </>
-                )}
+                  </div>
+                </div>
 
-                {/* Streaming Response */}
-                <StreamingResponse
-                  isStreaming={ask.isStreaming}
-                  strategy={ask.strategy}
-                  answers={ask.answers}
-                  finalAnswer={ask.finalAnswer}
-                />
+                {/* Right-side sources panel */}
+                <SourcesPanel references={referenceIndex.references} />
+              </div>
+            )}
 
-                {/* Advanced Models Dialog */}
-                <AdvancedModelsDialog
-                  open={showAdvancedModels}
-                  onOpenChange={setShowAdvancedModels}
-                  defaultModels={{
-                    strategy: customModels?.strategy || modelDefaults?.default_chat_model || '',
-                    answer: customModels?.answer || modelDefaults?.default_chat_model || '',
-                    finalAnswer: customModels?.finalAnswer || modelDefaults?.default_chat_model || ''
-                  }}
-                  onSave={setCustomModels}
-                />
+            {/* Advanced Models Dialog */}
+            <AdvancedModelsDialog
+              open={showAdvancedModels}
+              onOpenChange={setShowAdvancedModels}
+              defaultModels={{
+                strategy: customModels?.strategy || modelDefaults?.default_chat_model || '',
+                answer: customModels?.answer || modelDefaults?.default_chat_model || '',
+                finalAnswer: customModels?.finalAnswer || modelDefaults?.default_chat_model || ''
+              }}
+              onSave={setCustomModels}
+            />
 
-                {/* Save to Notebooks Dialog */}
-                {ask.finalAnswer && (
-                  <SaveToNotebooksDialog
-                    open={showSaveDialog}
-                    onOpenChange={setShowSaveDialog}
-                    question={askQuestion}
-                    answer={ask.finalAnswer}
-                  />
-                )}
-              </CardContent>
-            </Card>
+            {/* Save to Notebooks Dialog */}
+            {ask.finalAnswer && (
+              <SaveToNotebooksDialog
+                open={showSaveDialog}
+                onOpenChange={setShowSaveDialog}
+                question={askQuestion}
+                answer={ask.finalAnswer}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="search" className="mt-6">
