@@ -41,3 +41,21 @@ def test_migration_21_down_reverses_it():
     assert "REMOVE TABLE IF EXISTS project_member" in sql
     assert "REMOVE FIELD IF EXISTS workspace ON TABLE notebook" in sql
     assert "DELETE workspace:personal_default" in sql
+
+
+def test_migration_21_backfill_owner_lookup_is_valid_surrealql():
+    """Regression: the legacy-owner lookup used `SELECT VALUE id FROM user
+    ORDER BY created ASC LIMIT 1`, but `SELECT VALUE id` projects only `id` --
+    SurrealDB rejects `ORDER BY created` since `created` isn't in that
+    projection (same bug class as list_memberships; caught live: this
+    migration failed to apply at all against a real SurrealDB)."""
+    sql = (MIGRATIONS / "21.surrealql").read_text()
+    for line in sql.splitlines():
+        if "ORDER BY created" not in line:
+            continue
+        select_clause = line.split("FROM", 1)[0]
+        assert "SELECT VALUE" not in select_clause, (
+            "ORDER BY created requires `created` in the projection; "
+            "`SELECT VALUE id` only projects `id`"
+        )
+        assert "created" in select_clause

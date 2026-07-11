@@ -31,7 +31,7 @@ DEFINE INDEX IF NOT EXISTS idx_project_member_unique ON TABLE project_member FIE
 -- auto-provisioned by P2 in the meantime).
 LET $legacy = (SELECT VALUE id FROM notebook WHERE workspace = NONE);
 IF array::len($legacy) > 0 {
-    LET $owner = (SELECT VALUE id FROM user ORDER BY created ASC LIMIT 1)[0];
+    LET $owner = (SELECT id, created FROM user ORDER BY created ASC LIMIT 1)[0].id;
     IF $owner != NONE {
         LET $found_personal = (SELECT VALUE id FROM workspace WHERE owner = $owner AND kind = "personal" LIMIT 1)[0];
         LET $personal_workspace = $found_personal ?? workspace:personal_default;
