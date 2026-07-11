@@ -33,16 +33,18 @@ async def _submit_entity_extraction(source_id: str) -> Optional[str]:
     """
     Fire-and-forget: submit the brain entity-extraction job for a source.
 
-    Resolves the source's workspace (added by P6) and submits
-    'extract_source_entities'. Best-effort — any failure is logged and
-    swallowed so it can never block or fail source ingest.
+    A `source` row has no `workspace` field of its own -- it inherits its
+    workspace from its notebook/project via the `reference` edge (see
+    migration 23). Resolve it the same way api/source_permissions.py does,
+    then submit 'extract_source_entities'. Best-effort — any failure is
+    logged and swallowed so it can never block or fail source ingest.
     """
     try:
         rows = await repo_query(
-            "SELECT workspace FROM $id",
-            {"id": ensure_record_id(source_id)},
+            "SELECT VALUE out.workspace FROM reference WHERE in = $source",
+            {"source": ensure_record_id(source_id)},
         )
-        workspace_id = rows[0].get("workspace") if rows else None
+        workspace_id = next((str(w) for w in rows if w is not None), None)
         if not workspace_id:
             logger.debug(f"No workspace for source {source_id}; skipping extraction")
             return None

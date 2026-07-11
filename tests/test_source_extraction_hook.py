@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
@@ -7,16 +7,21 @@ import commands.source_commands as sc
 
 @pytest.mark.asyncio
 async def test_submit_entity_extraction_resolves_workspace_and_submits(monkeypatch):
-    monkeypatch.setattr(
-        sc, "repo_query",
-        AsyncMock(return_value=[{"workspace": "workspace:ws1"}]),
-    )
+    # Sources have no workspace field -- it's resolved via the `reference`
+    # edge to the source's notebook/project (same idiom as
+    # api/source_permissions.py's _source_workspaces).
+    repo_query = AsyncMock(return_value=["workspace:ws1"])
+    monkeypatch.setattr(sc, "repo_query", repo_query)
     submit = MagicMock(return_value="command:job1")
     monkeypatch.setattr(sc, "submit_command", submit)
 
     result = await sc._submit_entity_extraction("source:s1")
 
     assert result == "command:job1"
+    repo_query.assert_called_once_with(
+        "SELECT VALUE out.workspace FROM reference WHERE in = $source",
+        {"source": ANY},
+    )
     submit.assert_called_once_with(
         "open_notebook",
         "extract_source_entities",
@@ -26,7 +31,9 @@ async def test_submit_entity_extraction_resolves_workspace_and_submits(monkeypat
 
 @pytest.mark.asyncio
 async def test_submit_entity_extraction_skips_when_no_workspace(monkeypatch):
-    monkeypatch.setattr(sc, "repo_query", AsyncMock(return_value=[{"workspace": None}]))
+    # No `reference` row for this source (e.g. not yet linked to any
+    # notebook/project) -- workspace cannot be resolved.
+    monkeypatch.setattr(sc, "repo_query", AsyncMock(return_value=[]))
     submit = MagicMock()
     monkeypatch.setattr(sc, "submit_command", submit)
 

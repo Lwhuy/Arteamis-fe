@@ -44,9 +44,16 @@ async def get_brain_graph(
             "WHERE workspace = $workspace",
             {"workspace": ws},
         )
+        # A `source` row has no `workspace` field of its own -- it inherits
+        # its workspace from its notebook/project via the `reference` edge
+        # (migration 23). That's the canonical, DB-enforced workspace gate;
+        # the `mentions` join here only restricts to sources that actually
+        # appear in this graph (mentions.workspace is correct for that join,
+        # but must not be relied on as the source's own workspace proof).
         source_rows = await repo_query(
             "SELECT id, title FROM source WHERE id IN "
-            "(SELECT VALUE in FROM mentions WHERE workspace = $workspace)",
+            "(SELECT VALUE in FROM reference WHERE out.workspace = $workspace) "
+            "AND id IN (SELECT VALUE in FROM mentions WHERE workspace = $workspace)",
             {"workspace": ws},
         )
 
