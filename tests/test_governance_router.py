@@ -11,6 +11,7 @@ from open_notebook.domain.governance import (
     Decision,
     Proposal,
     Rule,
+    Trace,
     WorkPackage,
 )
 
@@ -398,5 +399,82 @@ def test_create_work_package_requires_auth(client):
     resp = client.post(
         "/api/work-packages",
         json={"title": "x", "executes_ids": []},
+    )
+    assert resp.status_code == 401
+
+
+def _trace(**overrides) -> Trace:
+    data = dict(
+        id="trace:1",
+        work_package="work_package:1",
+        summary="Ran the SMB outreach playbook",
+        sources_used=[],
+        outcome="success",
+    )
+    data.update(overrides)
+    return Trace(**data)
+
+
+@patch("api.routers.governance.record_trace", new_callable=AsyncMock)
+def test_record_trace_returns_201(mock_record, client):
+    mock_record.return_value = _trace()
+
+    resp = client.post(
+        "/api/work-packages/work_package:1/trace",
+        json={"summary": "Ran the SMB outreach playbook", "sources_used": ["source:1"], "outcome": "success"},
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["id"] == "trace:1"
+    mock_record.assert_awaited_once_with(
+        "user:1", "work_package:1",
+        summary="Ran the SMB outreach playbook", sources_used=["source:1"], outcome="success",
+    )
+
+
+@patch("api.routers.governance.list_traces_for_work_package", new_callable=AsyncMock)
+def test_list_traces_endpoint_returns_mocked_list(mock_list, client):
+    mock_list.return_value = [{"id": "trace:1", "summary": "Ran playbook", "outcome": "success"}]
+
+    resp = client.get("/api/work-packages/work_package:1/traces", headers=_auth())
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["id"] == "trace:1"
+    mock_list.assert_awaited_once_with("work_package:1")
+
+
+@patch("api.routers.governance.get_trace", new_callable=AsyncMock)
+def test_get_trace_endpoint_returns_trace(mock_get, client):
+    mock_get.return_value = _trace()
+
+    resp = client.get("/api/traces/trace:1", headers=_auth())
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "trace:1"
+
+
+@patch("api.routers.governance.create_learning_proposal", new_callable=AsyncMock)
+def test_create_learning_proposal_endpoint_returns_201(mock_create, client):
+    mock_create.return_value = _proposal(id="proposal:9", kind="learning", title="Outcome: SMB outreach worked")
+
+    resp = client.post(
+        "/api/traces/trace:1/learning",
+        json={"title": "Outcome: SMB outreach worked", "body": "3x response rate", "belief_id": "belief:1"},
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["kind"] == "learning"
+    mock_create.assert_awaited_once_with(
+        "user:1", "trace:1",
+        title="Outcome: SMB outreach worked", body="3x response rate", belief_id="belief:1",
+    )
+
+
+def test_record_trace_requires_auth(client):
+    resp = client.post(
+        "/api/work-packages/work_package:1/trace",
+        json={"summary": "x"},
     )
     assert resp.status_code == 401
