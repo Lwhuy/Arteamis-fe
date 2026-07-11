@@ -49,4 +49,5 @@ __all__ = [
 from open_notebook.domain.connectors import (
     gdrive,  # noqa: E402,F401
     notion,  # noqa: E402,F401
+    slack,  # noqa: E402,F401
 )
