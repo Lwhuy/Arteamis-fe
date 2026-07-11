@@ -29,7 +29,7 @@ class NotebookResponse(BaseModel):
 
 
 class RecentlyViewedResponse(BaseModel):
-    type: Literal["notebook", "source"]
+    type: Literal["notebook", "source", "project"]
     id: str
     title: str
     last_viewed_at: str
@@ -770,3 +770,67 @@ class SessionPayload(BaseModel):
 class MeResponse(BaseModel):
     user: AuthUser
     memberships: List[Any] = Field(default_factory=list)
+
+
+# Project schemas (P3). Physical table is still `notebook`; the API surface is
+# "project", scoped to the caller's active workspace (personal or company).
+# These supersede the Notebook* schemas for the /projects router.
+class ProjectCreate(BaseModel):
+    name: str = Field(..., min_length=1, description="Name of the project")
+    description: str = Field(default="", description="Description of the project")
+    default_source_scope: Optional[Literal["personal", "project", "company"]] = Field(
+        None, description="Default source scope (server defaults to 'personal')"
+    )
+
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="Name of the project")
+    description: Optional[str] = Field(None, description="Description of the project")
+    archived: Optional[bool] = Field(None, description="Whether the project is archived")
+    default_source_scope: Optional[Literal["personal", "project", "company"]] = Field(
+        None, description="Default source scope"
+    )
+
+
+class ProjectResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    archived: bool
+    created: str
+    updated: str
+    source_count: int
+    note_count: int
+    workspace: Optional[str] = None
+    owner: Optional[str] = None
+    default_source_scope: str = "personal"
+    promoted_from: Optional[str] = None
+
+
+class ProjectMemberResponse(BaseModel):
+    id: str
+    project: str
+    user: str
+    role: str
+    status: str
+
+
+class ProjectDeletePreview(BaseModel):
+    project_id: str = Field(..., description="ID of the project")
+    project_name: str = Field(..., description="Name of the project")
+    note_count: int = Field(..., description="Number of notes that will be deleted")
+    exclusive_source_count: int = Field(
+        ..., description="Number of sources only in this project"
+    )
+    shared_source_count: int = Field(
+        ..., description="Number of sources shared with other projects"
+    )
+
+
+class ProjectDeleteResponse(BaseModel):
+    message: str = Field(..., description="Success message")
+    deleted_notes: int = Field(..., description="Number of notes deleted")
+    deleted_sources: int = Field(..., description="Number of exclusive sources deleted")
+    unlinked_sources: int = Field(
+        ..., description="Number of sources unlinked from project"
+    )
