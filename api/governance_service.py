@@ -18,7 +18,15 @@ governance domain objects goes through the ObjectModel classmethods
 from typing import Any, Optional
 
 from open_notebook.database.repository import repo_query, repo_relate
-from open_notebook.domain.governance import AuditEvent, Belief, Decision, Proposal, Rule
+from open_notebook.domain.governance import (
+    WORK_PACKAGE_STATUSES,
+    AuditEvent,
+    Belief,
+    Decision,
+    Proposal,
+    Rule,
+    WorkPackage,
+)
 
 
 async def _audit(
@@ -224,3 +232,77 @@ async def list_rules(*, status: Optional[str] = None) -> list[Rule]:
 
 async def get_rule(rule_id: str) -> Rule:
     return await Rule.get(rule_id)
+
+
+async def create_work_package(
+    actor: str,
+    *,
+    title: str,
+    assignee_kind: str,
+    assignee: Optional[str],
+    agent_brief: Optional[dict[str, Any]],
+    executes_ids: list[str],
+) -> WorkPackage:
+    """Turn an accepted decision/belief into a governed unit of work.
+
+    Links work_package->executes->{decision|belief} for every id in
+    `executes_ids`. Agent execution itself is out of scope here — this only
+    records the brief; nothing in this function runs an agent or submits a
+    background command.
+    """
+    work_package = WorkPackage(
+        title=title,
+        assignee_kind=assignee_kind,
+        assignee=assignee,
+        agent_brief=agent_brief,
+        status="open",
+    )
+    await work_package.save()
+    for target_id in executes_ids:
+        await repo_relate(work_package.id, "executes", target_id, {})
+    await _audit(
+        actor,
+        "work_package.created",
+        work_package.id,
+        {"assignee_kind": assignee_kind, "executes": executes_ids},
+    )
+    return work_package
+
+
+async def list_work_packages(*, status: Optional[str] = None) -> list[WorkPackage]:
+    """List work packages, optionally filtered by status.
+
+    `WorkPackage.get_all()` only supports an ORDER BY clause (no WHERE), so
+    the status filter is applied in Python — matching `list_proposals`.
+    """
+    work_packages = await WorkPackage.get_all()
+    if status is not None:
+        work_packages = [w for w in work_packages if w.status == status]
+    return work_packages
+
+
+async def get_work_package(work_package_id: str) -> WorkPackage:
+    return await WorkPackage.get(work_package_id)
+
+
+async def update_work_package_status(
+    actor: str, work_package_id: str, status: str
+) -> WorkPackage:
+    """Transition a work package's status, auditing the before/after.
+
+    Raises:
+        ValueError: if `status` is not one of WORK_PACKAGE_STATUSES.
+    """
+    if status not in WORK_PACKAGE_STATUSES:
+        raise ValueError(f"invalid status {status}")
+    work_package = await WorkPackage.get(work_package_id)
+    previous_status = work_package.status
+    work_package.status = status
+    await work_package.save()
+    await _audit(
+        actor,
+        "work_package.status_changed",
+        work_package.id,
+        {"from": previous_status, "to": status},
+    )
+    return work_package

@@ -18,16 +18,26 @@ from api.governance_service import (
     create_decision,
     create_proposal,
     create_rule,
+    create_work_package,
     get_belief_lineage,
     get_decision,
     get_proposal,
     get_rule,
+    get_work_package,
     list_decisions,
     list_proposals,
     list_rules,
+    list_work_packages,
     request_changes,
+    update_work_package_status,
 )
-from open_notebook.domain.governance import Belief, Decision, Proposal, Rule
+from open_notebook.domain.governance import (
+    Belief,
+    Decision,
+    Proposal,
+    Rule,
+    WorkPackage,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -308,3 +318,89 @@ async def test_get_rule_returns_rule(mock_query):
     rule = await get_rule("rule:1")
     assert isinstance(rule, Rule)
     assert rule.title == "a"
+
+
+@pytest.mark.asyncio
+@patch("api.governance_service.repo_relate", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
+async def test_create_work_package_saves_open_links_targets_and_audits(
+    mock_create, mock_relate
+):
+    mock_create.side_effect = [
+        [{"id": "work_package:1", "status": "open"}],  # work_package.save()
+        [{"id": "audit_event:1"}],  # AuditEvent().save()
+    ]
+    work_package = await create_work_package(
+        "user:1",
+        title="Draft SMB outreach plan",
+        assignee_kind="agent",
+        assignee="research-agent",
+        agent_brief={
+            "objective": "Draft outreach plan",
+            "allowed_context": ["belief:1"],
+            "budget": "1 hr",
+            "approval_gate": True,
+        },
+        executes_ids=["belief:1"],
+    )
+
+    assert work_package.status == "open"
+    assert work_package.id == "work_package:1"
+    mock_relate.assert_awaited_once_with(
+        "work_package:1", "executes", "belief:1", {}
+    )
+    audit_data = mock_create.await_args_list[1].args[1]
+    assert audit_data["action"] == "work_package.created"
+    assert audit_data["object"] == RecordID.parse("work_package:1")
+
+
+@pytest.mark.asyncio
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_list_work_packages_filters_by_status_in_python(mock_query):
+    mock_query.return_value = [
+        {"id": "work_package:1", "title": "a", "status": "open"},
+        {"id": "work_package:2", "title": "b", "status": "done"},
+    ]
+    result = await list_work_packages(status="done")
+    assert len(result) == 1
+    assert result[0].id == "work_package:2"
+
+
+@pytest.mark.asyncio
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_get_work_package_returns_work_package(mock_query):
+    mock_query.return_value = [
+        {"id": "work_package:1", "title": "a", "status": "open"}
+    ]
+    work_package = await get_work_package("work_package:1")
+    assert isinstance(work_package, WorkPackage)
+    assert work_package.title == "a"
+
+
+@pytest.mark.asyncio
+@patch("open_notebook.domain.base.repo_create", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_update", new_callable=AsyncMock)
+@patch("open_notebook.domain.base.repo_query", new_callable=AsyncMock)
+async def test_update_work_package_status_transitions_and_audits(
+    mock_query, mock_update, mock_create
+):
+    mock_query.return_value = [
+        {"id": "work_package:1", "title": "a", "status": "open"}
+    ]
+    mock_update.return_value = [{"id": "work_package:1", "status": "running"}]
+    mock_create.return_value = [{"id": "audit_event:1"}]
+
+    work_package = await update_work_package_status(
+        "user:1", "work_package:1", "running"
+    )
+
+    assert work_package.status == "running"
+    audit_data = mock_create.await_args.args[1]
+    assert audit_data["action"] == "work_package.status_changed"
+    assert audit_data["meta"] == {"from": "open", "to": "running"}
+
+
+@pytest.mark.asyncio
+async def test_update_work_package_status_rejects_invalid_status():
+    with pytest.raises(ValueError):
+        await update_work_package_status("user:1", "work_package:1", "paused")
