@@ -38,8 +38,8 @@ def test_migration_20_down_removes_tables():
 
 def test_migration_20_is_registered():
     manager = AsyncMigrationManager()
-    # Final main has migrations 1-23 (P4's 22 + P5's 23 both registered).
-    assert len(manager.up_migrations) == 23
-    assert len(manager.down_migrations) == 23
+    # Final main has migrations 1-24 (P4's 22 + P5's 23 + Brain's 24 registered).
+    assert len(manager.up_migrations) == 24
+    assert len(manager.down_migrations) == 24
     assert "workspace" in manager.up_migrations[19].sql
     assert "membership" in manager.down_migrations[19].sql
