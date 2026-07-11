@@ -1,13 +1,23 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, type ComponentType } from 'react'
 import dynamic from 'next/dynamic'
 import { useBrainStore } from '@/lib/stores/brain-store'
 import { toForceGraphData, nodeColor, edgeColor, edgeDashed } from './graph-transform'
 import type { BrainGraph, ForceGraphNode, ForceGraphLink } from '@/lib/types/brain'
+import type { ForceGraphProps } from 'react-force-graph-2d'
 
 // Canvas/DOM-only lib — must never render on the server.
-const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false })
+// `react-force-graph-2d`'s default export is a generic function component;
+// next/dynamic's inference collapses generics to their `{}` defaults, so we
+// pin the instantiation explicitly via a cast rather than losing prop types.
+const ForceGraph2D = dynamic(
+  () =>
+    import('react-force-graph-2d').then((mod) => ({
+      default: mod.default as unknown as ComponentType<ForceGraphProps<ForceGraphNode, ForceGraphLink>>,
+    })),
+  { ssr: false },
+)
 
 interface GraphCanvasProps {
   graph: BrainGraph

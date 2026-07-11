@@ -1053,6 +1053,18 @@ export const zhCN = {
     createCompanyBanner: "您还没有创建公司。",
   },
   intelligence: {
+    title: "Intelligence",
+    rebuild: "Rebuild brain",
+    rebuildStarted: "Brain rebuild started",
+    askPlaceholder: "Ask the Brain is coming soon",
+    empty: {
+      title: "Your brain hasn't been built yet",
+      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
+    },
+    building: {
+      title: "Building your brain...",
+      progress: "{built} of {total} sources processed",
+    },
     legend: {
       title: "Key",
       nodes: "Nodes",
