@@ -1,12 +1,14 @@
 "use client"
 
 import { Control, Controller } from "react-hook-form"
+import { Lock, Users, Building2 } from "lucide-react"
 import { useTranslation } from "@/lib/hooks/use-translation"
 import { FormSection } from "@/components/ui/form-section"
 import { CheckboxList } from "@/components/ui/checkbox-list"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Transformation } from "@/lib/types/transformations"
 import { SettingsResponse } from "@/lib/types/api"
+import { cn } from "@/lib/utils"
 
 interface CreateSourceFormData {
   type: 'link' | 'upload' | 'text'
@@ -18,6 +20,7 @@ interface CreateSourceFormData {
   transformations?: string[]
   embed: boolean
   async_processing: boolean
+  scope: 'personal' | 'project' | 'company'
 }
 
 interface ProcessingStepProps {
@@ -56,6 +59,44 @@ export function ProcessingStep({
           onToggle={onToggleTransformation}
           loading={loading}
           emptyMessage={t('common.noMatches')}
+        />
+      </FormSection>
+
+      <FormSection title={t('sources.visibility')} description={t('sources.visibilityLabel')}>
+        <Controller
+          control={control}
+          name="scope"
+          render={({ field }) => (
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={t('sources.visibilityLabel')}>
+              {(['personal', 'project', 'company'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={field.value === value}
+                  onClick={() => field.onChange(value)}
+                  className={cn(
+                    'flex flex-col items-start gap-1 rounded-md border p-3 text-left transition-colors',
+                    field.value === value ? 'border-primary bg-primary/5' : 'border-input hover:bg-muted',
+                  )}
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    {value === 'personal' && <Lock className="h-4 w-4" />}
+                    {value === 'project' && <Users className="h-4 w-4" />}
+                    {value === 'company' && <Building2 className="h-4 w-4" />}
+                    {value === 'personal' && t('sources.visibilityPersonal')}
+                    {value === 'project' && t('sources.visibilityProject')}
+                    {value === 'company' && t('sources.visibilityCompany')}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {value === 'personal' && t('sources.visibilityPersonalDesc')}
+                    {value === 'project' && t('sources.visibilityProjectDesc')}
+                    {value === 'company' && t('sources.visibilityCompanyDesc')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         />
       </FormSection>
 

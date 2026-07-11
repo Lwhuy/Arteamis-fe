@@ -37,6 +37,7 @@ const createSourceSchema = z.object({
   transformations: z.array(z.string()).optional(),
   embed: z.boolean(),
   async_processing: z.boolean(),
+  scope: z.enum(['personal', 'project', 'company']),
 }).refine((data) => {
   if (data.type === 'link') {
     return !!data.url && data.url.trim() !== ''
@@ -136,6 +137,7 @@ export function AddSourceDialog({
       embed: settings?.default_embedding_option === 'always' || settings?.default_embedding_option === 'ask',
       async_processing: true,
       transformations: [],
+      scope: 'project',
     },
   })
 
@@ -157,6 +159,7 @@ export function AddSourceDialog({
         embed: embedValue,
         async_processing: true,
         transformations: [],
+        scope: 'project',
       })
     }
   }, [settings, transformations, defaultNotebookId, reset])
@@ -308,6 +311,7 @@ export function AddSourceDialog({
       embed: data.embed,
       delete_source: false,
       async_processing: true,
+      scope: data.scope,
     }
 
     if (data.type === 'upload' && data.file) {
@@ -358,6 +362,7 @@ export function AddSourceDialog({
           embed: data.embed,
           delete_source: false,
           async_processing: true,
+          scope: data.scope,
         }
 
         if (item.type === 'file') {
