@@ -3,6 +3,7 @@ from typing import List
 from urllib.parse import urlencode
 
 import httpx
+from loguru import logger
 
 from open_notebook.domain.connection import Connection
 from open_notebook.domain.connectors import _register
@@ -18,6 +19,8 @@ _TOKEN = "https://api.notion.com/v1/oauth/token"
 _SEARCH = "https://api.notion.com/v1/search"
 _BLOCKS = "https://api.notion.com/v1/blocks"
 _VERSION = "2022-06-28"
+
+_MAX_ITEMS = 500
 
 
 class NotionConnector(BaseConnector):
@@ -66,20 +69,32 @@ class NotionConnector(BaseConnector):
         }
 
     async def list_items(self, conn: Connection) -> List[ConnectorItem]:
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(_SEARCH, json={
-                "filter": {"property": "object", "value": "page"},
-                "page_size": 100,
-            }, headers=self._headers(conn))
-            r.raise_for_status()
-            results = r.json().get("results", [])
+        body = {
+            "filter": {"property": "object", "value": "page"},
+            "page_size": 100,
+        }
         items: List[ConnectorItem] = []
-        for p in results:
-            title = self._page_title(p)
-            items.append(ConnectorItem(
-                id=p["id"], kind="page", title=title,
-                modified_at=p.get("last_edited_time")))
-        return items
+        capped = False
+        async with httpx.AsyncClient(timeout=30) as client:
+            while True:
+                r = await client.post(_SEARCH, json=body, headers=self._headers(conn))
+                r.raise_for_status()
+                data = r.json()
+                for p in data.get("results", []):
+                    title = self._page_title(p)
+                    items.append(ConnectorItem(
+                        id=p["id"], kind="page", title=title,
+                        modified_at=p.get("last_edited_time")))
+                next_cursor = data.get("next_cursor")
+                if data.get("has_more") and next_cursor and len(items) < _MAX_ITEMS:
+                    body = {**body, "start_cursor": next_cursor}
+                    continue
+                if data.get("has_more") and next_cursor and len(items) >= _MAX_ITEMS:
+                    capped = True
+                break
+        if capped:
+            logger.warning(f"notion list_items capped at {_MAX_ITEMS} items")
+        return items[:_MAX_ITEMS]
 
     def _page_title(self, page: dict) -> str:
         props = page.get("properties", {})

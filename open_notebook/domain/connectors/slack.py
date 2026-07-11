@@ -2,6 +2,7 @@ from typing import List
 from urllib.parse import urlencode
 
 import httpx
+from loguru import logger
 
 from open_notebook.domain.connection import Connection
 from open_notebook.domain.connectors import _register
@@ -16,6 +17,8 @@ _AUTH = "https://slack.com/oauth/v2/authorize"
 _TOKEN = "https://slack.com/api/oauth.v2.access"
 _API = "https://slack.com/api"
 _SCOPES = ["channels:read", "channels:history", "pins:read", "files:read"]
+
+_MAX_ITEMS = 500
 
 
 class SlackConnector(BaseConnector):
@@ -57,18 +60,32 @@ class SlackConnector(BaseConnector):
 
     async def list_items(self, conn: Connection) -> List[ConnectorItem]:
         token = conn.access_token.get_secret_value()
+        params = {"types": "public_channel", "limit": 200}
+        items: List[ConnectorItem] = []
+        capped = False
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.get(f"{_API}/conversations.list",
-                                 params={"types": "public_channel", "limit": 200},
-                                 headers={"Authorization": f"Bearer {token}"})
-            r.raise_for_status()
-            data = r.json()
-        if not data.get("ok"):
-            raise ValueError(f"Slack conversations.list failed: {data.get('error')}")
-        return [
-            ConnectorItem(id=ch["id"], kind="channel", title=f"#{ch['name']}")
-            for ch in data.get("channels", [])
-        ]
+            while True:
+                r = await client.get(f"{_API}/conversations.list",
+                                     params=params,
+                                     headers={"Authorization": f"Bearer {token}"})
+                r.raise_for_status()
+                data = r.json()
+                if not data.get("ok"):
+                    raise ValueError(f"Slack conversations.list failed: {data.get('error')}")
+                items.extend(
+                    ConnectorItem(id=ch["id"], kind="channel", title=f"#{ch['name']}")
+                    for ch in data.get("channels", [])
+                )
+                next_cursor = data.get("response_metadata", {}).get("next_cursor")
+                if next_cursor and len(items) < _MAX_ITEMS:
+                    params = {**params, "cursor": next_cursor}
+                    continue
+                if next_cursor and len(items) >= _MAX_ITEMS:
+                    capped = True
+                break
+        if capped:
+            logger.warning(f"slack list_items capped at {_MAX_ITEMS} items")
+        return items[:_MAX_ITEMS]
 
     def _render_pins(self, pins: List[dict]) -> str:
         out = []

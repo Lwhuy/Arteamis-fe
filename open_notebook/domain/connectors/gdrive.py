@@ -5,6 +5,7 @@ from typing import List, Optional
 from urllib.parse import urlencode
 
 import httpx
+from loguru import logger
 
 from open_notebook.domain.connection import Connection
 from open_notebook.domain.connectors import _register
@@ -18,6 +19,8 @@ from open_notebook.domain.connectors.base import (
 _AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
 _TOKEN = "https://oauth2.googleapis.com/token"
 _FILES = "https://www.googleapis.com/drive/v3/files"
+
+_MAX_ITEMS = 500
 
 # Google-native mime -> export mime. Everything else is downloaded as-is.
 _EXPORT = {
@@ -107,20 +110,34 @@ class GDriveConnector(BaseConnector):
         token = conn.access_token.get_secret_value()
         params = {
             "pageSize": 100,
-            "fields": "files(id,name,mimeType,modifiedTime)",
+            "fields": "nextPageToken, files(id,name,mimeType,modifiedTime)",
             "q": "trashed = false and mimeType != 'application/vnd.google-apps.folder'",
             "orderBy": "modifiedTime desc",
         }
+        items: List[ConnectorItem] = []
+        capped = False
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.get(_FILES, params=params,
-                                  headers={"Authorization": f"Bearer {token}"})
-            r.raise_for_status()
-            files = r.json().get("files", [])
-        return [
-            ConnectorItem(id=f["id"], kind="file", title=f["name"],
-                          mime=f.get("mimeType"), modified_at=f.get("modifiedTime"))
-            for f in files
-        ]
+            while True:
+                r = await client.get(_FILES, params=params,
+                                      headers={"Authorization": f"Bearer {token}"})
+                r.raise_for_status()
+                data = r.json()
+                files = data.get("files", [])
+                items.extend(
+                    ConnectorItem(id=f["id"], kind="file", title=f["name"],
+                                  mime=f.get("mimeType"), modified_at=f.get("modifiedTime"))
+                    for f in files
+                )
+                next_page_token = data.get("nextPageToken")
+                if next_page_token and len(items) < _MAX_ITEMS:
+                    params = {**params, "pageToken": next_page_token}
+                    continue
+                if next_page_token and len(items) >= _MAX_ITEMS:
+                    capped = True
+                break
+        if capped:
+            logger.warning(f"gdrive list_items capped at {_MAX_ITEMS} items")
+        return items[:_MAX_ITEMS]
 
     async def fetch_content(self, conn: Connection, item: ConnectorItem) -> ImportedDoc:
         token = conn.access_token.get_secret_value()
