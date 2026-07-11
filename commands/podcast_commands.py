@@ -54,6 +54,12 @@ class PodcastGenerationInput(CommandInput):
     episode_name: str
     content: str
     briefing_suffix: Optional[str] = None
+    # P6 rollout: the caller's workspace, threaded through from
+    # api/podcast_service.py so the episode row this job creates can be
+    # stamped with it (this job runs in a separate worker process with no
+    # per-request ScopedRepository of its own). Optional/None for any queued
+    # job that predates this field.
+    workspace_id: Optional[str] = None
 
 
 class PodcastGenerationOutput(CommandOutput):
@@ -227,6 +233,11 @@ async def generate_podcast_command(
             audio_file=None,
             transcript=None,
             outline=None,
+            # P6 rollout: stamp the caller's workspace so this episode is
+            # visible under the workspace-scoped /podcasts endpoints. NULL if
+            # the submitting caller didn't supply one (e.g. a job queued
+            # before this field existed).
+            workspace=input_data.workspace_id,
         )
         await episode.save()
 

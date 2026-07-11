@@ -37,7 +37,10 @@ def test_native_and_inherited_tables_partition_workspace_scoped_tables():
     so `_assert_scoped` can reject them from the generic path fail-closed."""
     assert NATIVE_WORKSPACE_TABLES.isdisjoint(INHERITED_WORKSPACE_TABLES)
     assert NATIVE_WORKSPACE_TABLES | INHERITED_WORKSPACE_TABLES == WORKSPACE_SCOPED_TABLES
-    assert NATIVE_WORKSPACE_TABLES == {"notebook", "project_member", "invitation"}
+    # `episode` (P6 rollout, migration 24) also carries a native `workspace`
+    # column -- optional/NULL on pre-migration rows, which fails closed (not
+    # open) under the generic methods' `WHERE workspace = $workspace_id`.
+    assert NATIVE_WORKSPACE_TABLES == {"notebook", "project_member", "invitation", "episode"}
     assert INHERITED_WORKSPACE_TABLES == {
         "source", "note", "chat_session", "source_insight", "source_embedding",
     }
@@ -119,8 +122,8 @@ async def test_raw_still_available_for_inherited_table():
 
 @pytest.mark.asyncio
 async def test_native_tables_still_work_via_generic_methods():
-    """Sanity check: the fix must not regress the three NATIVE tables."""
-    for table in ("notebook", "project_member", "invitation"):
+    """Sanity check: the fix must not regress the NATIVE tables."""
+    for table in ("notebook", "project_member", "invitation", "episode"):
         with patch(
             "open_notebook.database.scoping.repo_query", new=AsyncMock(return_value=[])
         ):

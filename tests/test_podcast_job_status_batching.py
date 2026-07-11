@@ -6,6 +6,12 @@ list_podcast_episodes() used to call episode.get_job_detail() once per
 episode - each a separate round trip against the surreal_commands `command`
 table. PodcastEpisode.get_job_details_for_commands() batches that into one
 query; the router now calls it once up front instead of looping.
+
+P6 rollout: list_podcast_episodes() now takes a workspace-scoped
+ScopedRepository (CtxDep) and lists via repo.list("episode", ...) instead of
+PodcastService.list_episodes() -- these tests construct a real
+ScopedRepository directly and patch open_notebook.database.scoping.repo_query
+(its raw row source) instead of PodcastService.list_episodes.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -13,7 +19,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from api.routers.podcasts import list_podcast_episodes
+from open_notebook.database.scoping import ScopedRepository
 from open_notebook.podcasts.models import PodcastEpisode
+
+
+def _repo():
+    return ScopedRepository(workspace_id="workspace:a", user_id="user:1", role="owner")
 
 
 def make_episode(command=None, audio_file=None, **overrides):
@@ -29,6 +40,10 @@ def make_episode(command=None, audio_file=None, **overrides):
     )
     defaults.update(overrides)
     return PodcastEpisode(**defaults)
+
+
+def _rows(episodes):
+    return [e.model_dump(mode="json") for e in episodes]
 
 
 class TestGetJobDetailsForCommandsUnit:
@@ -96,8 +111,8 @@ class TestListPodcastEpisodesUsesBatchedLookup:
 
         with (
             patch(
-                "api.routers.podcasts.PodcastService.list_episodes",
-                new=AsyncMock(return_value=episodes),
+                "open_notebook.database.scoping.repo_query",
+                new=AsyncMock(return_value=_rows(episodes)),
             ),
             patch.object(
                 PodcastEpisode,
@@ -108,7 +123,7 @@ class TestListPodcastEpisodesUsesBatchedLookup:
                 PodcastEpisode, "get_job_detail", new=AsyncMock()
             ) as mock_per_episode,
         ):
-            response = await list_podcast_episodes()
+            response = await list_podcast_episodes(_repo())
 
         mock_batch.assert_awaited_once()
         mock_per_episode.assert_not_called()
@@ -123,8 +138,8 @@ class TestListPodcastEpisodesUsesBatchedLookup:
 
         with (
             patch(
-                "api.routers.podcasts.PodcastService.list_episodes",
-                new=AsyncMock(return_value=episodes),
+                "open_notebook.database.scoping.repo_query",
+                new=AsyncMock(return_value=_rows(episodes)),
             ),
             patch.object(
                 PodcastEpisode,
@@ -132,7 +147,7 @@ class TestListPodcastEpisodesUsesBatchedLookup:
                 new=AsyncMock(return_value={}),
             ),
         ):
-            response = await list_podcast_episodes()
+            response = await list_podcast_episodes(_repo())
 
         assert response[0].job_status == "unknown"
 
@@ -144,8 +159,8 @@ class TestListPodcastEpisodesUsesBatchedLookup:
 
         with (
             patch(
-                "api.routers.podcasts.PodcastService.list_episodes",
-                new=AsyncMock(return_value=episodes),
+                "open_notebook.database.scoping.repo_query",
+                new=AsyncMock(return_value=_rows(episodes)),
             ),
             patch.object(
                 PodcastEpisode,
@@ -153,7 +168,7 @@ class TestListPodcastEpisodesUsesBatchedLookup:
                 new=AsyncMock(side_effect=RuntimeError("db down")),
             ),
         ):
-            response = await list_podcast_episodes()
+            response = await list_podcast_episodes(_repo())
 
         assert len(response) == 3
         assert all(item.job_status == "unknown" for item in response)
@@ -166,8 +181,8 @@ class TestListPodcastEpisodesUsesBatchedLookup:
 
         with (
             patch(
-                "api.routers.podcasts.PodcastService.list_episodes",
-                new=AsyncMock(return_value=[episode]),
+                "open_notebook.database.scoping.repo_query",
+                new=AsyncMock(return_value=_rows([episode])),
             ),
             patch.object(
                 PodcastEpisode,
@@ -175,7 +190,7 @@ class TestListPodcastEpisodesUsesBatchedLookup:
                 new=AsyncMock(return_value={}),
             ) as mock_batch,
         ):
-            response = await list_podcast_episodes()
+            response = await list_podcast_episodes(_repo())
 
         # No command anywhere -> batch call still happens (with an empty
         # list) but must not error, and the episode is reported completed.
@@ -188,8 +203,8 @@ class TestListPodcastEpisodesUsesBatchedLookup:
 
         with (
             patch(
-                "api.routers.podcasts.PodcastService.list_episodes",
-                new=AsyncMock(return_value=[episode]),
+                "open_notebook.database.scoping.repo_query",
+                new=AsyncMock(return_value=_rows([episode])),
             ),
             patch.object(
                 PodcastEpisode,
@@ -197,7 +212,7 @@ class TestListPodcastEpisodesUsesBatchedLookup:
                 new=AsyncMock(return_value={}),
             ),
         ):
-            response = await list_podcast_episodes()
+            response = await list_podcast_episodes(_repo())
 
         assert response == []
 
@@ -210,8 +225,8 @@ class TestListPodcastEpisodesUsesBatchedLookup:
 
         with (
             patch(
-                "api.routers.podcasts.PodcastService.list_episodes",
-                new=AsyncMock(return_value=[episode]),
+                "open_notebook.database.scoping.repo_query",
+                new=AsyncMock(return_value=_rows([episode])),
             ),
             patch.object(
                 PodcastEpisode,
@@ -219,7 +234,7 @@ class TestListPodcastEpisodesUsesBatchedLookup:
                 new=AsyncMock(return_value=batch_result),
             ),
         ):
-            response = await list_podcast_episodes()
+            response = await list_podcast_episodes(_repo())
 
         assert response[0].job_status == "failed"
         assert response[0].error_message == "kaboom"

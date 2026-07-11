@@ -384,6 +384,81 @@ async def test_workspace_b_cannot_execute_chat_on_workspace_a_session(client, se
     assert r.status_code == 404
 
 
+# ── P6 rollout: /podcasts/episodes (episode gained a native `workspace`
+# column in migration 24) ───────────────────────────────────────────────────
+
+
+@pytest_asyncio.fixture
+async def seeded_with_episode(seeded):
+    """Extend `seeded` with a podcast episode natively stamped to A's
+    workspace -- proves `episode`'s new native workspace scoping (migration 24)."""
+    episode_a = await _create(
+        "episode",
+        {
+            "name": "secret episode",
+            "episode_profile": {"name": "default"},
+            "speaker_profile": {"name": "default"},
+            "briefing": "b",
+            "content": "c",
+            "workspace": seeded["workspace_a"],
+        },
+    )
+    data = {**seeded, "episode_a": str(episode_a["id"])}
+    yield data
+    try:
+        await repo_delete(episode_a["id"])
+    except Exception:
+        pass
+
+
+async def test_workspace_b_cannot_list_workspace_a_episodes(client, seeded_with_episode):
+    r = await client.get(
+        "/api/podcasts/episodes",
+        headers=_headers(seeded_with_episode["user_b"], seeded_with_episode["workspace_b"]),
+    )
+    assert r.status_code == 200, r.text
+    ids = [e["id"] for e in r.json()]
+    assert seeded_with_episode["episode_a"] not in ids
+
+
+async def test_workspace_b_cannot_get_workspace_a_episode_by_guessed_id(client, seeded_with_episode):
+    r = await client.get(
+        f"/api/podcasts/episodes/{seeded_with_episode['episode_a']}",
+        headers=_headers(seeded_with_episode["user_b"], seeded_with_episode["workspace_b"]),
+    )
+    assert r.status_code == 404, r.text  # not 200, not 403 — no existence oracle
+
+
+async def test_workspace_b_cannot_delete_workspace_a_episode(client, seeded_with_episode):
+    r = await client.delete(
+        f"/api/podcasts/episodes/{seeded_with_episode['episode_a']}",
+        headers=_headers(seeded_with_episode["user_b"], seeded_with_episode["workspace_b"]),
+    )
+    assert r.status_code == 404
+    ra = await client.get(
+        f"/api/podcasts/episodes/{seeded_with_episode['episode_a']}",
+        headers=_headers(seeded_with_episode["user_a"], seeded_with_episode["workspace_a"]),
+    )
+    assert ra.status_code == 200  # A still sees it
+
+
+async def test_workspace_b_cannot_generate_podcast_from_workspace_a_notebook(client, seeded):
+    """The other leak this rollout closes: notebook_id used to be passed
+    straight through to an unscoped Notebook.get(), letting a caller pull
+    another workspace's notebook content into their own episode."""
+    r = await client.post(
+        "/api/podcasts/generate",
+        json={
+            "episode_profile": "default",
+            "speaker_profile": "default",
+            "episode_name": "steal",
+            "notebook_id": seeded["project_a"],
+        },
+        headers=_headers(seeded["user_b"], seeded["workspace_b"]),
+    )
+    assert r.status_code == 404, r.text
+
+
 async def test_workspace_b_cannot_attach_note_to_workspace_a_project(client, seeded):
     """Creating a note with someone else's notebook_id must 404, not silently
     attach — a caller can't adopt a note into another workspace's project by

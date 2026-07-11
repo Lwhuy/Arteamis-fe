@@ -54,7 +54,13 @@ GLOBAL_TABLES: frozenset[str] = frozenset(
 # NATIVE_WORKSPACE_TABLES — `notebook`, `project_member`, `invitation` carry a
 # real `workspace` column (`project_member`/`invitation` rows simply never
 # exist for a personal workspace — a data-shape fact enforced by P3/P4
-# upstream, not by this filter). Safe for the generic methods.
+# upstream, not by this filter). Safe for the generic methods. `episode`
+# (P6 rollout, migration 24) also carries a native `workspace` column, but
+# unlike the other three it is OPTIONAL and NULL on every episode generated
+# before migration 24 (no backfill was possible — see migration 24's own
+# comment) — the generic get/list methods' `WHERE workspace = $workspace_id`
+# simply never matches a NULL row, which fails closed (invisible to every
+# workspace) rather than open, so this is still safe for the generic path.
 #
 # INHERITED_WORKSPACE_TABLES — `source`, `note`, `chat_session`,
 # `source_insight`, `source_embedding` have NO native `workspace` column
@@ -69,7 +75,7 @@ GLOBAL_TABLES: frozenset[str] = frozenset(
 # filter instead (see `_get_owned_source` in `api/routers/projects.py` for the
 # reference-edge join pattern).
 NATIVE_WORKSPACE_TABLES: frozenset[str] = frozenset(
-    {"notebook", "project_member", "invitation"}
+    {"notebook", "project_member", "invitation", "episode"}
 )
 INHERITED_WORKSPACE_TABLES: frozenset[str] = frozenset(
     {"source", "note", "chat_session", "source_insight", "source_embedding"}
@@ -125,8 +131,8 @@ class ScopedRepository:
 
     IMPORTANT — two different kinds of scoped table: the generic get/list/
     create/update/delete methods only work for NATIVE_WORKSPACE_TABLES
-    (`notebook`, `project_member`, `invitation`), which carry a real
-    `workspace` column. INHERITED_WORKSPACE_TABLES (`source`, `note`,
+    (`notebook`, `project_member`, `invitation`, `episode`), which carry a
+    real `workspace` column. INHERITED_WORKSPACE_TABLES (`source`, `note`,
     `chat_session`, `source_insight`, `source_embedding`) have NO native
     `workspace` column — they inherit it via a parent record (e.g. `source`
     via the `reference` edge to a `notebook`) — and are REJECTED by the

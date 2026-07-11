@@ -31,6 +31,7 @@ MIGRATED_MODULES = {
     "api/deps.py",
     "api/routers/notes.py",
     "api/routers/chat.py",
+    "api/routers/podcasts.py",
 }
 
 # Banned tokens: raw scoped-table access outside ScopedRepository.

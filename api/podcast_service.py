@@ -41,8 +41,20 @@ class PodcastService:
         notebook_id: Optional[str] = None,
         content: Optional[str] = None,
         briefing_suffix: Optional[str] = None,
+        workspace_id: Optional[str] = None,
     ) -> str:
-        """Submit a podcast generation job for background processing"""
+        """Submit a podcast generation job for background processing.
+
+        `workspace_id` (P6 rollout) is threaded through to the background
+        command so the resulting `episode` row can be stamped with the
+        caller's workspace (see commands/podcast_commands.py) -- episode has
+        no other way to learn the workspace, since the job runs in a
+        separate worker process with no per-request ScopedRepository. Callers
+        (api/routers/podcasts.py) MUST already have workspace-verified
+        `notebook_id` before calling this -- this function itself does not
+        re-check it, matching the rest of this service's "caller already
+        authorized" contract.
+        """
         try:
             # Validate episode profile exists
             episode_profile = await EpisodeProfile.get_by_name(episode_profile_name)
@@ -82,6 +94,7 @@ class PodcastService:
                 "episode_name": episode_name,
                 "content": str(content),
                 "briefing_suffix": briefing_suffix,
+                "workspace_id": workspace_id,
             }
 
             # Ensure command modules are imported before submitting

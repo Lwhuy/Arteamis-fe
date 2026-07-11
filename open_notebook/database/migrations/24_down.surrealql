@@ -1,0 +1,3 @@
+-- Migration 24 rollback
+REMOVE INDEX IF EXISTS idx_episode_workspace ON TABLE episode;
+REMOVE FIELD IF EXISTS workspace ON TABLE episode;
