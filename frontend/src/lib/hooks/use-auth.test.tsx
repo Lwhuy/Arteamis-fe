@@ -38,14 +38,14 @@ describe('useAuth', () => {
     sessionStorage.clear()
   })
 
-  it('login success pushes to /notebooks', async () => {
+  it('login success pushes to /projects', async () => {
     store.login.mockResolvedValueOnce(true)
     const { result } = renderHook(() => useAuth())
     await act(async () => {
       await result.current.login('a@b.com', 'password123')
     })
     expect(store.login).toHaveBeenCalledWith('a@b.com', 'password123')
-    expect(pushMock).toHaveBeenCalledWith('/notebooks')
+    expect(pushMock).toHaveBeenCalledWith('/projects')
   })
 
   it('login success honors redirectAfterLogin', async () => {

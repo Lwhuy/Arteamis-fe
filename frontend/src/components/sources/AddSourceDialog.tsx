@@ -18,7 +18,7 @@ import { WizardContainer, WizardStep } from '@/components/ui/wizard-container'
 import { SourceTypeStep, parseAndValidateUrls } from './steps/SourceTypeStep'
 import { NotebooksStep } from './steps/NotebooksStep'
 import { ProcessingStep } from './steps/ProcessingStep'
-import { useNotebooks } from '@/lib/hooks/use-notebooks'
+import { useProjects } from '@/lib/hooks/use-projects'
 import { useTransformations } from '@/lib/hooks/use-transformations'
 import { useCreateSource } from '@/lib/hooks/use-sources'
 import { useSettings } from '@/lib/hooks/use-settings'
@@ -116,7 +116,7 @@ export function AddSourceDialog({
 
   // API hooks
   const createSource = useCreateSource()
-  const { data: notebooks = [], isLoading: notebooksLoading } = useNotebooks()
+  const { data: notebooks = [], isLoading: notebooksLoading } = useProjects()
   const { data: transformations = [], isLoading: transformationsLoading } = useTransformations()
   const { data: settings } = useSettings()
 

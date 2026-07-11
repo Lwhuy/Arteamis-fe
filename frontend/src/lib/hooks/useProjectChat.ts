@@ -14,7 +14,7 @@ import {
   SourceListResponse,
   NoteResponse
 } from '@/lib/types/api'
-import { ContextSelections } from '@/app/(dashboard)/notebooks/[id]/page'
+import { ContextSelections } from '@/app/(dashboard)/projects/[id]/page'
 
 interface UseNotebookChatParams {
   notebookId: string
@@ -23,7 +23,7 @@ interface UseNotebookChatParams {
   contextSelections: ContextSelections
 }
 
-export function useNotebookChat({ notebookId, sources, notes, contextSelections }: UseNotebookChatParams) {
+export function useProjectChat({ notebookId, sources, notes, contextSelections }: UseNotebookChatParams) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)

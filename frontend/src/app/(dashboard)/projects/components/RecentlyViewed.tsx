@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { notebooksApi } from '@/lib/api/notebooks'
+import { projectsApi } from '@/lib/api/projects'
 import type { RecentlyViewedResponse } from '@/lib/types/api'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { getDateLocale } from '@/lib/utils/date-locale'
@@ -25,7 +25,7 @@ interface RecentlyViewedProps {
 
 function getItemHref(item: RecentlyViewedResponse) {
   if (item.type === 'notebook') {
-    return `/notebooks/${encodeURIComponent(item.id)}`
+    return `/projects/${encodeURIComponent(item.id)}`
   }
 
   return `/sources/${item.id}`
@@ -50,7 +50,7 @@ export function RecentlyViewed({ limit = 12 }: RecentlyViewedProps) {
   const locale = getDateLocale(language)
   const { data: items, isLoading, isError } = useQuery({
     queryKey: ['recently-viewed', limit],
-    queryFn: () => notebooksApi.recentlyViewed(limit),
+    queryFn: () => projectsApi.recentlyViewed(limit),
   })
 
   if (isLoading || isError || !items || items.length === 0) {

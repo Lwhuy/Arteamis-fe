@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useNotebookChat } from '@/lib/hooks/useNotebookChat'
+import { useProjectChat } from '@/lib/hooks/useProjectChat'
 import { useNotes } from '@/lib/hooks/use-notes'
 import { ChatPanel } from '@/components/source/ChatPanel'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
@@ -25,7 +25,7 @@ export function ChatColumn({ notebookId, contextSelections, sources, sourcesLoad
   const { data: notes = [], isLoading: notesLoading } = useNotes(notebookId)
 
   // Initialize notebook chat hook
-  const chat = useNotebookChat({
+  const chat = useProjectChat({
     notebookId,
     sources,
     notes,

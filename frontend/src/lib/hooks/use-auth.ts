@@ -27,7 +27,7 @@ export function useAuth() {
 
   // Determine whether auth is required, then either validate the current token
   // or, when there is no token, try one refresh to pick up a valid refresh
-  // cookie (covers the Google callback landing on /notebooks and returning
+  // cookie (covers the Google callback landing on /projects and returning
   // sessions).
   useEffect(() => {
     if (!hasHydrated || bootstrapped.current) return
@@ -59,7 +59,7 @@ export function useAuth() {
       sessionStorage.removeItem('redirectAfterLogin')
       router.push(redirectPath)
     } else {
-      router.push('/notebooks')
+      router.push('/projects')
     }
   }
 

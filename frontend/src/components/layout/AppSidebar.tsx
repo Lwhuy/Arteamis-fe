@@ -54,7 +54,7 @@ const getNavigation = (t: TFunction) => [
   {
     title: t('navigation.process'),
     items: [
-      { name: t('navigation.notebooks'), href: '/notebooks', icon: Book },
+      { name: t('navigation.projects'), href: '/projects', icon: Book },
       { name: t('navigation.askAndSearch'), href: '/search', icon: Search },
     ],
   },

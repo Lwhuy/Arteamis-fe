@@ -2,11 +2,11 @@ import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { ChatColumn } from './ChatColumn'
 import { useNotes } from '@/lib/hooks/use-notes'
-import { useNotebookChat } from '@/lib/hooks/useNotebookChat'
+import { useProjectChat } from '@/lib/hooks/useProjectChat'
 
 // Mock the hooks
 vi.mock('@/lib/hooks/use-notes')
-vi.mock('@/lib/hooks/useNotebookChat')
+vi.mock('@/lib/hooks/useProjectChat')
 vi.mock('@/components/source/ChatPanel', () => ({
   ChatPanel: () => <div data-testid="chat-panel" />
 }))
@@ -19,7 +19,7 @@ function createNotesMock(overrides: { isLoading?: boolean } = {}) {
   } as unknown as ReturnType<typeof useNotes>
 }
 
-// Type-safe mock factory for useNotebookChat hook
+// Type-safe mock factory for useProjectChat hook
 function createChatMock() {
   return {
     messages: [],
@@ -28,7 +28,7 @@ function createChatMock() {
     charCount: 0,
     sessions: [],
     currentSessionId: null,
-  } as unknown as ReturnType<typeof useNotebookChat>
+  } as unknown as ReturnType<typeof useProjectChat>
 }
 
 describe('ChatColumn', () => {
@@ -43,7 +43,7 @@ describe('ChatColumn', () => {
 
   it('shows loading spinner when fetching data', () => {
     vi.mocked(useNotes).mockReturnValue(createNotesMock({ isLoading: true }))
-    vi.mocked(useNotebookChat).mockReturnValue(createChatMock())
+    vi.mocked(useProjectChat).mockReturnValue(createChatMock())
 
     render(<ChatColumn {...baseProps} sourcesLoading={true} />)
 
@@ -53,7 +53,7 @@ describe('ChatColumn', () => {
 
   it('renders chat panel when data is loaded', () => {
     vi.mocked(useNotes).mockReturnValue(createNotesMock({ isLoading: false }))
-    vi.mocked(useNotebookChat).mockReturnValue(createChatMock())
+    vi.mocked(useProjectChat).mockReturnValue(createChatMock())
 
     render(<ChatColumn {...baseProps} sourcesLoading={false} />)
 

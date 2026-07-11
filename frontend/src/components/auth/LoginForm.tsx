@@ -37,7 +37,7 @@ export function LoginForm() {
     const checkAuth = async () => {
       try {
         const required = await checkAuthRequired()
-        if (!required) router.push('/notebooks')
+        if (!required) router.push('/projects')
       } catch (err) {
         console.error('Error checking auth requirement:', err)
       } finally {
@@ -47,7 +47,7 @@ export function LoginForm() {
 
     if (authRequired !== null) {
       if (!authRequired && isAuthenticated) {
-        router.push('/notebooks')
+        router.push('/projects')
       } else {
         setIsCheckingAuth(false)
       }

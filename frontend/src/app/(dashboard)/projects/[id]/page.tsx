@@ -3,15 +3,15 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { AppShell } from '@/components/layout/AppShell'
-import { NotebookHeader } from '../components/NotebookHeader'
+import { ProjectHeader } from '../components/ProjectHeader'
 import { SourcesColumn } from '../components/SourcesColumn'
 import { NotesColumn } from '../components/NotesColumn'
 import { ChatColumn } from '../components/ChatColumn'
-import { useNotebook } from '@/lib/hooks/use-notebooks'
+import { useProject } from '@/lib/hooks/use-projects'
 import { useNotebookSources } from '@/lib/hooks/use-sources'
 import { useNotes } from '@/lib/hooks/use-notes'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
-import { useNotebookColumnsStore } from '@/lib/stores/notebook-columns-store'
+import { useProjectColumnsStore } from '@/lib/stores/project-columns-store'
 import { useIsDesktop } from '@/lib/hooks/use-media-query'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { cn } from '@/lib/utils'
@@ -29,7 +29,7 @@ import {
 
 // Re-exported from the shared types module for backward compatibility; several
 // components historically import these from this route file.
-import type { ContextMode, ContextSelections, NoteContextMode } from '@/lib/types/notebook-context'
+import type { ContextMode, ContextSelections, NoteContextMode } from '@/lib/types/project-context'
 export type { ContextMode, ContextSelections, NoteContextMode }
 
 export default function NotebookPage() {
@@ -39,7 +39,7 @@ export default function NotebookPage() {
   // Ensure the notebook ID is properly decoded from URL
   const notebookId = params?.id ? decodeURIComponent(params.id as string) : ''
 
-  const { data: notebook, isLoading: notebookLoading } = useNotebook(notebookId)
+  const { data: notebook, isLoading: notebookLoading } = useProject(notebookId)
   const {
     sources,
     isLoading: sourcesLoading,
@@ -51,7 +51,7 @@ export default function NotebookPage() {
   const { data: notes, isLoading: notesLoading } = useNotes(notebookId)
 
   // Get collapse states for dynamic layout
-  const { sourcesCollapsed, notesCollapsed } = useNotebookColumnsStore()
+  const { sourcesCollapsed, notesCollapsed } = useProjectColumnsStore()
 
   // Detect desktop to avoid double-mounting ChatColumn
   const isDesktop = useIsDesktop()
@@ -144,8 +144,8 @@ export default function NotebookPage() {
     return (
       <AppShell>
         <div className="p-6">
-          <h1 className="text-2xl font-bold mb-4">{t('notebooks.notFound')}</h1>
-          <p className="text-muted-foreground">{t('notebooks.notFoundDesc')}</p>
+          <h1 className="text-2xl font-bold mb-4">{t('projects.notFound')}</h1>
+          <p className="text-muted-foreground">{t('projects.notFoundDesc')}</p>
         </div>
       </AppShell>
     )
@@ -155,7 +155,7 @@ export default function NotebookPage() {
     <AppShell>
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex-shrink-0 p-6 pb-0">
-          <NotebookHeader notebook={notebook} />
+          <ProjectHeader notebook={notebook} />
         </div>
 
         <div className="flex-1 p-6 pt-6 overflow-x-auto flex flex-col">

@@ -13,20 +13,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useUpdateNotebook } from '@/lib/hooks/use-notebooks'
-import { NotebookDeleteDialog } from './NotebookDeleteDialog'
+import { useUpdateProject } from '@/lib/hooks/use-projects'
+import { ProjectDeleteDialog } from './ProjectDeleteDialog'
 import { useState } from 'react'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { getDateLocale } from '@/lib/utils/date-locale'
-interface NotebookCardProps {
+interface ProjectCardProps {
   notebook: NotebookResponse
 }
 
-export function NotebookCard({ notebook }: NotebookCardProps) {
+export function ProjectCard({ notebook }: ProjectCardProps) {
   const { t, language } = useTranslation()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const router = useRouter()
-  const updateNotebook = useUpdateNotebook()
+  const updateNotebook = useUpdateProject()
 
   const handleArchiveToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -37,7 +37,7 @@ export function NotebookCard({ notebook }: NotebookCardProps) {
   }
 
   const handleCardClick = () => {
-    router.push(`/notebooks/${encodeURIComponent(notebook.id)}`)
+    router.push(`/projects/${encodeURIComponent(notebook.id)}`)
   }
 
   return (
@@ -126,7 +126,7 @@ export function NotebookCard({ notebook }: NotebookCardProps) {
           </CardContent>
       </Card>
 
-      <NotebookDeleteDialog
+      <ProjectDeleteDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         notebookId={notebook.id}

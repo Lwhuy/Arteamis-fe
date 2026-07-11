@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCreateDialogs } from '@/lib/hooks/use-create-dialogs'
-import { useNotebooks } from '@/lib/hooks/use-notebooks'
+import { useProjects } from '@/lib/hooks/use-projects'
 import { useTheme } from '@/lib/stores/theme-store'
 import {
   CommandDialog,
@@ -34,7 +34,7 @@ import type { TFunction } from 'i18next'
 
 const getNavigationItems = (t: TFunction) => [
   { name: t('navigation.sources'), href: '/sources', icon: FileText, keywords: ['files', 'documents', 'upload'] },
-  { name: t('navigation.notebooks'), href: '/notebooks', icon: Book, keywords: ['notes', 'research', 'projects'] },
+  { name: t('navigation.projects'), href: '/projects', icon: Book, keywords: ['notes', 'research', 'projects'] },
   { name: t('navigation.askAndSearch'), href: '/search', icon: Search, keywords: ['find', 'query'] },
   { name: t('navigation.podcasts'), href: '/podcasts', icon: Mic, keywords: ['audio', 'episodes', 'generate'] },
   { name: t('navigation.models'), href: '/settings/api-keys', icon: Bot, keywords: ['ai', 'llm', 'providers', 'openai', 'anthropic'] },
@@ -67,7 +67,7 @@ export function CommandPalette() {
   const router = useRouter()
   const { openSourceDialog, openNotebookDialog, openPodcastDialog } = useCreateDialogs()
   const { setTheme } = useTheme()
-  const { data: notebooks, isLoading: notebooksLoading } = useNotebooks(false)
+  const { data: notebooks, isLoading: notebooksLoading } = useProjects(false)
 
   // Global keyboard listener for ⌘K / Ctrl+K
   useEffect(() => {
@@ -226,7 +226,7 @@ export function CommandPalette() {
               <CommandItem
                 key={notebook.id}
                 value={`notebook ${notebook.name} ${notebook.description || ''}`}
-                onSelect={() => handleNavigate(`/notebooks/${notebook.id}`)}
+                onSelect={() => handleNavigate(`/projects/${notebook.id}`)}
               >
                 <Book className="h-4 w-4" />
                 <span>{notebook.name}</span>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 
-import { useNotebooks } from '@/lib/hooks/use-notebooks'
+import { useProjects } from '@/lib/hooks/use-projects'
 import { useEpisodeProfiles, useGeneratePodcast } from '@/lib/hooks/use-podcasts'
 import { chatApi } from '@/lib/api/chat'
 import { sourcesApi } from '@/lib/api/sources'
@@ -408,7 +408,7 @@ export function GeneratePodcastDialog({ open, onOpenChange }: GeneratePodcastDia
   const [tokenCount, setTokenCount] = useState<number>(0)
   const [charCount, setCharCount] = useState<number>(0)
 
-  const notebooksQuery = useNotebooks()
+  const notebooksQuery = useProjects()
   const episodeProfilesQuery = useEpisodeProfiles()
   const generatePodcast = useGeneratePodcast()
 

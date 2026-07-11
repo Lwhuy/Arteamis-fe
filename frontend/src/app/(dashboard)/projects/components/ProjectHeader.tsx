@@ -5,23 +5,23 @@ import { NotebookResponse } from '@/lib/types/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Archive, ArchiveRestore, Trash2 } from 'lucide-react'
-import { useUpdateNotebook } from '@/lib/hooks/use-notebooks'
-import { NotebookDeleteDialog } from './NotebookDeleteDialog'
+import { useUpdateProject } from '@/lib/hooks/use-projects'
+import { ProjectDeleteDialog } from './ProjectDeleteDialog'
 import { formatDistanceToNow } from 'date-fns'
 import { getDateLocale } from '@/lib/utils/date-locale'
 import { InlineEdit } from '@/components/common/InlineEdit'
 import { useTranslation } from '@/lib/hooks/use-translation'
 
-interface NotebookHeaderProps {
+interface ProjectHeaderProps {
   notebook: NotebookResponse
 }
 
-export function NotebookHeader({ notebook }: NotebookHeaderProps) {
+export function ProjectHeader({ notebook }: ProjectHeaderProps) {
   const { t, language } = useTranslation()
   const dfLocale = getDateLocale(language)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   
-  const updateNotebook = useUpdateNotebook()
+  const updateNotebook = useUpdateProject()
 
   const handleUpdateName = async (name: string) => {
     if (!name || name === notebook.name) return
@@ -116,7 +116,7 @@ export function NotebookHeader({ notebook }: NotebookHeaderProps) {
         </div>
       </div>
 
-      <NotebookDeleteDialog
+      <ProjectDeleteDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         notebookId={notebook.id}

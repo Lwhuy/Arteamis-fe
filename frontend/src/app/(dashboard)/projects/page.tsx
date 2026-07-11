@@ -3,24 +3,24 @@
 import { useMemo, useState } from 'react'
 
 import { AppShell } from '@/components/layout/AppShell'
-import { NotebookList } from './components/NotebookList'
+import { ProjectList } from './components/ProjectList'
 import { RecentlyViewed } from './components/RecentlyViewed'
 import { Button } from '@/components/ui/button'
 import { Plus, RefreshCw, LayoutGrid, List } from 'lucide-react'
-import { useNotebooks } from '@/lib/hooks/use-notebooks'
-import { CreateNotebookDialog } from '@/components/notebooks/CreateNotebookDialog'
+import { useProjects } from '@/lib/hooks/use-projects'
+import { CreateProjectDialog } from '@/components/projects/CreateProjectDialog'
 import { Input } from '@/components/ui/input'
 import { useTranslation } from '@/lib/hooks/use-translation'
-import { useNotebookViewStore } from '@/lib/stores/notebook-view-store'
+import { useProjectViewStore } from '@/lib/stores/project-view-store'
 
-export default function NotebooksPage() {
+export default function ProjectsPage() {
   const { t } = useTranslation()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const viewMode = useNotebookViewStore((state) => state.viewMode)
-  const setViewMode = useNotebookViewStore((state) => state.setViewMode)
-  const { data: notebooks, isLoading, refetch } = useNotebooks(false)
-  const { data: archivedNotebooks } = useNotebooks(true)
+  const viewMode = useProjectViewStore((state) => state.viewMode)
+  const setViewMode = useProjectViewStore((state) => state.setViewMode)
+  const { data: notebooks, isLoading, refetch } = useProjects(false)
+  const { data: archivedNotebooks } = useProjects(true)
 
   const normalizedQuery = searchTerm.trim().toLowerCase()
 
@@ -57,7 +57,7 @@ export default function NotebooksPage() {
         <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold">{t('notebooks.title')}</h1>
+            <h1 className="text-2xl font-bold">{t('projects.title')}</h1>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -97,7 +97,7 @@ export default function NotebooksPage() {
             />
             <Button onClick={() => setCreateDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              {t('notebooks.newNotebook')}
+              {t('projects.newProject')}
             </Button>
           </div>
         </div>
@@ -105,18 +105,18 @@ export default function NotebooksPage() {
         <div className="space-y-8">
           <RecentlyViewed />
 
-          <NotebookList 
+          <ProjectList 
             notebooks={filteredActive} 
             isLoading={isLoading}
             title={t('notebooks.activeNotebooks')}
             emptyTitle={isSearching ? t('common.noMatches') : undefined}
             emptyDescription={isSearching ? t('common.tryDifferentSearch') : undefined}
             onAction={!isSearching ? () => setCreateDialogOpen(true) : undefined}
-            actionLabel={!isSearching ? t('notebooks.newNotebook') : undefined}
+            actionLabel={!isSearching ? t('projects.newProject') : undefined}
           />
           
           {hasArchived && (
-            <NotebookList 
+            <ProjectList 
               notebooks={filteredArchived} 
               isLoading={false}
               title={t('notebooks.archivedNotebooks')}
@@ -129,7 +129,7 @@ export default function NotebooksPage() {
         </div>
       </div>
 
-      <CreateNotebookDialog
+      <CreateProjectDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
       />

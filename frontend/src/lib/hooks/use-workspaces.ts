@@ -55,7 +55,7 @@ export function useSwitchWorkspace() {
       // separate invalidateQueries call is needed here.
       queryClient.clear()
       toast({ title: t('common.success'), description: t('workspace.switchSuccess') })
-      router.push('/notebooks')
+      router.push('/projects')
     },
     onError: (error: unknown) => {
       toast({

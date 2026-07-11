@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
 import { AddSourceDialog } from '@/components/sources/AddSourceDialog'
-import { CreateNotebookDialog } from '@/components/notebooks/CreateNotebookDialog'
+import { CreateProjectDialog } from '@/components/projects/CreateProjectDialog'
 import { GeneratePodcastDialog } from '@/components/podcasts/GeneratePodcastDialog'
 
 interface CreateDialogsContextType {
@@ -32,7 +32,7 @@ export function CreateDialogsProvider({ children }: { children: ReactNode }) {
     >
       {children}
       <AddSourceDialog open={sourceDialogOpen} onOpenChange={setSourceDialogOpen} />
-      <CreateNotebookDialog open={notebookDialogOpen} onOpenChange={setNotebookDialogOpen} />
+      <CreateProjectDialog open={notebookDialogOpen} onOpenChange={setNotebookDialogOpen} />
       <GeneratePodcastDialog open={podcastDialogOpen} onOpenChange={setPodcastDialogOpen} />
     </CreateDialogsContext.Provider>
   )
