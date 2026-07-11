@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from typing import ClassVar, List, Literal, Optional
 
 from loguru import logger
@@ -10,6 +11,7 @@ from open_notebook.database.repository import (
     repo_relate,
 )
 from open_notebook.domain.base import ObjectModel
+from open_notebook.domain.notebook import Source
 from open_notebook.exceptions import DatabaseOperationError
 
 ENTITY_DEDUP_SIMILARITY_THRESHOLD = 0.92
@@ -134,3 +136,83 @@ async def relate_part_of(topic_id: str, domain_id: str, workspace: str) -> list:
         domain_id,
         {"workspace": ensure_record_id(workspace)},
     )
+
+
+async def relate_sources(
+    source_id: str,
+    target_id: str,
+    rel_type: str,
+    confidence: float,
+    rationale: str,
+    workspace: str,
+) -> dict:
+    """Create (or update) a `relates` edge between two sources in a workspace.
+
+    - Orients 'supersedes' newer -> older by Source.created: the more recent
+      source is always the edge's `in`, the source it supersedes the `out`.
+    - Dedupes on the ordered (in, out) pair: an existing edge is updated in
+      place instead of creating a duplicate.
+    """
+    in_rid = ensure_record_id(source_id)
+    out_rid = ensure_record_id(target_id)
+
+    if rel_type == "supersedes":
+        source_obj = await Source.get(source_id)
+        target_obj = await Source.get(target_id)
+        source_created = source_obj.created or datetime.min
+        target_created = target_obj.created or datetime.min
+        # If the passed source is older than the target, swap so the newer
+        # source becomes the edge's `in`.
+        if source_created < target_created:
+            in_rid, out_rid = out_rid, in_rid
+
+    existing = await repo_query(
+        "SELECT id FROM relates WHERE in = $in AND out = $out",
+        {"in": in_rid, "out": out_rid},
+    )
+    if existing:
+        edge_id = str(existing[0]["id"])
+        await repo_query(
+            "UPDATE $id SET type = $type, confidence = $confidence, "
+            "rationale = $rationale, workspace = $workspace",
+            {
+                "id": ensure_record_id(edge_id),
+                "type": rel_type,
+                "confidence": confidence,
+                "rationale": rationale,
+                "workspace": workspace,
+            },
+        )
+        return {"id": edge_id, "updated": True}
+
+    result = await repo_relate(
+        in_rid,
+        "relates",
+        out_rid,
+        {
+            "type": rel_type,
+            "confidence": confidence,
+            "rationale": rationale,
+            "workspace": workspace,
+        },
+    )
+    return {"id": str(result[0]["id"]), "updated": False}
+
+
+async def get_source_relationships(workspace: str) -> list[dict]:
+    """Return all `relates` edges for a workspace as plain dicts for the graph API."""
+    rows = await repo_query(
+        "SELECT in AS source, out AS target, type, confidence, rationale "
+        "FROM relates WHERE workspace = $workspace",
+        {"workspace": workspace},
+    )
+    return [
+        {
+            "source": str(r["source"]),
+            "target": str(r["target"]),
+            "type": r["type"],
+            "confidence": r.get("confidence"),
+            "rationale": r.get("rationale"),
+        }
+        for r in (rows or [])
+    ]
