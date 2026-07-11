@@ -99,7 +99,7 @@ heroku config:set OPEN_NOTEBOOK_ENCRYPTION_KEY=your-secret-key
 
 **EasyPanel:**
 
-Open Notebook ships an EasyPanel template at [`examples/easypanel/`](https://github.com/lfnovo/open-notebook/tree/main/examples/easypanel). Unlike the single-image options above, the template provisions **two services** — the Open Notebook app and a dedicated SurrealDB instance — and generates the database password, encryption key, and (optionally) the app password for you.
+Arteamis ships an EasyPanel template at [`examples/easypanel/`](https://github.com/lfnovo/open-notebook/tree/main/examples/easypanel). Unlike the single-image options above, the template provisions **two services** — the Arteamis app and a dedicated SurrealDB instance — and generates the database password, encryption key, and (optionally) the app password for you.
 
 - **One-click (recommended):** once the template is published to the official [EasyPanel template gallery](https://github.com/easypanel-io/templates), create a new service from "Open Notebook", set an app password (or leave it blank to auto-generate one), and deploy.
 - **Manual:** copy `examples/easypanel/` into `templates/open-notebook` in a checkout of [`easypanel-io/templates`](https://github.com/easypanel-io/templates), run the templates playground (`npm run dev`), and create the template from the generated JSON in your EasyPanel instance.

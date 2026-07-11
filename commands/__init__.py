@@ -1,4 +1,4 @@
-"""Surreal-commands integration for Open Notebook"""
+"""Surreal-commands integration for Arteamis"""
 
 from .embedding_commands import (
     embed_insight_command,

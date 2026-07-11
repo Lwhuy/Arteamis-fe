@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 
 import { cn } from '@/lib/utils'
+import { Logo } from '@/components/common/Logo'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useSidebarStore } from '@/lib/stores/sidebar-store'
@@ -120,12 +120,9 @@ export function AppSidebar() {
         >
           {isCollapsed ? (
             <div className="relative flex items-center justify-center w-full">
-              <Image
-                src="/logo.svg"
-                alt="Open Notebook"
-                width={32}
-                height={32}
-                className="transition-opacity group-hover:opacity-0"
+              <Logo
+                aria-label={t('common.appName')}
+                className="h-8 w-8 text-sidebar-foreground transition-opacity group-hover:opacity-0"
               />
               <Button
                 variant="ghost"
@@ -139,7 +136,7 @@ export function AppSidebar() {
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <Image src="/logo.svg" alt={t('common.appName')} width={32} height={32} />
+                <Logo aria-label={t('common.appName')} className="h-8 w-8 text-sidebar-foreground" />
                 <span className="text-base font-medium text-sidebar-foreground">
                   {t('common.appName')}
                 </span>
