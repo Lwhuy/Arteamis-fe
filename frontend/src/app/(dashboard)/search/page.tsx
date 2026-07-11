@@ -49,6 +49,8 @@ export default function SearchPage() {
 
   // Ask state
   const [askQuestion, setAskQuestion] = useState(urlMode === 'ask' ? urlQuery : '')
+  // Question that produced the current answer (decoupled from the in-progress input)
+  const [submittedQuestion, setSubmittedQuestion] = useState('')
 
   // Advanced models dialog
   const [showAdvancedModels, setShowAdvancedModels] = useState(false)
@@ -119,6 +121,9 @@ export default function SearchPage() {
       finalAnswer: modelDefaults.default_chat_model
     }
 
+    // Capture the question that produced this answer so the heading stays stable
+    // while the follow-up input mutates askQuestion.
+    setSubmittedQuestion(askQuestion)
     ask.sendAsk(askQuestion, models)
   }, [askQuestion, modelDefaults, customModels, ask])
 
@@ -282,7 +287,7 @@ export default function SearchPage() {
                 <div className="flex-1 min-w-0 space-y-4">
                   {/* Question as title */}
                   <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-xl font-semibold">{askQuestion}</h2>
+                    <h2 className="text-xl font-semibold">{submittedQuestion}</h2>
                     <Button
                       variant="ghost"
                       onClick={() => {
@@ -331,7 +336,7 @@ export default function SearchPage() {
                       }}
                       disabled={ask.isStreaming}
                       rows={2}
-                      aria-label={t('common.accessibility.enterQuestion')}
+                      aria-label={t('searchPage.askFollowUp')}
                     />
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -397,7 +402,7 @@ export default function SearchPage() {
               <SaveToNotebooksDialog
                 open={showSaveDialog}
                 onOpenChange={setShowSaveDialog}
-                question={askQuestion}
+                question={submittedQuestion}
                 answer={ask.finalAnswer}
               />
             )}
