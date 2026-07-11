@@ -126,9 +126,11 @@ async def _accept_belief_proposal(actor: str, proposal: Proposal) -> dict[str, A
 
     # Copy each proposal->derived_from->source edge onto the new belief so
     # lineage queries never need to hop through the proposal.
+    # `in` is an edge endpoint (record-typed) — a plain string never matches
+    # it on a real DB, so the bound id must be coerced to a RecordID.
     edges = await repo_query(
         "SELECT out AS source, locator FROM derived_from WHERE in = $id",
-        {"id": proposal.id},
+        {"id": ensure_record_id(proposal.id)},
     )
     for edge in edges:
         await repo_relate(
@@ -155,9 +157,11 @@ async def _accept_learning_proposal(actor: str, proposal: Proposal) -> dict[str,
     nudged by the trace outcome, and evidentiary sources copied forward so
     lineage never breaks.
     """
+    # `in` is an edge endpoint (record-typed) — a plain string never matches
+    # it on a real DB, so the bound id must be coerced to a RecordID.
     edges = await repo_query(
         "SELECT out AS trace, belief FROM learned_from WHERE in = $id",
-        {"id": proposal.id},
+        {"id": ensure_record_id(proposal.id)},
     )
     if not edges or not edges[0].get("belief"):
         raise ValueError(f"learning proposal {proposal.id} has no linked belief to update")
@@ -190,9 +194,10 @@ async def _accept_learning_proposal(actor: str, proposal: Proposal) -> dict[str,
         updated_belief.id, "updates", original.id, {"trace": ensure_record_id(trace.id)}
     )
 
+    # `in` is an edge endpoint (record-typed) — same coercion as above.
     source_edges = await repo_query(
         "SELECT out AS source, locator FROM derived_from WHERE in = $id",
-        {"id": original.id},
+        {"id": ensure_record_id(original.id)},
     )
     for edge in source_edges:
         await repo_relate(
@@ -238,19 +243,28 @@ async def get_belief_lineage(belief_id: str) -> dict[str, Any]:
     """
     belief = await Belief.get(belief_id)
 
+    # `in` is an edge endpoint (record-typed) — a plain string never matches
+    # it on a real DB, so the bound id must be coerced to a RecordID.
     sources = await repo_query(
         "SELECT out.id AS id, out.title AS title, locator FROM derived_from "
         "WHERE in = $id",
-        {"id": belief_id},
+        {"id": ensure_record_id(belief_id)},
     )
+    # `object` is `option<record>` (migration 22) and AuditEvent._prepare_save_data
+    # coerces it to a RecordID at write time, so the read side needs the same
+    # coercion. `meta` is a FLEXIBLE `option<object>` (migration 22) whose
+    # nested values are never coerced (see `_audit`, which stores plain
+    # Python strings inside `meta`), so `meta.belief` must stay a plain
+    # string — the same $id can't serve both comparisons.
     provenance = await repo_query(
         "SELECT action, actor, object, meta, created FROM audit_event "
-        "WHERE object = $id OR meta.belief = $id ORDER BY created",
-        {"id": belief_id},
+        "WHERE object = $id OR meta.belief = $belief_id ORDER BY created",
+        {"id": ensure_record_id(belief_id), "belief_id": belief_id},
     )
+    # `in` is an edge endpoint (record-typed) — same coercion as above.
     updated_from_rows = await repo_query(
         "SELECT out AS belief, trace FROM updates WHERE in = $id",
-        {"id": belief_id},
+        {"id": ensure_record_id(belief_id)},
     )
     updated_from = (
         {"belief": updated_from_rows[0]["belief"], "trace": updated_from_rows[0]["trace"]}
@@ -432,10 +446,12 @@ async def get_trace(trace_id: str) -> Trace:
 
 async def list_traces_for_work_package(work_package_id: str) -> list[dict[str, Any]]:
     """Traces recorded for a work package, most recent first."""
+    # `in` is an edge endpoint (record-typed) — a plain string never matches
+    # it on a real DB, so the bound id must be coerced to a RecordID.
     return await repo_query(
         "SELECT out.id AS id, out.summary AS summary, out.outcome AS outcome, "
         "out.created AS created FROM traced_by WHERE in = $id ORDER BY out.created DESC",
-        {"id": work_package_id},
+        {"id": ensure_record_id(work_package_id)},
     )
 
 

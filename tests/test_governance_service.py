@@ -142,6 +142,14 @@ async def test_accept_proposal_makes_belief_copies_edges_and_audits(
         "belief:1", "derived_from", "source:1", {"locator": "p.4"}
     )
 
+    # `derived_from.in` is an edge endpoint (record-typed) — the bound id
+    # must be a RecordID, not a plain string, or the WHERE never matches on
+    # a real DB.
+    mock_gov_query.assert_awaited_once_with(
+        "SELECT out AS source, locator FROM derived_from WHERE in = $id",
+        {"id": RecordID.parse("proposal:1")},
+    )
+
     audit_data = mock_create.await_args_list[1].args[1]
     assert audit_data["action"] == "proposal.accepted"
     assert audit_data["meta"] == {"belief": "belief:1"}
@@ -224,6 +232,37 @@ async def test_get_belief_lineage_returns_sources_and_provenance(
     assert lineage["derived_work"] == []
     assert lineage["contradictions"] == []
     assert lineage["updated_from"] is None
+
+    # `derived_from.in` and `updates.in` are edge endpoints (record-typed);
+    # `audit_event.object` is `option<record>` and is coerced to a RecordID
+    # at write time (AuditEvent._prepare_save_data) — all three need the
+    # bound id as a RecordID, not a plain string, to match on a real DB.
+    # `meta` is a FLEXIBLE object whose nested values are never coerced, so
+    # `meta.belief` is compared against the plain string id instead.
+    belief_record_id = RecordID.parse("belief:1")
+    assert mock_gov_query.await_args_list[0] == (
+        (
+            "SELECT out.id AS id, out.title AS title, locator FROM derived_from "
+            "WHERE in = $id",
+            {"id": belief_record_id},
+        ),
+        {},
+    )
+    assert mock_gov_query.await_args_list[1] == (
+        (
+            "SELECT action, actor, object, meta, created FROM audit_event "
+            "WHERE object = $id OR meta.belief = $belief_id ORDER BY created",
+            {"id": belief_record_id, "belief_id": "belief:1"},
+        ),
+        {},
+    )
+    assert mock_gov_query.await_args_list[2] == (
+        (
+            "SELECT out AS belief, trace FROM updates WHERE in = $id",
+            {"id": belief_record_id},
+        ),
+        {},
+    )
 
 
 @pytest.mark.asyncio
@@ -455,7 +494,14 @@ async def test_list_traces_for_work_package_returns_edge_rows(mock_query):
     ]
     rows = await list_traces_for_work_package("work_package:1")
     assert rows[0]["id"] == "trace:1"
-    mock_query.assert_awaited_once()
+    # `traced_by.in` is an edge endpoint (record-typed) — the bound id must
+    # be a RecordID, not a plain string, or the WHERE never matches on a
+    # real DB.
+    mock_query.assert_awaited_once_with(
+        "SELECT out.id AS id, out.summary AS summary, out.outcome AS outcome, "
+        "out.created AS created FROM traced_by WHERE in = $id ORDER BY out.created DESC",
+        {"id": RecordID.parse("work_package:1")},
+    )
 
 
 @pytest.mark.asyncio
@@ -626,6 +672,24 @@ async def test_accept_learning_proposal_updates_belief_and_supersedes_original(
         "belief:2", "updates", "belief:1", {"trace": RecordID.parse("trace:1")}
     )
     mock_relate.assert_any_await("belief:2", "derived_from", "source:1", {"locator": "p.4"})
+
+    # `learned_from.in` / `derived_from.in` are edge endpoints (record-typed)
+    # — the bound ids must be RecordIDs, not plain strings, or the WHERE
+    # never matches on a real DB.
+    assert mock_gov_query.await_args_list[0] == (
+        (
+            "SELECT out AS trace, belief FROM learned_from WHERE in = $id",
+            {"id": RecordID.parse("proposal:9")},
+        ),
+        {},
+    )
+    assert mock_gov_query.await_args_list[1] == (
+        (
+            "SELECT out AS source, locator FROM derived_from WHERE in = $id",
+            {"id": RecordID.parse("belief:1")},
+        ),
+        {},
+    )
 
     supersede_call = mock_update.await_args_list[0]
     assert supersede_call.args[0] == "belief"
