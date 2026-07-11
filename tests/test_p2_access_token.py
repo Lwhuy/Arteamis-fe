@@ -1,15 +1,18 @@
 """create_access_token mints a workspace-scoped token decode_access_token reads."""
 
-import os
-
-# Ensure a JWT secret exists before importing the security module (it reads
-# config at import time). Mirrors tests/conftest.py's env-first pattern.
-os.environ.setdefault("JWT_SECRET", "test-secret-p2-access-token")
-
 import pytest
 
 from api.security import create_access_token, decode_access_token
 from open_notebook.exceptions import AuthenticationError
+
+
+@pytest.fixture(autouse=True)
+def _secret(monkeypatch):
+    # Function-scoped and auto-reverted so this test's JWT_SECRET never leaks
+    # into other test modules (see tests/test_security_tokens.py for the
+    # same pattern).
+    monkeypatch.setenv("JWT_SECRET", "test-secret-p2-access-token")
+    monkeypatch.setenv("JWT_ALGORITHM", "HS256")
 
 
 def test_access_token_round_trips_workspace_and_role():
