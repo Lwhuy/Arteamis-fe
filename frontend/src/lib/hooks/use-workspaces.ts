@@ -49,7 +49,10 @@ export function useSwitchWorkspace() {
     mutationFn: (workspaceId: string) => workspacesApi.switch(workspaceId),
     onSuccess: (res) => {
       applyToken(res)
-      // A workspace change invalidates ALL workspace-scoped caches.
+      // A workspace change invalidates ALL workspace-scoped caches, including
+      // QUERY_KEYS.projects / QUERY_KEYS.project(id) (projects are
+      // workspace-scoped) — queryClient.clear() drops those too, so no
+      // separate invalidateQueries call is needed here.
       queryClient.clear()
       toast({ title: t('common.success'), description: t('workspace.switchSuccess') })
       router.push('/notebooks')
