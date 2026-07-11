@@ -114,7 +114,7 @@ function MyComponent() {
 
 The component integrates with several custom hooks:
 
-- `useNotebooks()` - Fetches available notebooks
+- `useProjects()` - Fetches available projects
 - `useTransformations()` - Fetches available transformations  
 - `useCreateSource()` - Handles source creation
 - `useSourceStatus()` - Monitors processing status
