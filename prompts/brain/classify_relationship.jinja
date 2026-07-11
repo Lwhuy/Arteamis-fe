@@ -1,0 +1,30 @@
+{# prompts/brain/classify_relationship.jinja #}
+# ROLE
+
+You classify the semantic relationship between two research sources in a knowledge graph.
+
+# SOURCE A (the source being classified)
+
+Title: {{ source_a_title }}
+
+{{ source_a_text }}
+
+# SOURCE B (a candidate related source)
+
+Title: {{ source_b_title }}
+
+{{ source_b_text }}
+
+# TASK
+
+Decide how Source A relates to Source B. Choose exactly one `type`:
+
+- `supersedes`: A updates, replaces, or corrects B (A is the newer, authoritative version).
+- `disagrees`: A contradicts or argues against a claim in B.
+- `complements`: A adds detail to, or extends, B on the same topic without conflict.
+- `agrees`: A independently supports or restates the same conclusion as B.
+- `none`: there is no meaningful relationship.
+
+Provide a `confidence` between 0.0 and 1.0 and a one-sentence `rationale`.
+
+{{ format_instructions }}
