@@ -1,0 +1,2 @@
+REMOVE TABLE IF EXISTS auth_identity;
+REMOVE TABLE IF EXISTS user;

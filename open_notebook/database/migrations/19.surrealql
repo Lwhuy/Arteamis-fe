@@ -1,0 +1,21 @@
+-- Migration 19: Identity plane — real users + auth identities (P1 auth).
+
+DEFINE TABLE IF NOT EXISTS user SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS email ON TABLE user TYPE string;
+DEFINE FIELD IF NOT EXISTS display_name ON TABLE user TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS password_hash ON TABLE user TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS avatar_url ON TABLE user TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS created ON user DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON user DEFAULT time::now() VALUE time::now();
+DEFINE INDEX IF NOT EXISTS idx_user_email ON TABLE user FIELDS email UNIQUE;
+
+DEFINE TABLE IF NOT EXISTS auth_identity SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS provider ON TABLE auth_identity TYPE string ASSERT $value IN ["email_password", "google"];
+DEFINE FIELD IF NOT EXISTS provider_subject ON TABLE auth_identity TYPE string;
+DEFINE FIELD IF NOT EXISTS user ON TABLE auth_identity TYPE record<user>;
+DEFINE FIELD IF NOT EXISTS email ON TABLE auth_identity TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS last_login_at ON TABLE auth_identity TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS created ON auth_identity DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON auth_identity DEFAULT time::now() VALUE time::now();
+DEFINE INDEX IF NOT EXISTS idx_auth_identity_unique ON TABLE auth_identity FIELDS provider, provider_subject UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_auth_identity_user ON TABLE auth_identity FIELDS user;
