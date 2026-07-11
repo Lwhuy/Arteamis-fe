@@ -8,6 +8,31 @@ from open_notebook.domain.brain import normalize_entity_name
 from open_notebook.exceptions import DatabaseOperationError
 
 
+def build_subgraph_context(
+    retrieved_ids: list[str], relationships: list[dict]
+) -> tuple[str, list[str]]:
+    """Expand retrieved sources to their surrounding subgraph.
+
+    Returns a newline-joined set of relationship annotations
+    ("A supersedes B") for every relates-edge that touches a retrieved
+    source, plus the ordered, de-duplicated list of cited node ids
+    (retrieved sources first, then newly-connected nodes).
+    """
+    retrieved = set(retrieved_ids)
+    lines: list[str] = []
+    cited: list[str] = list(retrieved_ids)
+    for rel in relationships:
+        src = rel.get("source")
+        tgt = rel.get("target")
+        rtype = rel.get("type")
+        if src in retrieved or tgt in retrieved:
+            lines.append(f"{src} {rtype} {tgt}")
+            for node in (src, tgt):
+                if node and node not in cited:
+                    cited.append(node)
+    return "\n".join(lines), cited
+
+
 async def get_brain_graph(
     ctx: Any, domain: Optional[str] = None, limit: int = 200
 ) -> BrainGraphResponse:
