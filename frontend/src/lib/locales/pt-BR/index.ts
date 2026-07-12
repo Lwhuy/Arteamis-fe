@@ -33,7 +33,6 @@ export const ptBR = {
     turkish: "Türkçe",
     source: "Fonte",
     notebook: "Caderno",
-    podcast: "Podcast",
     quickActions: "Ações rápidas",
     quickActionsDesc: "Navegação, busca, perguntar, tema",
     appName: "Arteamis",
@@ -611,6 +610,7 @@ export const ptBR = {
       decisionsEmpty: "Nenhuma decisão ainda.",
       rulesTitle: "Regras",
       rulesEmpty: "Nenhuma regra ainda.",
+      createRule: "Criar regra",
     },
     rail: {
       chat: "Chat",
@@ -1228,20 +1228,16 @@ export const ptBR = {
     accessDenied: "Você não tem acesso a esta página",
   },
   intelligence: {
+    comingSoon: {
+      title: "Em breve",
+      description: "O Intelligence está em construção. Volte em breve.",
+    },
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
     askTitle: "Ask the Brain",
     askPlaceholder: "Ask a question about this workspace…",
     askSend: "Send",
-    empty: {
-      title: "Your brain hasn't been built yet",
-      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
-    },
-    building: {
-      title: "Building your brain...",
-      progress: "{built} of {total} sources processed",
-    },
     legend: {
       title: "Key",
       nodes: "Nodes",

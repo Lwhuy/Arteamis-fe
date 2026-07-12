@@ -33,7 +33,6 @@ export const zhTW = {
     turkish: "Türkçe",
     source: "來源",
     notebook: "筆記本",
-    podcast: "播客",
     quickActions: "快捷操作",
     quickActionsDesc: "導覽、搜尋、提問、主題",
     appName: "Arteamis",
@@ -611,6 +610,7 @@ export const zhTW = {
       decisionsEmpty: "尚無決策。",
       rulesTitle: "規則",
       rulesEmpty: "尚無規則。",
+      createRule: "建立規則",
     },
     rail: {
       chat: "Chat",
@@ -1228,20 +1228,16 @@ export const zhTW = {
     accessDenied: "您無權存取此頁面",
   },
   intelligence: {
+    comingSoon: {
+      title: "即將推出",
+      description: "智慧功能正在開發中，敬請期待。",
+    },
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
     askTitle: "Ask the Brain",
     askPlaceholder: "Ask a question about this workspace…",
     askSend: "Send",
-    empty: {
-      title: "Your brain hasn't been built yet",
-      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
-    },
-    building: {
-      title: "Building your brain...",
-      progress: "{built} of {total} sources processed",
-    },
     legend: {
       title: "Key",
       nodes: "Nodes",

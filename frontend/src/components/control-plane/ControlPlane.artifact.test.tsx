@@ -18,6 +18,11 @@ vi.mock('@/lib/hooks/use-sources', () => ({
   useSource: () => ({ data: { id: 'abc', title: 'Q3 Research', full_text: 'body', visibility: 'private' }, isLoading: false }),
   useRecentSources: () => ({ data: [], isLoading: false }),
 }));
+// SourceArtifact (inside the artifact reader) reads a source's insights to seed
+// the propose body — mock it for the same QueryClientProvider-free reason.
+vi.mock('@/lib/hooks/use-insights', () => ({
+  useSourceInsights: () => ({ data: [] }),
+}));
 // ProposeButton (rendered inside the artifact reader) uses useCreateProposal, which wraps
 // @tanstack/react-query's useMutation — mock it so this unit test doesn't require a QueryClientProvider.
 // ContextSidebar's useLoopProgress also pulls useProposals/useBeliefs/useWorkPackages

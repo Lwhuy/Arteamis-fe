@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useArtifact } from '@/lib/hooks/use-artifact';
 import { useSource } from '@/lib/hooks/use-sources';
+import { useSourceInsights } from '@/lib/hooks/use-insights';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { ProposeButton } from './ProposeButton';
@@ -123,6 +124,7 @@ export function ArtifactReader() {
 
 function SourceArtifact({ id, loc, q }: { id: string; loc?: string; q?: string }) {
   const { data, isLoading } = useSource(id);
+  const { data: insights } = useSourceInsights(id);
   const { t } = useTranslation();
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -134,6 +136,11 @@ function SourceArtifact({ id, loc, q }: { id: string; loc?: string; q?: string }
 
   if (isLoading) return <div className="p-4 text-sm text-muted-foreground">{t('common.loading')}</div>;
   if (!data) return <div className="p-4 text-sm text-muted-foreground">{t('controlPlane.artifact.notFound')}</div>;
+  // Carry the source's insight content into the proposal body so the company
+  // brain belief holds real synthesized knowledge, not just the file name. Falls
+  // back to a truncated excerpt of the source text when there are no insights yet.
+  const insightBody = (insights ?? []).map((i) => i.content).filter(Boolean).join('\n\n');
+  const proposalBody = insightBody || (data.full_text ?? '').slice(0, 2000);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-border px-4 py-2">
@@ -143,7 +150,7 @@ function SourceArtifact({ id, loc, q }: { id: string; loc?: string; q?: string }
       <div ref={bodyRef} className="flex-1 overflow-y-auto p-4 text-sm">
         <MarkdownRenderer>{data.full_text ?? ''}</MarkdownRenderer>
         <div className="mt-4">
-          <ProposeButton title={data.title ?? ''} body="" sourceSpans={[{ source_id: id, locator: loc }]} />
+          <ProposeButton title={data.title ?? ''} body={proposalBody} sourceSpans={[{ source_id: id, locator: loc }]} />
         </div>
       </div>
     </div>

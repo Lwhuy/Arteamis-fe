@@ -7,6 +7,7 @@ vi.mock('@/lib/hooks/use-governance', () => ({
   useDecisions: () => ({ data: [{ id: 'decision:1', title: 'Ship SMB pricing', status: 'active' }] }),
   useRules: () => ({ data: [{ id: 'rule:1', title: 'Always cite two sources', status: 'active' }] }),
   useCreateWorkPackage: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateRule: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock('@/lib/hooks/use-artifact', () => ({
   useArtifact: () => ({ openArtifact }),

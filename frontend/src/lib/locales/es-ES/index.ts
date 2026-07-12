@@ -33,7 +33,6 @@ export const esES = {
     turkish: "Türkçe",
     source: "Fuente",
     notebook: "Cuaderno",
-    podcast: "Podcast",
     quickActions: "Acciones rápidas",
     quickActionsDesc: "Navegación, búsqueda, preguntar, tema",
     appName: "Arteamis",
@@ -611,6 +610,7 @@ export const esES = {
       decisionsEmpty: "Aún no hay decisiones.",
       rulesTitle: "Reglas",
       rulesEmpty: "Aún no hay reglas.",
+      createRule: "Crear regla",
     },
     rail: {
       chat: "Chat",
@@ -1229,20 +1229,16 @@ export const esES = {
     accessDenied: "You do not have access to this page",
   },
   intelligence: {
+    comingSoon: {
+      title: "Próximamente",
+      description: "Intelligence está en construcción. Vuelve pronto.",
+    },
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
     askTitle: "Ask the Brain",
     askPlaceholder: "Ask a question about this workspace…",
     askSend: "Send",
-    empty: {
-      title: "Your brain hasn't been built yet",
-      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
-    },
-    building: {
-      title: "Building your brain...",
-      progress: "{built} of {total} sources processed",
-    },
     legend: {
       title: "Key",
       nodes: "Nodes",

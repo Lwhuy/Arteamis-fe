@@ -4,6 +4,7 @@ import { useBeliefs, useDecisions, useRules } from '@/lib/hooks/use-governance';
 import { useArtifact } from '@/lib/hooks/use-artifact';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { CreateWorkPackageButton } from './CreateWorkPackageButton';
+import { CreateRuleButton } from './CreateRuleButton';
 
 export function CompanyBrainSection() {
   const { t } = useTranslation();
@@ -29,6 +30,7 @@ export function CompanyBrainSection() {
                 <span className="flex-1 truncate text-xs font-semibold text-foreground">{b.title}</span>
                 <span className="text-[10px] text-muted-foreground">{t('controlPlane.brain.view')}</span>
               </button>
+              <CreateRuleButton beliefId={b.id} beliefTitle={b.title} />
               <CreateWorkPackageButton sourceId={b.id} sourceTitle={b.title} />
             </div>
           ))
