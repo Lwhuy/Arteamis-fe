@@ -20,8 +20,13 @@ vi.mock('@/lib/hooks/use-sources', () => ({
 }));
 // ProposeButton (rendered inside the artifact reader) uses useCreateProposal, which wraps
 // @tanstack/react-query's useMutation — mock it so this unit test doesn't require a QueryClientProvider.
+// ContextSidebar's useLoopProgress also pulls useProposals/useBeliefs/useWorkPackages
+// (useQuery-backed) for the same QueryClientProvider-free reason.
 vi.mock('@/lib/hooks/use-governance', () => ({
   useCreateProposal: () => ({ mutate: vi.fn(), isPending: false }),
+  useProposals: () => ({ data: [], isLoading: false }),
+  useBeliefs: () => ({ data: [], isLoading: false }),
+  useWorkPackages: () => ({ data: [], isLoading: false }),
 }));
 
 import { ControlPlane } from './ControlPlane';

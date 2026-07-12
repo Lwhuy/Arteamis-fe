@@ -15,6 +15,14 @@ vi.mock('@/lib/hooks/use-models', () => ({ useModelDefaults: () => ({ data: unde
 // ContextSidebar's SourcesSection sources data via useRecentSources, which also wraps
 // useQuery — mock it for the same QueryClientProvider-free reason as useModelDefaults above.
 vi.mock('@/lib/hooks/use-sources', () => ({ useRecentSources: () => ({ data: [], isLoading: false }) }));
+// ContextSidebar derives the loop widget's step from useLoopProgress, which pulls
+// useProposals/useBeliefs/useWorkPackages (all useQuery-backed) — mock them for the same
+// QueryClientProvider-free reason as above.
+vi.mock('@/lib/hooks/use-governance', () => ({
+  useProposals: () => ({ data: [], isLoading: false }),
+  useBeliefs: () => ({ data: [], isLoading: false }),
+  useWorkPackages: () => ({ data: [], isLoading: false }),
+}));
 
 describe('ControlPlane', () => {
   it('renders rail, scope switch, chat composer and sidebar together', () => {
