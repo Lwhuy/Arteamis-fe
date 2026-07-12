@@ -576,6 +576,14 @@ export const ruRU = {
       createDecision: "Создать решение на основе этого убеждения",
     },
     proposeToCompany: "Propose to Company",
+    insight: {
+      processedPrefix: "Finished processing",
+      withInsightsSuffix: "Here's what stood out:",
+      noInsightsSuffix: "It's processed and ready to review or propose.",
+      askMore: "Ask more",
+      openSource: "Open source",
+      askMorePrompt: "What else should I know about \"{title}\"?",
+    },
     trace: {
       title: "Trace & Learning",
       empty: "No outcomes recorded yet.",
