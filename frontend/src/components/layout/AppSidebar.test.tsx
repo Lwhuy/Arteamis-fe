@@ -5,6 +5,13 @@ import { AppSidebar } from './AppSidebar'
 import { useSidebarStore } from '@/lib/stores/sidebar-store'
 import { useRole } from '@/lib/hooks/use-role'
 
+// Research nav groups (sources/projects/intelligence/manage) now live inside a
+// default-collapsed "Workspace" Collapsible; expand it before asserting them.
+function expandWorkspaceGroup() {
+  const trigger = screen.queryByText('navigation.workspaceGroup')
+  if (trigger) fireEvent.click(trigger)
+}
+
 // Mock Tooltip components to avoid Radix UI async issues in tests
 vi.mock('@/components/ui/tooltip', () => ({
   TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -46,6 +53,7 @@ describe('AppSidebar', () => {
 
     // With mocked t() returning keys, check for translation key strings
     expect(screen.getByText('common.appName')).toBeDefined()
+    expandWorkspaceGroup()
     expect(screen.getByText('navigation.sources')).toBeDefined()
     expect(screen.getByText('navigation.projects')).toBeDefined()
   })
@@ -78,6 +86,7 @@ describe('AppSidebar', () => {
 
   it('renders an Intelligence nav link to /intelligence', () => {
     render(<AppSidebar />)
+    expandWorkspaceGroup()
     const links = screen.getAllByRole('link')
     const intel = links.find((l) => l.getAttribute('href') === '/intelligence')
     expect(intel).toBeDefined()
@@ -98,6 +107,7 @@ describe('AppSidebar role gating', () => {
   it('admin sees the Manage section and Create→Notebook', () => {
     mockRole('admin')
     render(<AppSidebar />)
+    expandWorkspaceGroup()
     expect(screen.getByText('navigation.manage')).toBeDefined()
   })
 
@@ -116,6 +126,7 @@ describe('AppSidebar role gating', () => {
   it('a company-workspace admin sees manage-members/invite entries', () => {
     mockRole('admin', 'company')
     render(<AppSidebar />)
+    expandWorkspaceGroup()
     expect(screen.getByText('navigation.manageMembers')).toBeDefined()
   })
 })

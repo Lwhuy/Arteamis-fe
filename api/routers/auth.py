@@ -22,7 +22,7 @@ from api.models import (
     TokenResponse,
 )
 from api.security import create_access_token, create_refresh_token, decode_refresh_token
-from api.workspace_service import get_membership
+from api.workspace_service import get_membership, list_memberships
 from open_notebook.auth import google
 from open_notebook.domain.user import User
 from open_notebook.exceptions import (
@@ -173,9 +173,10 @@ async def me(request: Request):
         user = await User.get(user_id)
     except NotFoundError:
         raise NotFoundError("User not found")
+    memberships = await list_memberships(str(user_id))
     return {
         "user": {"id": user.id, "email": user.email, "display_name": user.display_name},
-        "memberships": [],
+        "memberships": memberships,
     }
 
 

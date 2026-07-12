@@ -221,6 +221,7 @@ export const caES = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Connexions",
     collect: "Recull",
     process: "Processa",

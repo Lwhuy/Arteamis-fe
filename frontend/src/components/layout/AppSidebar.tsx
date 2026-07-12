@@ -48,7 +48,13 @@ import {
   Users,
   Network,
   Sparkles,
+  ChevronDown,
 } from 'lucide-react'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 
 const getNavigation = (t: TFunction) => [
   {
@@ -109,6 +115,7 @@ export function AppSidebar() {
   const { openSourceDialog, openNotebookDialog, openPodcastDialog } = useCreateDialogs()
 
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [isMac, setIsMac] = useState(true) // Default to Mac for SSR
 
   // Detect platform for keyboard shortcut display
@@ -274,7 +281,11 @@ export function AppSidebar() {
             </DropdownMenu>
           </div>
 
-          {navigation.map((section, index) => {
+          {(() => {
+            const renderNavSection = (
+              section: (typeof navigation)[number],
+              index: number
+            ) => {
             const sectionNode = (
               <div key={section.title}>
                 {index > 0 && (
@@ -346,7 +357,32 @@ export function AppSidebar() {
               )
             }
             return sectionNode
-          })}
+            }
+            return (
+              <>
+                {renderNavSection(navigation[0], 0)}
+                {isCollapsed ? (
+                  navigation.slice(1).map((s, i) => renderNavSection(s, i + 1))
+                ) : (
+                  <Collapsible open={workspaceOpen} onOpenChange={setWorkspaceOpen}>
+                    <Separator className="my-3" />
+                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-3 py-1.5 mb-1 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 hover:text-sidebar-foreground">
+                      <span>{t('navigation.workspaceGroup')}</span>
+                      <ChevronDown
+                        className={cn(
+                          'h-4 w-4 transition-transform',
+                          workspaceOpen && 'rotate-180'
+                        )}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 pt-1">
+                      {navigation.slice(1).map((s, i) => renderNavSection(s, i + 1))}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+              </>
+            )
+          })()}
         </nav>
 
         <div

@@ -221,6 +221,7 @@ export const frFR = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Connexions",
     collect: "Collecter",
     process: "Traiter",

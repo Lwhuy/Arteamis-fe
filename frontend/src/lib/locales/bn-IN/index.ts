@@ -221,6 +221,7 @@ export const bnIN = {
     googleError: "Google সাইন-ইন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "সংযোগসমূহ",
     collect: "সংগ্রহ",
     process: "প্রক্রিয়া",

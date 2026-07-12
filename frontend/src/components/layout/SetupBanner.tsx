@@ -26,7 +26,9 @@ export function SetupBanner() {
     return providers
   }, [envStatus, credentialStatus])
 
-  if (encryptionReady && providersToMigrate.length === 0) {
+  // Migration nag suppressed: env-configured provider keys work fine, no need to
+  // prompt migrating them to the DB. Only the encryption-not-ready blocker below shows.
+  if (encryptionReady) {
     return null
   }
 

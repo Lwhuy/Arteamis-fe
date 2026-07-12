@@ -224,6 +224,7 @@ export const deDE = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Verbindungen",
     collect: "Sammeln",
     process: "Verarbeiten",

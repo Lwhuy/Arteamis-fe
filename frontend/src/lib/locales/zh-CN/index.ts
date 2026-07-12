@@ -221,6 +221,7 @@ export const zhCN = {
     googleError: "Google 登录失败，请重试。",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "连接",
     collect: "采集",
     process: "处理",

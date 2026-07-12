@@ -221,6 +221,7 @@ export const itIT = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Connessioni",
     collect: "Raccogli",
     process: "Elabora",

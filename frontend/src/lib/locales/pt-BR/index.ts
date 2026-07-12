@@ -221,6 +221,7 @@ export const ptBR = {
     googleError: "Falha ao entrar com o Google. Tente novamente.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Conexões",
     collect: "Coletar",
     process: "Processar",

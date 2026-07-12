@@ -221,6 +221,7 @@ export const esES = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Conexiones",
     collect: "Recopilar",
     process: "Procesar",

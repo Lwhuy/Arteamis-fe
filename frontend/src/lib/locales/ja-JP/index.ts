@@ -221,6 +221,7 @@ export const jaJP = {
     googleError: "Google サインインに失敗しました。もう一度お試しください。",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "連携",
     collect: "収集",
     process: "処理",

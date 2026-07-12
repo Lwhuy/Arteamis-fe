@@ -221,6 +221,7 @@ export const enUS = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Connections",
     collect: "Collect",
     process: "Process",

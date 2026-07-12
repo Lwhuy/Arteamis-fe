@@ -221,6 +221,7 @@ export const plPL = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Połączenia",
     collect: "Zbieraj",
     process: "Przetwarzaj",

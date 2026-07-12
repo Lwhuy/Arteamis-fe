@@ -221,6 +221,7 @@ export const ruRU = {
     googleError: "Не удалось войти через Google. Попробуйте снова.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Подключения",
     collect: "Собрать",
     process: "Обработать",

@@ -221,6 +221,7 @@ export const zhTW = {
     googleError: "Google 登入失敗，請重試。",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "連接",
     collect: "採集",
     process: "處理",

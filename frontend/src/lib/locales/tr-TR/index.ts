@@ -221,6 +221,7 @@ export const trTR = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
+    workspaceGroup: "Workspace",
     connections: "Bağlantılar",
     collect: "Topla",
     process: "İşle",
