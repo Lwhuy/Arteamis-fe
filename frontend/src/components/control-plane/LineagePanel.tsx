@@ -46,7 +46,7 @@ export function LineagePanel({ id }: { id: string }) {
       <div className="mb-4">
         <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t('controlPlane.lineage.sources')}</div>
         {sources.map((s) => (
-          <button key={s.id} type="button" onClick={() => openArtifact('source', s.id, s.locator)}
+          <button key={s.id} type="button" onClick={() => openArtifact('source', s.id, s.locator, s.title)}
             className="flex w-full items-center gap-2 border-b border-border py-2 text-left text-sm text-foreground hover:text-primary">
             <FileText className="h-4 w-4 text-muted-foreground" /> <span className="flex-1">{s.title}</span>
             {s.locator ? <span className="text-xs text-muted-foreground">{s.locator}</span> : null}
