@@ -33,9 +33,7 @@ import { Separator } from '@/components/ui/separator'
 import {
   Book,
   Search,
-  Mic,
   Bot,
-  Shuffle,
   Settings,
   LogOut,
   ChevronLeft,
@@ -79,17 +77,10 @@ const getNavigation = (t: TFunction) => [
     ],
   },
   {
-    title: t('navigation.create'),
-    items: [
-      { name: t('navigation.podcasts'), href: '/podcasts', icon: Mic },
-    ],
-  },
-  {
     title: t('navigation.manage'),
     items: [
       { name: t('navigation.models'), href: '/settings/api-keys', icon: Bot },
       { name: t('navigation.manageMembers'), href: '/settings/members', icon: Users },
-      { name: t('navigation.transformations'), href: '/transformations', icon: Shuffle },
       { name: t('navigation.settings'), href: '/settings', icon: Settings },
       { name: t('navigation.advanced'), href: '/advanced', icon: Wrench },
     ],
@@ -267,16 +258,6 @@ export function AppSidebar() {
                     {t('common.notebook')}
                   </DropdownMenuItem>
                 </RoleGate>
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    handleCreateSelection('podcast')
-                  }}
-                  className="gap-2"
-                >
-                   <Mic className="h-4 w-4" />
-                  {t('common.podcast')}
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
