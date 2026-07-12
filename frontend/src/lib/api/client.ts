@@ -140,7 +140,14 @@ apiClient.interceptors.response.use(
         return apiClient(original)
       }
       redirectToLogin()
-    } else if (status === 401) {
+    } else if (status === 401 && !isRefreshCall) {
+      // A 401 from the refresh call itself just means "no valid session" (e.g.
+      // no refresh cookie yet). The caller (auth-store.refresh / useAuth
+      // bootstrap) handles that by staying unauthenticated. Redirecting here
+      // does window.location.href='/login', a hard reload — and because the
+      // bootstrap re-fires refresh() on every fresh load, that becomes an
+      // infinite reload loop that even blocks typing on /login. So never
+      // redirect on a refresh-call 401.
       redirectToLogin()
     }
     return Promise.reject(error)

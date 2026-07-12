@@ -21,12 +21,32 @@ export function useCreateWorkspace() {
   const { toast } = useToast()
   const { t } = useTranslation()
   const applyToken = useAuthStore((s) => s.applyToken)
+  const setSession = useAuthStore((s) => s.setSession)
 
   return useMutation({
     mutationFn: (data: CreateWorkspaceRequest) => workspacesApi.create(data),
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
       applyToken(res)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.workspaces })
+      // The create response is only a token — it carries no membership list, so
+      // the store's memberships would stay stale and the new company wouldn't
+      // appear in the WorkspaceSwitcher until re-login. Refetch the live list
+      // and sync it into the store so the company shows up immediately.
+      try {
+        const workspaces = await workspacesApi.list()
+        setSession({
+          memberships: workspaces.map((w) => ({
+            workspace_id: w.id,
+            name: w.name,
+            slug: w.slug,
+            kind: w.kind,
+            role: w.role,
+          })),
+          activeWorkspaceId: res.active_workspace_id,
+        })
+      } catch {
+        // Non-fatal: a re-login (applySession) will reconcile memberships.
+      }
       toast({ title: t('common.success'), description: t('workspace.createSuccess') })
     },
     onError: (error: unknown) => {
