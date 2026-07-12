@@ -71,12 +71,21 @@ async def _in_active_workspace(source: Source, ctx: PermissionContext) -> bool:
 
 
 async def can_view_source(source: Source, ctx: PermissionContext) -> bool:
+    workspaces = await _source_workspaces(source)
+    is_owner = source.owner is not None and str(source.owner) == ctx.user_id
+    # Orphan source: referenced by no project, hence anchored to no workspace.
+    # Treated as a private, owner-only "personal" source (e.g. added from the
+    # standalone /sources page without picking a notebook) -- only its owner may
+    # view it, in any active workspace. It becomes workspace-scoped the moment it
+    # is attached to a project.
+    if not workspaces:
+        return is_owner
     # Workspace isolation (belt-and-braces with P6): must be referenced by a
     # project in the caller's active workspace, else treat as not-found.
-    if not await _in_active_workspace(source, ctx):
+    if ctx.workspace_id not in workspaces:
         return False
     # Owner always sees their own source.
-    if source.owner is not None and str(source.owner) == ctx.user_id:
+    if is_owner:
         return True
     # Workspace owner/admin sees everything in the workspace, including
     # 'personal'-scope sources. In a kind="personal" workspace the sole member
@@ -104,9 +113,15 @@ async def can_view_source(source: Source, ctx: PermissionContext) -> bool:
 
 
 async def can_mutate_source(source: Source, ctx: PermissionContext) -> bool:
-    if not await _in_active_workspace(source, ctx):
+    workspaces = await _source_workspaces(source)
+    is_owner = source.owner is not None and str(source.owner) == ctx.user_id
+    # Orphan (no workspace anchor): a private, owner-only source -- only its owner
+    # may mutate it (e.g. to delete it or attach it to a project).
+    if not workspaces:
+        return is_owner
+    if ctx.workspace_id not in workspaces:
         return False
-    if source.owner is not None and str(source.owner) == ctx.user_id:
+    if is_owner:
         return True
     if ctx.workspace_role in ("owner", "admin"):
         return True
@@ -201,4 +216,19 @@ async def visible_source_ids(
         s = str(r)
         if s not in seen:
             seen.append(s)
+
+    # Orphan personal sources: owned by the caller and referenced by NO project,
+    # so they have no workspace anchor. Treated as the owner's private sources,
+    # visible to them in any active workspace (mirrors can_view_source). Excluded
+    # when listing a specific project's sources -- an orphan is in no project.
+    if project_id is None:
+        orphan_rows = await repo_query(
+            "SELECT VALUE id FROM source "
+            "WHERE owner = $user AND id NOT IN (SELECT VALUE in FROM reference)",
+            {"user": ensure_record_id(ctx.user_id)},
+        )
+        for r in orphan_rows:
+            s = str(r)
+            if s not in seen:
+                seen.append(s)
     return seen

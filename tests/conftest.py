@@ -14,6 +14,13 @@ from pathlib import Path
 # Set to empty string instead of deleting to prevent it from being reloaded
 os.environ["OPEN_NOTEBOOK_PASSWORD"] = ""
 
+# Same for JWT auth (auth_enabled() = bool(JWT_SECRET)). A running dev instance
+# sets JWT_SECRET in .env; must set it empty BEFORE any load_dotenv (this file's
+# below AND api.main's import-time load_dotenv()), since load_dotenv never
+# overrides an already-set var. Empty (not deleted) so neither reload restores
+# it. Tests needing auth ON set JWT_SECRET themselves (config read fresh).
+os.environ["JWT_SECRET"] = ""
+
 # Load environment variables from .env file
 # This must be done BEFORE any imports that depend on environment variables
 from dotenv import load_dotenv

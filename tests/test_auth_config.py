@@ -3,9 +3,17 @@ import pytest
 
 def test_defaults_when_only_secret_set(monkeypatch):
     monkeypatch.setenv("JWT_SECRET", "test-secret")
+    # Clear every var this test asserts a DEFAULT for, so a dev .env that sets
+    # any of them (e.g. COOKIE_SECURE=False for local http) can't leak in and
+    # break the assertions -- the whole point here is "only the secret is set".
     monkeypatch.delenv("JWT_ALGORITHM", raising=False)
     monkeypatch.delenv("ACCESS_TOKEN_EXPIRE_MINUTES", raising=False)
+    monkeypatch.delenv("REFRESH_TOKEN_EXPIRE_DAYS", raising=False)
     monkeypatch.delenv("REFRESH_COOKIE_NAME", raising=False)
+    monkeypatch.delenv("COOKIE_SECURE", raising=False)
+    monkeypatch.delenv("COOKIE_SAMESITE", raising=False)
+    monkeypatch.delenv("GOOGLE_REDIRECT_URI", raising=False)
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
     from api.auth_config import get_auth_config
 
     cfg = get_auth_config()
