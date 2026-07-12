@@ -19,11 +19,32 @@ const session = {
   memberships: [],
 }
 
+const workspaces = [
+  { workspace_id: 'workspace:p1', name: 'Personal', slug: 'personal-1', kind: 'personal', role: 'owner' },
+  { workspace_id: 'workspace:acme', name: 'Acme', slug: 'acme', kind: 'company', role: 'owner' },
+]
+
+const sessionWithWorkspaces = {
+  ...session,
+  needs_onboarding: false,
+  active_workspace_id: 'workspace:p1',
+  memberships: workspaces,
+}
+
 describe('auth-store', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
-    useAuthStore.setState({ token: null, user: null, isAuthenticated: false, error: null, isLoading: false })
+    useAuthStore.setState({
+      token: null,
+      user: null,
+      isAuthenticated: false,
+      error: null,
+      isLoading: false,
+      memberships: [],
+      activeWorkspaceId: null,
+      role: null,
+    })
   })
 
   it('login stores token + user on success', async () => {
@@ -35,6 +56,31 @@ describe('auth-store', () => {
     expect(s.user?.email).toBe('a@b.com')
     expect(s.isAuthenticated).toBe(true)
     expect(apiClient.post).toHaveBeenCalledWith('/auth/login', { email: 'a@b.com', password: 'password123' })
+  })
+
+  it('login stores memberships + active workspace from the session payload', async () => {
+    ;(apiClient.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: sessionWithWorkspaces })
+    const ok = await useAuthStore.getState().login('a@b.com', 'password123')
+    expect(ok).toBe(true)
+    const s = useAuthStore.getState()
+    expect(s.memberships).toHaveLength(2)
+    expect(s.activeWorkspaceId).toBe('workspace:p1')
+    expect(s.workspaceName).toBe('Personal')
+    expect(s.hasCompany()).toBe(true)
+  })
+
+  it('fetchMe restores memberships from /auth/me (google login / page-reload path)', async () => {
+    ;(apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: { user: session.user, memberships: workspaces },
+    })
+    const ok = await useAuthStore.getState().fetchMe()
+    expect(ok).toBe(true)
+    const s = useAuthStore.getState()
+    expect(s.memberships).toHaveLength(2)
+    expect(s.hasCompany()).toBe(true)
+    // /auth/me omits active_workspace_id -> default to the personal workspace.
+    expect(s.activeWorkspaceId).toBe('workspace:p1')
+    expect(apiClient.get).toHaveBeenCalledWith('/auth/me')
   })
 
   it('register posts to /auth/register and stores session', async () => {

@@ -24,8 +24,12 @@ export function useCreateWorkspace() {
 
   return useMutation({
     mutationFn: (data: CreateWorkspaceRequest) => workspacesApi.create(data),
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
       applyToken(res)
+      // applyToken swaps the token/active workspace but does NOT add the new
+      // company to `memberships`; refresh them from the backend so the switcher
+      // reflects the company immediately (no reload needed).
+      await useAuthStore.getState().fetchMe()
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.workspaces })
       toast({ title: t('common.success'), description: t('workspace.createSuccess') })
     },

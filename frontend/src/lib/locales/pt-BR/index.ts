@@ -33,7 +33,6 @@ export const ptBR = {
     turkish: "Türkçe",
     source: "Fonte",
     notebook: "Caderno",
-    podcast: "Podcast",
     quickActions: "Ações rápidas",
     quickActionsDesc: "Navegação, busca, perguntar, tema",
     appName: "Arteamis",
@@ -221,7 +220,6 @@ export const ptBR = {
     googleError: "Falha ao entrar com o Google. Tente novamente.",
   },
   navigation: {
-    workspaceGroup: "Workspace",
     connections: "Conexões",
     collect: "Coletar",
     process: "Processar",
@@ -1220,9 +1218,7 @@ export const ptBR = {
     manageMembers: "Gerenciar membros",
   },
   roles: {
-    owner: "Proprietário",
     admin: "Administrador",
-    member: "Membro",
     adminOnly: "Somente administradores podem fazer isso",
     noWorkspace: "Selecione um espaço de trabalho para continuar",
     accessDenied: "Você não tem acesso a esta página",

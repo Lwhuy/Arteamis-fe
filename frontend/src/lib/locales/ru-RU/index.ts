@@ -33,7 +33,6 @@ export const ruRU = {
     turkish: "Türkçe",
     source: "Источник",
     notebook: "Блокнот",
-    podcast: "Подкаст",
     quickActions: "Быстрые действия",
     quickActionsDesc: "Навигация, поиск, запрос, тема",
     appName: "Arteamis",
@@ -221,7 +220,6 @@ export const ruRU = {
     googleError: "Не удалось войти через Google. Попробуйте снова.",
   },
   navigation: {
-    workspaceGroup: "Workspace",
     connections: "Подключения",
     collect: "Собрать",
     process: "Обработать",
@@ -1220,9 +1218,7 @@ export const ruRU = {
     manageMembers: "Управление участниками",
   },
   roles: {
-    owner: "Владелец",
     admin: "Администратор",
-    member: "Участник",
     adminOnly: "Только администраторы могут это делать",
     noWorkspace: "Выберите рабочее пространство, чтобы продолжить",
     accessDenied: "У вас нет доступа к этой странице",

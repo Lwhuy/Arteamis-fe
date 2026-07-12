@@ -33,7 +33,6 @@ export const caES = {
     turkish: "Türkçe",
     source: "Font",
     notebook: "Quadern",
-    podcast: "Podcast",
     quickActions: "Accions ràpides",
     quickActionsDesc: "Navegació, cerca, preguntes, tema",
     appName: "Arteamis",
@@ -221,7 +220,6 @@ export const caES = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
-    workspaceGroup: "Workspace",
     connections: "Connexions",
     collect: "Recull",
     process: "Processa",
@@ -1220,9 +1218,7 @@ export const caES = {
     manageMembers: "Manage members",
   },
   roles: {
-    owner: "Owner",
     admin: "Admin",
-    member: "Member",
     adminOnly: "Only admins can do this",
     noWorkspace: "Select a workspace to continue",
     accessDenied: "You do not have access to this page",

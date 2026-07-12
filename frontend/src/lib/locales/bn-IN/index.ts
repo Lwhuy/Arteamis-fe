@@ -33,7 +33,6 @@ export const bnIN = {
     turkish: "Türkçe",
     source: "উৎস",
     notebook: "নোটবুক",
-    podcast: "পডকাস্ট",
     quickActions: "দ্রুত ক্রিয়া",
     quickActionsDesc: "নেভিগেশন, অনুসন্ধান, প্রশ্ন, থিম",
     appName: "Arteamis",
@@ -221,7 +220,6 @@ export const bnIN = {
     googleError: "Google সাইন-ইন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
   },
   navigation: {
-    workspaceGroup: "Workspace",
     connections: "সংযোগসমূহ",
     collect: "সংগ্রহ",
     process: "প্রক্রিয়া",
@@ -1221,9 +1219,7 @@ export const bnIN = {
     manageMembers: "সদস্য পরিচালনা করুন",
   },
   roles: {
-    owner: "মালিক",
     admin: "অ্যাডমিন",
-    member: "সদস্য",
     adminOnly: "শুধুমাত্র অ্যাডমিনরা এটি করতে পারেন",
     noWorkspace: "চালিয়ে যেতে একটি ওয়ার্কস্পেস নির্বাচন করুন",
     accessDenied: "আপনার এই পৃষ্ঠায় প্রবেশাধিকার নেই",

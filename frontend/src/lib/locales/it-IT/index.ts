@@ -33,7 +33,6 @@ export const itIT = {
     turkish: "Türkçe",
     source: "Fonte",
     notebook: "Quaderno",
-    podcast: "Podcast",
     quickActions: "Azioni rapide",
     quickActionsDesc: "Navigazione, ricerca, domande, tema",
     appName: "Arteamis",
@@ -221,7 +220,6 @@ export const itIT = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
-    workspaceGroup: "Workspace",
     connections: "Connessioni",
     collect: "Raccogli",
     process: "Elabora",
@@ -1220,9 +1218,7 @@ export const itIT = {
     manageMembers: "Manage members",
   },
   roles: {
-    owner: "Owner",
     admin: "Admin",
-    member: "Member",
     adminOnly: "Only admins can do this",
     noWorkspace: "Select a workspace to continue",
     accessDenied: "You do not have access to this page",

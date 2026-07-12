@@ -61,6 +61,23 @@ function errorMessage(err: unknown, fallback: string): string {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => {
+      // Persist the workspace memberships + active workspace the backend sends
+      // with every session/`me` payload. Without this the store's `memberships`
+      // stay empty forever (the switcher then wrongly nags "create a company"
+      // even for users who already own one). `activeWorkspaceId` is null on the
+      // `/auth/me` payload, so fall back to the personal workspace, which
+      // `list_memberships` always returns first.
+      const storeMemberships = (
+        memberships: Membership[],
+        activeWorkspaceId: string | null
+      ) => {
+        const active =
+          activeWorkspaceId && memberships.some((m) => m.workspace_id === activeWorkspaceId)
+            ? activeWorkspaceId
+            : memberships[0]?.workspace_id ?? null
+        get().setSession({ memberships, activeWorkspaceId: active })
+      }
+
       const applySession = (payload: SessionPayload) => {
         set({
           token: payload.access_token,
@@ -70,6 +87,10 @@ export const useAuthStore = create<AuthState>()(
           error: null,
           lastAuthCheck: Date.now(),
         })
+        storeMemberships(
+          (payload.memberships ?? []) as Membership[],
+          payload.active_workspace_id
+        )
       }
 
       return {
@@ -162,8 +183,14 @@ export const useAuthStore = create<AuthState>()(
 
         fetchMe: async () => {
           try {
-            const { data } = await apiClient.get<{ user: AuthUser }>('/auth/me')
+            const { data } = await apiClient.get<{ user: AuthUser; memberships?: Membership[] }>(
+              '/auth/me'
+            )
             set({ user: data.user, isAuthenticated: true })
+            // `/auth/me` carries the caller's memberships but no active id;
+            // keep the current active workspace if it's still a member,
+            // otherwise default to the personal workspace.
+            storeMemberships((data.memberships ?? []) as Membership[], get().activeWorkspaceId)
             return true
           } catch {
             return false

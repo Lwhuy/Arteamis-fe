@@ -33,7 +33,6 @@ export const zhTW = {
     turkish: "Türkçe",
     source: "來源",
     notebook: "筆記本",
-    podcast: "播客",
     quickActions: "快捷操作",
     quickActionsDesc: "導覽、搜尋、提問、主題",
     appName: "Arteamis",
@@ -221,7 +220,6 @@ export const zhTW = {
     googleError: "Google 登入失敗，請重試。",
   },
   navigation: {
-    workspaceGroup: "Workspace",
     connections: "連接",
     collect: "採集",
     process: "處理",
@@ -1220,9 +1218,7 @@ export const zhTW = {
     manageMembers: "管理成員",
   },
   roles: {
-    owner: "擁有者",
     admin: "管理員",
-    member: "成員",
     adminOnly: "只有管理員可以執行此操作",
     noWorkspace: "請選擇一個工作區以繼續",
     accessDenied: "您無權存取此頁面",

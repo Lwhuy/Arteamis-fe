@@ -9,22 +9,14 @@ import { Logo } from '@/components/common/Logo'
 import { Button } from '@/components/ui/button'
 import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher'
 import { RoleGate } from '@/components/common/RoleGate'
-import { useRole } from '@/lib/hooks/use-role'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useSidebarStore } from '@/lib/stores/sidebar-store'
-import { useCreateDialogs } from '@/lib/hooks/use-create-dialogs'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import type { TFunction } from 'i18next'
@@ -33,28 +25,17 @@ import { Separator } from '@/components/ui/separator'
 import {
   Book,
   Search,
-  Mic,
   Bot,
-  Shuffle,
-  Settings,
   LogOut,
   ChevronLeft,
   Menu,
   FileText,
-  Plus,
-  Wrench,
   Command,
   Plug,
   Users,
   Network,
   Sparkles,
-  ChevronDown,
 } from 'lucide-react'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 
 const getNavigation = (t: TFunction) => [
   {
@@ -79,43 +60,21 @@ const getNavigation = (t: TFunction) => [
     ],
   },
   {
-    title: t('navigation.create'),
-    items: [
-      { name: t('navigation.podcasts'), href: '/podcasts', icon: Mic },
-    ],
-  },
-  {
     title: t('navigation.manage'),
     items: [
       { name: t('navigation.models'), href: '/settings/api-keys', icon: Bot },
       { name: t('navigation.manageMembers'), href: '/settings/members', icon: Users },
-      { name: t('navigation.transformations'), href: '/transformations', icon: Shuffle },
-      { name: t('navigation.settings'), href: '/settings', icon: Settings },
-      { name: t('navigation.advanced'), href: '/advanced', icon: Wrench },
     ],
   },
 ] as const
-
-type CreateTarget = 'source' | 'notebook' | 'podcast'
 
 export function AppSidebar() {
   const { t } = useTranslation()
   const navigation = getNavigation(t)
   const pathname = usePathname()
   const { logout } = useAuth()
-  const { role } = useRole()
   const { isCollapsed, toggleCollapse } = useSidebarStore()
 
-  // Literal keys (not a template string) so the i18n usage test can find them.
-  const currentRoleLabels: Record<string, string> = {
-    owner: t('roles.owner'),
-    admin: t('roles.admin'),
-    member: t('roles.member'),
-  }
-  const { openSourceDialog, openNotebookDialog, openPodcastDialog } = useCreateDialogs()
-
-  const [createMenuOpen, setCreateMenuOpen] = useState(false)
-  const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [isMac, setIsMac] = useState(true) // Default to Mac for SSR
 
   // Detect platform for keyboard shortcut display
@@ -123,17 +82,37 @@ export function AppSidebar() {
     setIsMac(navigator.platform.toLowerCase().includes('mac'))
   }, [])
 
-  const handleCreateSelection = (target: CreateTarget) => {
-    setCreateMenuOpen(false)
-
-    if (target === 'source') {
-      openSourceDialog()
-    } else if (target === 'notebook') {
-      openNotebookDialog()
-    } else if (target === 'podcast') {
-      openPodcastDialog()
-    }
+  // The command palette listens for a global Cmd/Ctrl+K keydown; re-dispatch it
+  // so the footer shortcut button opens the same palette.
+  const openCommandPalette = () => {
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true })
+    )
   }
+
+  const quickActionsButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={openCommandPalette}
+      aria-label={t('common.quickActions')}
+      className="h-9 w-full sidebar-menu-item text-sidebar-foreground"
+    >
+      <Command className="h-[1.2rem] w-[1.2rem]" />
+    </Button>
+  )
+
+  const signOutButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={logout}
+      aria-label={t('common.signOut')}
+      className="h-9 w-full sidebar-menu-item text-sidebar-foreground"
+    >
+      <LogOut className="h-[1.2rem] w-[1.2rem]" />
+    </Button>
+  )
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -191,101 +170,7 @@ export function AppSidebar() {
             isCollapsed ? 'px-2' : 'px-3'
           )}
         >
-          {!isCollapsed && (
-            <div className="mb-4 px-3">
-              <WorkspaceSwitcher />
-              {role && (
-                <p className="mt-1 px-3 text-[10px] uppercase tracking-wide text-sidebar-foreground/50">
-                  {currentRoleLabels[role] ?? role}
-                </p>
-              )}
-            </div>
-          )}
-
-          <div
-            className={cn(
-              'mb-4',
-              isCollapsed ? 'px-0' : 'px-3'
-            )}
-          >
-            <DropdownMenu open={createMenuOpen} onOpenChange={setCreateMenuOpen}>
-              {isCollapsed ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        onClick={() => setCreateMenuOpen(true)}
-                        variant="default"
-                        size="sm"
-                        className="w-full justify-center px-2 bg-primary hover:bg-primary/90 text-primary-foreground border-0"
-                        aria-label={t('common.create')}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                  </TooltipTrigger>
-                   <TooltipContent side="right">{t('common.create')}</TooltipContent>
-                </Tooltip>
-              ) : (
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    onClick={() => setCreateMenuOpen(true)}
-                    variant="default"
-                    size="sm"
-                    className="w-full justify-start bg-primary hover:bg-primary/90 text-primary-foreground border-0"
-                   >
-                    <Plus className="h-4 w-4 mr-2" />
-                    {t('common.create')}
-                  </Button>
-                </DropdownMenuTrigger>
-              )}
-
-              <DropdownMenuContent
-                align={isCollapsed ? 'end' : 'start'}
-                side={isCollapsed ? 'right' : 'bottom'}
-                className="w-48"
-              >
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    handleCreateSelection('source')
-                  }}
-                  className="gap-2"
-                >
-                   <FileText className="h-4 w-4" />
-                  {t('common.source')}
-                </DropdownMenuItem>
-                <RoleGate allow={['owner', 'admin']}>
-                  <DropdownMenuItem
-                    onSelect={(event) => {
-                      event.preventDefault()
-                      handleCreateSelection('notebook')
-                    }}
-                    className="gap-2"
-                  >
-                     <Book className="h-4 w-4" />
-                    {t('common.notebook')}
-                  </DropdownMenuItem>
-                </RoleGate>
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    handleCreateSelection('podcast')
-                  }}
-                  className="gap-2"
-                >
-                   <Mic className="h-4 w-4" />
-                  {t('common.podcast')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {(() => {
-            const renderNavSection = (
-              section: (typeof navigation)[number],
-              index: number
-            ) => {
+          {navigation.map((section, index) => {
             const sectionNode = (
               <div key={section.title}>
                 {index > 0 && (
@@ -357,32 +242,7 @@ export function AppSidebar() {
               )
             }
             return sectionNode
-            }
-            return (
-              <>
-                {renderNavSection(navigation[0], 0)}
-                {isCollapsed ? (
-                  navigation.slice(1).map((s, i) => renderNavSection(s, i + 1))
-                ) : (
-                  <Collapsible open={workspaceOpen} onOpenChange={setWorkspaceOpen}>
-                    <Separator className="my-3" />
-                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-3 py-1.5 mb-1 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 hover:text-sidebar-foreground">
-                      <span>{t('navigation.workspaceGroup')}</span>
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 transition-transform',
-                          workspaceOpen && 'rotate-180'
-                        )}
-                      />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-3 pt-1">
-                      {navigation.slice(1).map((s, i) => renderNavSection(s, i + 1))}
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-              </>
-            )
-          })()}
+          })}
         </nav>
 
         <div
@@ -391,81 +251,76 @@ export function AppSidebar() {
             isCollapsed && 'px-2'
           )}
         >
-          {/* Command Palette hint */}
-          {!isCollapsed && (
-            <div className="px-3 py-1.5 text-xs text-sidebar-foreground/60">
-              <div className="flex items-center justify-between">
-                 <span className="flex items-center gap-1.5">
-                  <Command className="h-3 w-3" />
-                  {t('common.quickActions')}
-                </span>
-                <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-                  {isMac ? <span className="text-xs">⌘</span> : <span>Ctrl+</span>}K
-                </kbd>
-              </div>
-               <p className="mt-1 text-[10px] text-sidebar-foreground/40">
-                {t('common.quickActionsDesc')}
-              </p>
-            </div>
-          )}
+          {/* Workspace / company switcher */}
+          <WorkspaceSwitcher collapsed={isCollapsed} />
 
-           <div
-            className={cn(
-              'flex flex-col gap-2',
-              isCollapsed ? 'items-center' : 'items-stretch'
-            )}
-          >
-            {isCollapsed ? (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <ThemeToggle iconOnly />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">{t('common.theme')}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <LanguageToggle iconOnly />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">{t('common.language')}</TooltipContent>
-                </Tooltip>
-              </>
-            ) : (
-              <>
-                <ThemeToggle />
-                <LanguageToggle />
-              </>
-            )}
-          </div>
-
+          {/* Compact action row: quick actions, theme, language, sign out */}
           {isCollapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-center sidebar-menu-item"
-                  onClick={logout}
-                  aria-label={t('common.signOut')}
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-               <TooltipContent side="right">{t('common.signOut')}</TooltipContent>
-            </Tooltip>
+            <div className="flex flex-col items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="w-full">{quickActionsButton}</div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {t('common.quickActions')} {isMac ? '⌘K' : 'Ctrl+K'}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="w-full">
+                    <ThemeToggle iconOnly />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">{t('common.theme')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="w-full">
+                    <LanguageToggle iconOnly />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">{t('common.language')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="w-full">{signOutButton}</div>
+                </TooltipTrigger>
+                <TooltipContent side="right">{t('common.signOut')}</TooltipContent>
+              </Tooltip>
+            </div>
           ) : (
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-3 sidebar-menu-item"
-              onClick={logout}
-              aria-label={t('common.signOut')}
-             >
-              <LogOut className="h-4 w-4" />
-              {t('common.signOut')}
-            </Button>
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex-1">{quickActionsButton}</div>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {t('common.quickActions')} {isMac ? '⌘K' : 'Ctrl+K'}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex-1">
+                    <ThemeToggle iconOnly />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top">{t('common.theme')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex-1">
+                    <LanguageToggle iconOnly />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top">{t('common.language')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex-1">{signOutButton}</div>
+                </TooltipTrigger>
+                <TooltipContent side="top">{t('common.signOut')}</TooltipContent>
+              </Tooltip>
+            </div>
           )}
         </div>
       </div>

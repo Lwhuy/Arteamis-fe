@@ -36,7 +36,6 @@ export const deDE = {
     turkish: "Türkçe",
     source: "Quelle",
     notebook: "Notebook",
-    podcast: "Podcast",
     quickActions: "Schnellaktionen",
     quickActionsDesc: "Navigation, Suche, Fragen, Design",
     appName: "Arteamis",
@@ -224,7 +223,6 @@ export const deDE = {
     googleError: "Google sign-in failed. Please try again.",
   },
   navigation: {
-    workspaceGroup: "Workspace",
     connections: "Verbindungen",
     collect: "Sammeln",
     process: "Verarbeiten",
@@ -1223,9 +1221,7 @@ export const deDE = {
     manageMembers: "Manage members",
   },
   roles: {
-    owner: "Owner",
     admin: "Admin",
-    member: "Member",
     adminOnly: "Only admins can do this",
     noWorkspace: "Select a workspace to continue",
     accessDenied: "You do not have access to this page",

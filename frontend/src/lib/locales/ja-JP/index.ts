@@ -33,7 +33,6 @@ export const jaJP = {
     turkish: "Türkçe",
     source: "ソース",
     notebook: "ノートブック",
-    podcast: "ポッドキャスト",
     quickActions: "クイックアクション",
     quickActionsDesc: "ナビゲーション、検索、質問、テーマ",
     appName: "Arteamis",
@@ -221,7 +220,6 @@ export const jaJP = {
     googleError: "Google サインインに失敗しました。もう一度お試しください。",
   },
   navigation: {
-    workspaceGroup: "Workspace",
     connections: "連携",
     collect: "収集",
     process: "処理",
@@ -1220,9 +1218,7 @@ export const jaJP = {
     manageMembers: "メンバーを管理",
   },
   roles: {
-    owner: "オーナー",
     admin: "管理者",
-    member: "メンバー",
     adminOnly: "この操作は管理者のみ実行できます",
     noWorkspace: "続行するにはワークスペースを選択してください",
     accessDenied: "このページにアクセスする権限がありません",

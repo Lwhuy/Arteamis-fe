@@ -33,7 +33,6 @@ export const zhCN = {
     turkish: "Türkçe",
     source: "来源",
     notebook: "笔记本",
-    podcast: "播客",
     quickActions: "快捷操作",
     quickActionsDesc: "导航、搜索、提问、主题",
     appName: "Arteamis",
@@ -221,7 +220,6 @@ export const zhCN = {
     googleError: "Google 登录失败，请重试。",
   },
   navigation: {
-    workspaceGroup: "Workspace",
     connections: "连接",
     collect: "采集",
     process: "处理",
@@ -1220,9 +1218,7 @@ export const zhCN = {
     manageMembers: "管理成员",
   },
   roles: {
-    owner: "所有者",
     admin: "管理员",
-    member: "成员",
     adminOnly: "只有管理员可以执行此操作",
     noWorkspace: "请选择一个工作区以继续",
     accessDenied: "您无权访问此页面",
