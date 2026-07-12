@@ -13,8 +13,14 @@ from fastapi import Depends, HTTPException
 from api.deps import get_auth_context  # P2
 from api.security import AuthContext  # P1
 from open_notebook.database.repository import ensure_record_id, repo_query
-from open_notebook.domain.notebook import Source
+from open_notebook.domain.notebook import Project, Source
 from open_notebook.exceptions import NotFoundError
+
+# Home for sources created without an explicit target notebook (e.g. the Control
+# Plane / Brain "Add source"). Sources are workspace-less by design (P6 §2) and
+# only become visible to a workspace-scoped list via a `reference` edge to a
+# notebook in that workspace — so an orphan source needs a project to live in.
+DEFAULT_PROJECT_NAME = "Brain (Uncategorized)"
 
 
 class PermissionContext:
@@ -202,3 +208,33 @@ async def visible_source_ids(
         if s not in seen:
             seen.append(s)
     return seen
+
+
+async def ensure_default_project(ctx: PermissionContext) -> str:
+    """Return the id of the caller's workspace default project, creating it once.
+
+    Backs Option B for Control-Plane sources: a source created with no target
+    notebook is attached here so it belongs to — and is visible within — the
+    active workspace via the normal `reference` edge (no change to the
+    tenant-isolation query in visible_source_ids). Matched by (workspace,
+    reserved name) so at most one is created per workspace.
+    """
+    ws = ensure_record_id(ctx.workspace_id)
+    rows = await repo_query(
+        "SELECT VALUE id FROM notebook WHERE workspace = $ws AND name = $name LIMIT 1",
+        {"ws": ws, "name": DEFAULT_PROJECT_NAME},
+    )
+    if rows:
+        return str(rows[0])
+    project = Project(
+        name=DEFAULT_PROJECT_NAME,
+        description=(
+            "Holds sources added from the Control Plane that are not tied to a "
+            "specific project."
+        ),
+        workspace=ctx.workspace_id,
+        owner=ctx.user_id,
+        default_source_scope="personal",
+    )
+    await project.save()
+    return str(project.id)

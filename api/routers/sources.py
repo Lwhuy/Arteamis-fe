@@ -33,6 +33,7 @@ from api.models import (
 from api.source_permissions import (
     PermissionContext,
     can_change_source_scope,
+    ensure_default_project,
     get_permission_context,
     require_mutate_source,
     require_view_source,
@@ -408,6 +409,16 @@ async def create_source(
                 resolved_scope = getattr(project, "default_source_scope", None)
         resolved_scope = resolved_scope or "project"
 
+        # A source is workspace-less by design (P6 §2): it only belongs to — and
+        # is visible within — a workspace via a `reference` edge to a notebook in
+        # that workspace. A source created with no target notebook (e.g. the
+        # Control Plane / Brain "Add source") would otherwise be an orphan that
+        # never appears in any workspace-scoped list. Attach it to the workspace's
+        # default project so it shows up through the normal tenant-safe query.
+        target_notebooks = list(source_data.notebooks or [])
+        if not target_notebooks:
+            target_notebooks = [await ensure_default_project(ctx)]
+
         # Handle file upload if provided
         if upload_file and source_data.type == "upload":
             try:
@@ -495,7 +506,7 @@ async def create_source(
 
             # Add source to notebooks immediately so it appears in the UI
             # The source_graph will skip adding duplicates
-            for notebook_id in source_data.notebooks or []:
+            for notebook_id in target_notebooks:
                 await source.add_to_notebook(notebook_id)
 
             try:
@@ -506,7 +517,7 @@ async def create_source(
                 command_input = SourceProcessingInput(
                     source_id=str(source.id),
                     content_state=content_state,
-                    notebook_ids=source_data.notebooks,
+                    notebook_ids=target_notebooks,
                     transformations=transformation_ids,
                     embed=source_data.embed,
                 )
@@ -579,14 +590,14 @@ async def create_source(
 
                 # Add source to notebooks immediately so it appears in the UI
                 # The source_graph will skip adding duplicates
-                for notebook_id in source_data.notebooks or []:
+                for notebook_id in target_notebooks:
                     await source.add_to_notebook(notebook_id)
 
                 # Execute command synchronously
                 command_input = SourceProcessingInput(
                     source_id=str(source.id),
                     content_state=content_state,
-                    notebook_ids=source_data.notebooks,
+                    notebook_ids=target_notebooks,
                     transformations=transformation_ids,
                     embed=source_data.embed,
                 )
