@@ -609,6 +609,7 @@ export const enUS = {
       decisionsEmpty: "No decisions yet.",
       rulesTitle: "Rules",
       rulesEmpty: "No rules yet.",
+      createRule: "Create rule",
     },
     rail: {
       chat: "Chat",
@@ -1225,20 +1226,16 @@ export const enUS = {
     accessDenied: "You do not have access to this page",
   },
   intelligence: {
+    comingSoon: {
+      title: "Coming soon",
+      description: "Intelligence is under construction. Check back soon.",
+    },
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
     askTitle: "Ask the Brain",
     askPlaceholder: "Ask a question about this workspace…",
     askSend: "Send",
-    empty: {
-      title: "Your brain hasn't been built yet",
-      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
-    },
-    building: {
-      title: "Building your brain...",
-      progress: "{built} of {total} sources processed",
-    },
     legend: {
       title: "Key",
       nodes: "Nodes",

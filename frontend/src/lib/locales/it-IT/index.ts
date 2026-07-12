@@ -609,6 +609,7 @@ export const itIT = {
       decisionsEmpty: "Nessuna decisione ancora.",
       rulesTitle: "Regole",
       rulesEmpty: "Nessuna regola ancora.",
+      createRule: "Crea regola",
     },
     rail: {
       chat: "Chat",
@@ -1224,20 +1225,16 @@ export const itIT = {
     accessDenied: "You do not have access to this page",
   },
   intelligence: {
+    comingSoon: {
+      title: "Prossimamente",
+      description: "Intelligence è in costruzione. Torna presto.",
+    },
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
     askTitle: "Ask the Brain",
     askPlaceholder: "Ask a question about this workspace…",
     askSend: "Send",
-    empty: {
-      title: "Your brain hasn't been built yet",
-      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
-    },
-    building: {
-      title: "Building your brain...",
-      progress: "{built} of {total} sources processed",
-    },
     legend: {
       title: "Key",
       nodes: "Nodes",

@@ -609,6 +609,7 @@ export const jaJP = {
       decisionsEmpty: "まだ決定はありません。",
       rulesTitle: "ルール",
       rulesEmpty: "まだルールはありません。",
+      createRule: "ルールを作成",
     },
     rail: {
       chat: "Chat",
@@ -1224,20 +1225,16 @@ export const jaJP = {
     accessDenied: "このページにアクセスする権限がありません",
   },
   intelligence: {
+    comingSoon: {
+      title: "近日公開",
+      description: "インテリジェンスは現在準備中です。近日公開予定です。",
+    },
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
     askTitle: "Ask the Brain",
     askPlaceholder: "Ask a question about this workspace…",
     askSend: "Send",
-    empty: {
-      title: "Your brain hasn't been built yet",
-      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
-    },
-    building: {
-      title: "Building your brain...",
-      progress: "{built} of {total} sources processed",
-    },
     legend: {
       title: "Key",
       nodes: "Nodes",

@@ -609,6 +609,7 @@ export const ruRU = {
       decisionsEmpty: "Пока нет решений.",
       rulesTitle: "Правила",
       rulesEmpty: "Пока нет правил.",
+      createRule: "Создать правило",
     },
     rail: {
       chat: "Chat",
@@ -1224,20 +1225,16 @@ export const ruRU = {
     accessDenied: "У вас нет доступа к этой странице",
   },
   intelligence: {
+    comingSoon: {
+      title: "Скоро",
+      description: "Intelligence в разработке. Загляните позже.",
+    },
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
     askTitle: "Ask the Brain",
     askPlaceholder: "Ask a question about this workspace…",
     askSend: "Send",
-    empty: {
-      title: "Your brain hasn't been built yet",
-      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
-    },
-    building: {
-      title: "Building your brain...",
-      progress: "{built} of {total} sources processed",
-    },
     legend: {
       title: "Key",
       nodes: "Nodes",

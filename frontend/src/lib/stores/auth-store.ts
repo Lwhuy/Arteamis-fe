@@ -79,6 +79,14 @@ export const useAuthStore = create<AuthState>()(
       }
 
       const applySession = (payload: SessionPayload) => {
+        // The backend's session payload (login/register/refresh) always includes
+        // the caller's full membership list + active workspace. Persist them so
+        // the WorkspaceSwitcher and hasCompany() reflect reality immediately —
+        // otherwise memberships stay [] and the sidebar wrongly shows "you
+        // haven't created a company yet" even when companies exist.
+        const memberships = (payload.memberships as Membership[]) ?? []
+        const activeWorkspaceId = payload.active_workspace_id
+        const active = memberships.find((m) => m.workspace_id === activeWorkspaceId)
         set({
           token: payload.access_token,
           user: payload.user,
@@ -86,6 +94,11 @@ export const useAuthStore = create<AuthState>()(
           isLoading: false,
           error: null,
           lastAuthCheck: Date.now(),
+          memberships,
+          activeWorkspaceId,
+          role: active ? (active.role as 'owner' | 'admin' | 'member') : null,
+          workspaceName: active ? active.name : null,
+          workspaceKind: active ? active.kind : null,
         })
         storeMemberships(
           (payload.memberships ?? []) as Membership[],

@@ -609,6 +609,7 @@ export const bnIN = {
       decisionsEmpty: "এখনও কোনো সিদ্ধান্ত নেই।",
       rulesTitle: "নিয়মসমূহ",
       rulesEmpty: "এখনও কোনো নিয়ম নেই।",
+      createRule: "নিয়ম তৈরি করুন",
     },
     rail: {
       chat: "Chat",
@@ -1225,20 +1226,16 @@ export const bnIN = {
     accessDenied: "আপনার এই পৃষ্ঠায় প্রবেশাধিকার নেই",
   },
   intelligence: {
+    comingSoon: {
+      title: "শীঘ্রই আসছে",
+      description: "ইন্টেলিজেন্স নির্মাণাধীন। শীঘ্রই আবার দেখুন।",
+    },
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
     askTitle: "Ask the Brain",
     askPlaceholder: "Ask a question about this workspace…",
     askSend: "Send",
-    empty: {
-      title: "Your brain hasn't been built yet",
-      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
-    },
-    building: {
-      title: "Building your brain...",
-      progress: "{built} of {total} sources processed",
-    },
     legend: {
       title: "Key",
       nodes: "Nodes",

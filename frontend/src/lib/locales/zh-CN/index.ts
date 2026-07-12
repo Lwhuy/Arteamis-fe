@@ -609,6 +609,7 @@ export const zhCN = {
       decisionsEmpty: "暂无决策。",
       rulesTitle: "规则",
       rulesEmpty: "暂无规则。",
+      createRule: "创建规则",
     },
     rail: {
       chat: "Chat",
@@ -1224,20 +1225,16 @@ export const zhCN = {
     accessDenied: "您无权访问此页面",
   },
   intelligence: {
+    comingSoon: {
+      title: "即将推出",
+      description: "智能功能正在开发中，敬请期待。",
+    },
     title: "Intelligence",
     rebuild: "Rebuild brain",
     rebuildStarted: "Brain rebuild started",
     askTitle: "Ask the Brain",
     askPlaceholder: "Ask a question about this workspace…",
     askSend: "Send",
-    empty: {
-      title: "Your brain hasn't been built yet",
-      description: "Rebuild the brain to turn your sources into a knowledge graph you can explore.",
-    },
-    building: {
-      title: "Building your brain...",
-      progress: "{built} of {total} sources processed",
-    },
     legend: {
       title: "Key",
       nodes: "Nodes",
