@@ -1,0 +1,435 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arteamis, Control Plane</title>
+<style>
+  :root{
+    --font-display: ui-serif, "Iowan Old Style", Georgia, "Times New Roman", serif;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --app:#FCFBF7; --sidebar:#F7F4ED; --panel:#FFFFFF; --sunk:#F4F1E9; --hover:#F1EDE3;
+    --border:#EBE6DA; --border-2:#DED8C9;
+    --text:#4B463D; --heading:#33302A; --greet:#9C968A; --muted:#8B867B; --faint:#B4AFA3; --on-dark:#F7F3EA;
+    --send:#2E2A23;
+    --coral:#C6603E; --coral-2:#B24E2E; --coral-soft:#F4E4DA;
+    --green:#5A8A63; --green-soft:#E6EEE4; --gold:#B08A3C; --gold-soft:#F1E9D5; --danger:#BC5140; --danger-soft:#F3E0DB; --blue:#4E6F9E; --blue-soft:#E4EAF1; --purple:#7C5FA0; --purple-soft:#EDE6F3;
+    --shadow-card:0 1px 2px rgba(60,50,35,.04), 0 10px 26px -16px rgba(60,50,35,.22);
+    --shadow-app:0 30px 90px -50px rgba(70,58,40,.5), 0 4px 14px -8px rgba(70,58,40,.18);
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --app:#221F1B; --sidebar:#1C1915; --panel:#2A2620; --sunk:#211E19; --hover:#2F2B24;
+    --border:#332F28; --border-2:#453F35;
+    --text:#D8D1C4; --heading:#F1EBDD; --greet:#8E887B; --muted:#A29B8C; --faint:#615A4E; --on-dark:#F1EBDD;
+    --send:#E7E0D2;
+    --coral:#E0855F; --coral-2:#EDA184; --coral-soft:#3A2A22;
+    --green:#7FB089; --green-soft:#243026; --gold:#D2A857; --gold-soft:#332B18; --danger:#DE7A6C; --danger-soft:#3A2420; --blue:#8AA6CE; --blue-soft:#232B36; --purple:#B398D8; --purple-soft:#2B2338;
+    --shadow-card:0 1px 2px rgba(0,0,0,.3), 0 10px 26px -16px rgba(0,0,0,.55);
+    --shadow-app:0 30px 90px -50px rgba(0,0,0,.8);
+  }}
+  @media (prefers-color-scheme:dark){.send svg{stroke:#221F1B}}
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:var(--font-sans);font-size:14px;line-height:1.55;color:var(--text);-webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1100px 620px at 12% -8%, #F3EEE0 0%, transparent 60%),
+      radial-gradient(1000px 560px at 104% 4%, #ECEFE4 0%, transparent 55%),
+      radial-gradient(900px 700px at 60% 120%, #F2E9DC 0%, transparent 55%),
+      #ECE6D9;}
+  @media (prefers-color-scheme:dark){body{background:radial-gradient(1100px 620px at 12% -8%,#20201c 0,transparent 60%),radial-gradient(1000px 560px at 104% 4%,#1c1e1a 0,transparent 55%),#141310}}
+  ::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:6px}::-webkit-scrollbar-track{background:transparent}
+
+  .app{display:flex;max-width:1200px;height:calc(100vh - 44px);margin:22px auto;background:var(--app);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow-app);overflow:hidden}
+
+  /* SIDEBAR */
+  .sidebar{width:252px;flex:0 0 252px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 12px 12px}
+  .brand{display:flex;align-items:center;gap:9px;padding:4px 8px 16px;font-family:var(--font-display);font-size:19px;font-weight:600;color:var(--heading);letter-spacing:-.01em}
+  .brand .ast{color:var(--coral);font-size:16px}
+  .newbtn{display:flex;align-items:center;gap:11px;width:100%;background:var(--hover);border:0;color:var(--heading);font-weight:600;font-size:13.5px;padding:10px 13px;border-radius:11px;cursor:pointer;margin-bottom:3px}
+  .newbtn:hover{background:var(--border)} .newbtn svg{width:16px;height:16px;color:var(--muted)}
+  .navitem{display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:10px;color:var(--muted);cursor:pointer;font-size:13.5px;font-weight:500;border:0;background:transparent;width:100%;text-align:left;font-family:var(--font-sans)}
+  .navitem:hover{background:var(--hover);color:var(--heading)} .navitem svg{width:16px;height:16px;flex:0 0 auto;opacity:.85}
+  .navitem.sp[aria-pressed="true"]{background:var(--hover);color:var(--heading)}
+  .navitem.sp[aria-pressed="true"] svg{color:var(--coral);opacity:1}
+  .sb-sec{display:flex;align-items:center;justify-content:space-between;padding:18px 13px 6px;color:var(--faint);font-size:12px;font-weight:600;letter-spacing:.01em}
+  .sb-sec .add{cursor:pointer;font-size:15px;color:var(--faint)} .sb-sec .add:hover{color:var(--muted)}
+  .sb-scroll{flex:1;overflow-y:auto;margin-top:2px}
+  .recitem{padding:8px 13px;border-radius:9px;color:var(--muted);cursor:pointer;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .recitem:hover{background:var(--hover);color:var(--heading)}
+  .sb-foot{border-top:1px solid var(--border);margin-top:8px;padding-top:10px}
+  .acct{display:flex;align-items:center;gap:11px;padding:6px 8px;border-radius:10px;cursor:pointer}
+  .acct:hover{background:var(--hover)}
+  .acct .av{width:30px;height:30px;border-radius:50%;background:var(--coral);color:var(--on-dark);display:grid;place-items:center;font-weight:700;font-size:12px}
+  .acct .nm{font-size:13px;font-weight:600;color:var(--heading)} .acct .pl{font-size:11px;color:var(--muted)}
+
+  /* MAIN */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+  .topbar{height:50px;flex:0 0 50px;display:flex;align-items:center;gap:12px;padding:0 26px;border-bottom:1px solid transparent}
+  .topbar.on{border-color:var(--border)} .tt{font-size:13.5px;font-weight:600;color:var(--heading)}
+  .topbar .scopetag{margin-left:auto;font-size:11.5px;font-weight:600;padding:3px 11px;border-radius:20px;background:var(--coral-soft);color:var(--coral-2)}
+  .topbar .scopetag.company{background:var(--gold-soft);color:var(--gold)}
+  .topbar:not(.on) .scopetag{display:none}
+
+  /* HOME */
+  .home{flex:1;overflow-y:auto;padding:64px 60px}
+  .home.hidden{display:none}
+  .home-in{max-width:600px;margin:0 auto}
+  .greet{font-family:var(--font-display);font-size:33px;font-weight:500;color:var(--greet);letter-spacing:-.01em;display:flex;align-items:center;gap:12px;margin:0}
+  .greet .ast{color:var(--coral);font-size:26px;opacity:.85}
+  .datesub{color:var(--faint);font-size:13px;margin:10px 0 26px 2px}
+  .composer{background:var(--panel);border:1px solid var(--border);border-radius:17px;box-shadow:var(--shadow-card)}
+  .composer:focus-within{border-color:var(--border-2)}
+  .cinput{padding:18px 20px 4px;font-size:15px;color:var(--faint)}
+  .cbar{display:flex;align-items:center;gap:10px;padding:8px 12px 12px}
+  .plus{width:32px;height:32px;border-radius:50%;border:1px solid var(--border-2);background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center;position:relative}
+  .plus:hover{background:var(--hover);color:var(--heading)} .plus svg{width:16px;height:16px}
+  .cbar .rt{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--muted);font-size:13px}
+  .cbar .mode{cursor:pointer} .cbar .rt .ico{cursor:pointer;display:grid;place-items:center} .cbar .rt .ico svg{width:17px;height:17px}
+  .send{width:34px;height:34px;border-radius:50%;border:0;background:var(--send);color:var(--on-dark);cursor:pointer;display:grid;place-items:center}
+  .send svg{width:15px;height:15px}
+  .connect{display:flex;align-items:center;gap:10px;margin:10px 4px 0;padding:11px 16px;color:var(--faint);font-size:12.5px}
+  .connect .apps{margin-left:auto;display:flex;gap:8px}
+  .connect .apps i{width:19px;height:19px;border-radius:5px;display:inline-block;opacity:.9}
+  .connect .x{cursor:pointer;color:var(--faint);margin-left:4px}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+  .chip{background:var(--panel);border:1px solid var(--border);color:var(--text);font-size:13.5px;font-weight:500;padding:12px 17px;border-radius:13px;cursor:pointer;text-align:left;font-family:var(--font-sans);box-shadow:var(--shadow-card)}
+  .chip:hover{background:var(--hover);border-color:var(--border-2)}
+  .chip.more{color:var(--muted);box-shadow:none;background:transparent;border-style:dashed}
+
+  /* + MENU */
+  .menu{position:absolute;bottom:44px;left:0;width:250px;background:var(--panel);border:1px solid var(--border-2);border-radius:14px;box-shadow:var(--shadow-card);padding:6px;z-index:40}
+  .menu[hidden]{display:none}
+  .mrow{display:flex;align-items:center;gap:12px;padding:9px 11px;border-radius:9px;cursor:pointer;font-size:13.5px;color:var(--heading)}
+  .mrow:hover{background:var(--hover)} .mrow svg.i{width:16px;height:16px;color:var(--muted)}
+  .mrow .kbd{margin-left:auto;font-size:11px;color:var(--faint)}
+  .msep{height:1px;background:var(--border);margin:5px 8px}
+
+  /* CONVERSATION */
+  .convo{flex:1;display:none;flex-direction:column;min-height:0}
+  .convo.on{display:flex}
+  .cscroll{flex:1;overflow-y:auto;padding:26px 26px 10px}
+  .stream{max-width:660px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+  .msg{animation:rise .3s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+  .msg.user{display:flex;justify-content:flex-end}
+  .msg.user .bubble{background:var(--sunk);border:1px solid var(--border);border-radius:14px;padding:10px 15px;max-width:82%}
+  .msg.agent .who{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px}
+  .msg.agent .who .a{width:21px;height:21px;border-radius:50%;background:var(--coral);color:var(--on-dark);display:grid;place-items:center;font-size:11px}
+  .msg.agent .text{color:var(--text)} .msg.agent .text b{color:var(--heading);font-weight:650}
+  .cite{color:var(--coral-2);font-weight:600;font-size:11px;vertical-align:super;cursor:pointer;text-decoration:none;padding:0 1px}
+
+  .steppill{display:inline-flex;align-items:center;gap:9px;font-size:11px;color:var(--faint);margin:2px auto 2px;padding:5px 13px;border:1px solid var(--border);border-radius:20px;background:var(--panel)}
+  .steppill .s{display:flex;align-items:center;gap:5px}.steppill .n{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--border-2);display:grid;place-items:center;font-size:9px;font-weight:700}
+  .steppill .s.on{color:var(--heading)}.steppill .s.on .n{background:var(--coral);border-color:var(--coral);color:var(--on-dark)}
+
+  .card{margin-top:12px;border:1px solid var(--border);background:var(--panel);border-radius:15px;padding:15px 16px;box-shadow:var(--shadow-card)}
+  .card .c-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .card .c-ico{width:30px;height:30px;border-radius:9px;background:var(--coral-soft);color:var(--coral-2);display:grid;place-items:center;flex:0 0 auto}.card .c-ico svg{width:17px;height:17px}
+  .card .c-title{font-weight:650;color:var(--heading);font-size:14px}.card .c-meta{font-size:11.5px;color:var(--muted)}
+  .card .stepflag{margin-left:auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--coral-2);background:var(--coral-soft);padding:3px 9px;border-radius:6px;white-space:nowrap}
+  .card ul{margin:0;padding-left:18px}.card ul li{margin:5px 0}.card ul li span{color:var(--muted)}
+  .pillrow{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 11px}
+  .c-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px;align-items:center}
+  .gate{margin-top:11px;background:var(--sunk);border:1px dashed var(--border-2);border-radius:11px;padding:9px 12px;font-size:11.5px}
+  .gate .chain{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .gate .g{padding:3px 8px;border-radius:20px;background:var(--panel);font-weight:600;color:var(--faint);font-size:10.5px}
+  .gate .g.done{background:var(--green-soft);color:var(--green)}.gate .g.now{background:var(--coral-soft);color:var(--coral-2)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:2px}
+  .side-claim{border:1px solid var(--border);border-radius:11px;padding:10px 11px;background:var(--sunk)}
+  .side-claim .h{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:5px}
+  .side-claim.a .h{color:var(--blue)}.side-claim.b .h{color:var(--gold)}
+  .side-claim p{margin:0;font-size:12.5px;color:var(--text)}.side-claim small{display:block;margin-top:6px;font-size:10.5px;color:var(--muted)}
+  .preflight{margin-top:2px}.preflight .pl{display:flex;gap:10px;font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--border)}.preflight .pl:last-child{border-bottom:0}
+  .preflight .pk{color:var(--muted);flex:0 0 108px}.preflight .pv{color:var(--heading)}.preflight .pv.deny{color:var(--danger)}.preflight .pv.allow{color:var(--green)}
+
+  .btn{font-family:var(--font-sans);font-size:13px;font-weight:600;border-radius:10px;padding:9px 15px;cursor:pointer;border:1px solid var(--border-2);background:var(--panel);color:var(--heading);display:inline-flex;align-items:center;gap:7px;transition:all .14s}
+  .btn:hover{background:var(--hover)}.btn svg{width:15px;height:15px}
+  .btn.primary{background:var(--send);color:var(--on-dark);border-color:var(--send)}.btn.primary:hover{opacity:.92}
+  .btn.primary svg{stroke:var(--on-dark)}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}.btn.ghost:hover{background:var(--hover);color:var(--heading)}
+  .btn .s3{font-size:9px;font-weight:800;background:rgba(255,255,255,.18);padding:1px 5px;border-radius:10px}
+
+  .pill{font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+  .pill.proc{background:var(--gold-soft);color:var(--gold)}.pill.ready,.pill.acc{background:var(--green-soft);color:var(--green)}
+  .pill.priv{background:var(--sunk);color:var(--muted)}.pill.pend{background:var(--coral-soft);color:var(--coral-2)}.pill.risk{background:var(--danger-soft);color:var(--danger)}
+  .pill .spin{width:8px;height:8px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .tp,.ctag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px}
+  .tp::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .tp.ai{background:var(--sunk);color:var(--muted)}.tp.human{background:var(--coral-soft);color:var(--coral-2)}.tp.src{background:var(--green-soft);color:var(--green)}
+  .ctag.fact{background:var(--green-soft);color:var(--green)}.ctag.infer{background:var(--blue-soft);color:var(--blue)}.ctag.assume{background:var(--gold-soft);color:var(--gold)}
+
+  .convo-composer{padding:10px 26px 18px}
+  .cc-box{max-width:660px;margin:0 auto;background:var(--panel);border:1px solid var(--border);border-radius:15px;padding:7px 8px 7px 12px;display:flex;align-items:center;gap:9px;box-shadow:var(--shadow-card)}
+  .cc-box .plus{width:30px;height:30px}
+  .cc-box input{flex:1;border:0;background:transparent;color:var(--text);font-size:14px;outline:none;font-family:var(--font-sans)}.cc-box input::placeholder{color:var(--faint)}
+
+  .panelR{position:absolute;top:0;right:0;height:100%;width:0;background:var(--sidebar);border-left:1px solid var(--border);overflow:hidden;transition:width .22s ease;z-index:30;display:flex;flex-direction:column}
+  .panelR.open{width:400px}
+  .pr-head{display:flex;align-items:center;gap:11px;padding:15px 17px;border-bottom:1px solid var(--border);white-space:nowrap}
+  .pr-ic{width:32px;height:32px;border-radius:9px;background:var(--coral-soft);color:var(--coral-2);display:grid;place-items:center;flex:0 0 auto}.pr-ic svg{width:17px;height:17px}
+  .pr-t{font-weight:650;color:var(--heading);font-size:13.5px;overflow:hidden;text-overflow:ellipsis}.pr-s{font-size:11px;color:var(--muted)}
+  .pr-x{margin-left:auto;color:var(--muted);cursor:pointer;background:var(--hover);border:0;width:28px;height:28px;border-radius:8px}
+  .pr-body{flex:1;overflow:auto;padding:16px 18px 30px;font-size:13px;line-height:1.7;color:var(--text)}
+  .pr-body .pg{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:16px 0 6px}.pr-body .pg:first-child{margin-top:0}
+  .pr-body mark{background:transparent;color:inherit;padding:2px 3px;border-radius:4px;transition:background .35s,box-shadow .35s}.pr-body mark.on{background:var(--coral-soft);box-shadow:0 0 0 1px var(--coral)}
+  .lblk{margin-bottom:15px}.lblk .lh{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .lrow{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--border)}.lrow:last-child{border-bottom:0}.lrow svg{width:15px;height:15px;color:var(--muted);flex:0 0 auto}
+  .lblk.warn{background:var(--gold-soft);border-radius:10px;padding:11px 13px}.lblk.warn .lh{color:var(--gold);margin-bottom:5px}.lblk.warn .lrow{border-bottom:0;padding:2px 0}
+  .kv{display:flex;gap:9px;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--border)}.kv:last-child{border-bottom:0}.kv .k{color:var(--muted);flex:0 0 116px}.kv .v{color:var(--heading);font-weight:600}
+  .codebox{background:var(--sunk);border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--text);white-space:pre-wrap;line-height:1.6;margin-top:6px}
+
+  .toast{position:fixed;bottom:34px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--heading);color:var(--app);padding:11px 18px;border-radius:11px;font-size:13px;font-weight:600;box-shadow:var(--shadow-app);opacity:0;pointer-events:none;transition:all .24s;z-index:90;display:flex;align-items:center;gap:9px}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.toast .tk{width:8px;height:8px;border-radius:50%;background:var(--coral)}
+</style>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand"><span class="ast">✳</span>Arteamis</div>
+    <button class="newbtn" id="newBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>New chat</button>
+    <button class="navitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>Search</button>
+    <button class="navitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg>Sources</button>
+    <button class="navitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3 8-8M3 12a9 9 0 1 0 3-6.7"/></svg>Reviews</button>
+    <div class="sb-sec">Spaces <span class="add">+</span></div>
+    <button class="navitem sp" data-scope="personal" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Personal brain</button>
+    <button class="navitem sp" data-scope="company" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Company brain</button>
+    <div class="sb-sec">Recents</div>
+    <div class="sb-scroll" id="recents">
+      <div class="recitem">Q3 SMB pricing</div>
+      <div class="recitem">Competitor price cuts</div>
+      <div class="recitem">Community channel plan</div>
+      <div class="recitem">SMB plan review</div>
+      <div class="recitem">Enterprise vs SMB focus</div>
+      <div class="recitem">Meeting: pricing sync</div>
+      <div class="recitem">Design system feedback</div>
+    </div>
+    <div class="sb-foot"><div class="acct"><div class="av">NT</div><div><div class="nm">Nathan</div><div class="pl">Arteamis, Team</div></div></div></div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar" id="topbar"><div class="tt" id="tt"></div><span class="scopetag" id="scopeTag">Personal</span></div>
+
+    <!-- HOME -->
+    <section class="home" id="home">
+      <div class="home-in">
+        <h1 class="greet"><span class="ast">✳</span><span id="greetName">What are we exploring today?</span></h1>
+        <div class="datesub">Personal space, private by default, only you can see this.</div>
+
+        <div class="composer">
+          <div class="cinput" id="homeInputHint">Ask your brain, or drop something in</div>
+          <div class="cbar">
+            <button class="plus" id="plusBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              <div class="menu" id="plusMenu" hidden>
+                <div class="mrow" data-menu="capture"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg>Add a source<span class="kbd">⌘U</span></div>
+                <div class="mrow" data-menu="note"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v13l-4 4H4zM16 21v-4h4"/></svg>Quick note</div>
+                <div class="mrow" data-menu="skill"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Use a playbook</div>
+                <div class="msep"></div>
+                <div class="mrow"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg>Connect a tool</div>
+              </div>
+            </button>
+            <div class="rt"><span class="mode">Mode ⌄</span><span class="ico" title="Voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></span>
+              <button class="send" id="homeSend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+          </div>
+        </div>
+
+        <div class="connect"><span>Connect your tools to get better answers</span><span class="apps"><i style="background:#E5544A"></i><i style="background:#3B6FE0"></i><i style="background:#2FB673"></i><i style="background:#6C5CE7"></i></span><span class="x">✕</span></div>
+
+        <div class="chips" id="chips"></div>
+      </div>
+    </section>
+
+    <!-- CONVERSATION -->
+    <section class="convo" id="convo">
+      <div class="cscroll" id="cscroll"><div class="stream" id="stream"></div></div>
+      <div class="convo-composer"><div class="cc-box"><button class="plus" id="plusBtn2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button><input id="convoInput" placeholder="Reply, or ask your brain" /><button class="send" id="convoSend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div>
+    </section>
+
+    <!-- RIGHT PANEL -->
+    <aside class="panelR" id="panelR">
+      <div class="pr-head"><span class="pr-ic" id="prIc"></span><div><div class="pr-t" id="prT"></div><div class="pr-s" id="prS"></div></div><button class="pr-x" id="prX">✕</button></div>
+      <div class="pr-body" id="prBody"></div>
+    </aside>
+  </main>
+</div>
+
+<div class="toast" id="toast"><span class="tk"></span><span id="toastText"></span></div>
+
+<script>
+(function(){
+  "use strict";
+  const $=s=>document.querySelector(s);
+  const stream=$("#stream"), cscroll=$("#cscroll");
+  let scope="personal";
+  const st={promo:null,belief:false,agent:null,conflict:null,decision:null,loopReview:null,captured:false};
+
+  const IC={
+    doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg>',
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>',
+    spark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></svg>',
+    up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+    bot:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg>',
+    scale:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M5 7h14M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z"/></svg>',
+    flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4h11l-1.5 4L16 12H5"/></svg>',
+    bolt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+    warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2 20h20zM12 9v5M12 17h.01"/></svg>',
+    loop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 0 1 15-6l3 3M21 12a9 9 0 0 1-15 6l-3-3M18 3v6h-6M6 21v-6h6"/></svg>'
+  };
+
+  const CHIPS=[
+    {k:"capture",label:"Add the Q3 market research"},
+    {k:"promote",label:"Share the SMB insight with my team"},
+    {k:"agent",label:"Have an agent price the SMB plan"},
+    {k:"think",label:"Should we go SMB-first this quarter?"},
+    {k:"review",label:"What needs my review right now?"},
+  ];
+  $("#chips").innerHTML=CHIPS.map(c=>`<button class="chip" data-flow="${c.k}">${c.label}</button>`).join("")+`<button class="chip more">+ More suggestions</button>`;
+
+  function userMsg(h){return `<div class="msg user"><div class="bubble">${h}</div></div>`;}
+  function agentMsg(inner){return `<div class="msg agent"><div class="who"><span class="a">✳</span>Arteamis</div>${inner}</div>`;}
+  function push(h){stream.insertAdjacentHTML("beforeend",h);cscroll.scrollTop=cscroll.scrollHeight;}
+  function stepPill(n){return `<div style="text-align:center"><span class="steppill"><span class="s ${n>=1?'on':''}"><span class="n">1</span>You say</span> <span class="s ${n>=2?'on':''}"><span class="n">2</span>I suggest</span> <span class="s ${n>=3?'on':''}"><span class="n">3</span>You decide</span></span></div>`;}
+  let tT;function toast(m){$("#toastText").textContent=m;const t=$("#toast");t.classList.add("show");clearTimeout(tT);tT=setTimeout(()=>t.classList.remove("show"),2100);}
+
+  function openConvo(title){$("#home").classList.add("hidden");$("#convo").classList.add("on");$("#topbar").classList.add("on");$("#tt").textContent=title||"New conversation";}
+  function goHome(){$("#convo").classList.remove("on");$("#home").classList.remove("hidden");$("#topbar").classList.remove("on");$("#tt").textContent="";stream.innerHTML="";closePanel();Object.keys(st).forEach(k=>st[k]=(typeof st[k]==="boolean")?false:null);}
+
+  const FLOW={
+    capture(){ openConvo("Add a source"); st.captured=true;
+      push(userMsg("＋ Q3 Market Research.pdf")); push(stepPill(2));
+      push(agentMsg(`<div class="text">Saved to your <b>private space</b>, only you can see it. I read it and pulled out <b>3 key points</b><a class="cite" data-obj="source">1</a>:</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.spark}</div><div><div class="c-title">Key points from this file</div><div class="c-meta">Private, not shared yet</div></div><span class="stepflag">Step 2, I suggest</span></div>
+        <div class="pillrow"><span class="ctag infer" title="a reasoned read, not a hard fact">reasoned read</span><span class="tp ai" title="I drafted this, you haven't confirmed it">AI draft</span><span class="tp src" title="links back to the source">backed by 3 sources</span></div>
+        <ul><li>Q3 market leans to <b>SMB</b> over enterprise <a class="cite" data-obj="source">p.4</a></li><li>Competitor prices down <b>~15%</b> <a class="cite" data-obj="source">p.7</a></li><li>Community converts <b>2x paid</b> <a class="cite" data-obj="source">p.11</a></li></ul>
+        <div class="c-actions"><button class="btn ghost" data-flow="think">Ask a question</button><button class="btn primary" data-act="do-promote">${IC.up}<span class="s3">Step 3</span>Share with team</button></div></div>`));
+    },
+    promote(){ if(!st.captured) return FLOW.capture();
+      push(userMsg("Share key point #1 with the team")); push(stepPill(3));
+      push(agentMsg(`<div class="text">I've <b>drafted</b> something to share. The rule keeps you in control: I only draft, <b>you confirm</b>, a <b>teammate checks</b>, then it becomes shared knowledge. Nothing is shared automatically.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.up}</div><div><div class="c-title">SMB is the key segment for Q3</div><div class="c-meta">Proposed change, backed by 3 sources</div></div><span class="stepflag">Step 3, you decide</span></div>
+        <div class="pillrow"><span class="ctag infer">reasoned read</span><span class="tp ai">AI draft</span><span class="tp src">backed by sources</span></div>
+        <div class="gate"><div class="chain"><span class="g done">AI drafts</span> to <span class="g now">You confirm</span> to <span class="g">Teammate checks</span> to <span class="g">Shared</span></div></div>
+        <div class="c-actions"><button class="btn ghost" data-act="redact">Edit first</button><button class="btn primary" data-act="do-assert">${IC.check}<span class="s3">Step 3</span>Confirm and send to team</button></div></div>`));
+    },
+    agent(){ openConvo("Send an AI agent");
+      push(userMsg("Have an AI agent price the Q3 SMB plan")); push(stepPill(3));
+      push(agentMsg(`<div class="text">Before anything runs, I set up a <b>plan</b> and a <b>limited info pack</b> for the agent. Check the limits, then start it.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.bot}</div><div><div class="c-title">Plan, price the Q3 SMB plan</div><div class="c-meta">the agent can only suggest, not save</div></div><span class="stepflag">Step 3, you decide</span></div>
+        <div class="preflight">
+          <div class="pl"><span class="pk">Goal</span><span class="pv">Recommend a price for the SMB entry plan</span></div>
+          <div class="pl"><span class="pk">Can use</span><span class="pv allow">SMB-focus belief, 3 sources, pricing playbook</span></div>
+          <div class="pl"><span class="pk">Can't touch</span><span class="pv deny">Your private notes, pay / HR data</span></div>
+          <div class="pl"><span class="pk">Changes</span><span class="pv">only suggested, you approve</span></div>
+          <div class="pl"><span class="pk">Budget</span><span class="pv">$2.00, pauses to check in</span></div>
+        </div>
+        <div class="c-actions"><button class="btn ghost" data-obj="pack">See what it can use</button><button class="btn primary" data-act="do-dispatch">${IC.bolt}<span class="s3">Step 3</span>Start the agent</button></div></div>`));
+    },
+    think(){ openConvo("Think it through");
+      push(userMsg("Should we go SMB-first for Q3?")); push(stepPill(2));
+      push(agentMsg(`<div class="text">Here's my read. I split what's a <b>fact</b>, what's a <b>guess</b>, and what's <b>unknown</b>, so you decide with clear eyes.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.scale}</div><div><div class="c-title">My analysis, SMB-first for Q3?</div><div class="c-meta">based on 3 things I know</div></div><span class="stepflag">Step 2, I suggest</span></div>
+        <ul><li><span class="ctag fact">fact</span> Competitor prices down ~15% <a class="cite" data-obj="source">p.7</a></li>
+        <li><span class="ctag infer">likely</span> SMB cycle shorter, lower legal barrier</li>
+        <li><span class="ctag assume">guess</span> Community channel scales to SMB <span style="color:var(--muted)">(not verified yet)</span></li></ul>
+        <div class="text" style="font-size:12.5px;margin-top:6px"><b>My suggestion:</b> go SMB-first (fairly confident). Heads-up: this clashes with an older "Enterprise-first" belief. <a class="cite" data-flow="conflict" style="cursor:pointer">see clash</a></div>
+        <div class="c-actions"><button class="btn ghost" data-act="override">Decide differently</button><button class="btn primary" data-act="do-rule">${IC.flag}<span class="s3">Step 3</span>Save as a rule</button></div></div>`));
+    },
+    conflict(){ openConvo("Fix a contradiction"); st.conflict="open";
+      push(userMsg("Open the contradiction")); push(stepPill(2));
+      push(agentMsg(`<div class="text">Two things we believe don't agree. Here's each side, with its source and when it was said.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.warn}</div><div><div class="c-title">Contradiction, Q3 priority segment</div><div class="c-meta">unresolved, affects 1 decision</div></div><span class="stepflag">Step 2, I suggest</span></div>
+        <div class="two"><div class="side-claim a"><div class="h">Side A, new</div><p>SMB is the Q3 focus</p><small>Q3 Market Research.pdf, said today</small></div>
+        <div class="side-claim b"><div class="h">Side B, older</div><p>Enterprise is the priority</p><small>2025 board memo, stale</small></div></div>
+        <div class="c-actions"><button class="btn ghost" data-act="keep-uncertain">Keep both (unsure)</button><button class="btn primary" data-act="do-reconcile">${IC.check}<span class="s3">Step 3</span>Keep SMB, retire the old</button></div></div>`));
+    },
+    review(){ scope="company"; syncScope(); openConvo("Check AI's change"); st.loopReview="pending";
+      push(userMsg("Review the AI's suggested change")); push(stepPill(3));
+      push(agentMsg(`<div class="text">An automated step wants to change what the team knows. Important rule: <b>the AI that made the change can't approve its own change</b>, that's your call.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.loop}</div><div><div class="c-title">Suggested change #418, update the pricing belief</div><div class="c-meta">from the agent's run, cost $0.42</div></div><span class="stepflag">Step 3, you decide</span></div>
+        <div class="preflight"><div class="pl"><span class="pk">Made by</span><span class="pv">AI agent, Research</span></div>
+        <div class="pl"><span class="pk">Auto-checks</span><span class="pv allow">passed: sources, permissions, no clash</span></div>
+        <div class="pl"><span class="pk">Risk</span><span class="pv"><span class="pill risk">high, needs you</span></span></div>
+        <div class="pl"><span class="pk">Undo</span><span class="pv">one-click undo kept</span></div></div>
+        <div class="c-actions"><button class="btn ghost" data-act="reject-loop">Reject</button><button class="btn primary" data-act="do-approve-loop">${IC.check}<span class="s3">Step 3</span>Approve the change</button></div></div>`));
+    }
+  };
+
+  const DECIDE={
+    "do-promote"(){FLOW.promote();},
+    "do-assert"(){st.promo="pending";push(agentMsg(`<div class="text"><b>Confirmed.</b> Sent to your team to review, it stays private until a teammate approves. <a class="cite" data-scope="company" style="cursor:pointer">switch to Company to review</a></div>`));toast("Sent to team for review");},
+    "redact"(){toast("Edit before sharing (demo)");},
+    "do-dispatch"(){st.agent="running";toast("Agent started");push(agentMsg(`<div class="text">Working on it...</div>`));
+      setTimeout(()=>{st.agent="done";push(agentMsg(`<div class="text">Done. I logged everything it did: what it read, what it couldn't touch, the result, and the cost. It <b>suggests</b> a change (you approve).</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.spark}</div><div><div class="c-title">Result, suggested $19/mo SMB plan</div><div class="c-meta">read 3 sources, cost $0.38, 1 suggested change</div></div></div>
+        <div class="c-actions"><button class="btn ghost" data-obj="trace">See the log</button><button class="btn primary" data-flow="review">${IC.loop}Review its change</button></div></div>`));},1500);},
+    "override"(){push(userMsg("Actually, go Enterprise this quarter"));push(agentMsg(`<div class="text">Noted, you decided differently from my suggestion. I keep both, with your reason (<b>strategic</b>), and we'll compare against what actually happens.</div>`));st.decision="saved";toast("Your decision saved");},
+    "do-rule"(){st.decision="saved";push(agentMsg(`<div class="text"><b>Saved as a rule.</b> From now on it guides future work and what agents are told, with an owner and a review date. <a class="cite" data-obj="rule" style="cursor:pointer">open the rule</a></div>`));toast("Rule saved");},
+    "do-reconcile"(){st.conflict="resolved";st.belief=true;push(agentMsg(`<div class="text"><b>Done.</b> "SMB is the Q3 focus" wins, the older belief is archived (kept for the record). 1 decision that used it is flagged for a re-check.</div>`));toast("Contradiction resolved");},
+    "keep-uncertain"(){st.conflict="resolved";push(agentMsg(`<div class="text">Kept <b>both</b> for now. Any decision that uses them gets a "not sure" flag.</div>`));toast("Kept both");},
+    "do-approve-loop"(){st.loopReview="approved";st.belief=true;push(agentMsg(`<div class="text"><b>Approved.</b> The change is saved to shared knowledge, logged, with undo kept. Agents will use the new value from now on. <a class="cite" data-obj="belief" style="cursor:pointer">see where it came from</a></div>`));toast("Team knowledge updated");},
+    "reject-loop"(){st.loopReview=null;push(agentMsg(`<div class="text">Rejected, sent back with a note. Nothing changed.</div>`));toast("Change rejected");}
+  };
+
+  const OBJ={
+    source:{ic:IC.doc,t:"Q3 Market Research.pdf",s:"Evidence, private by default",b:()=>`
+      <div class="pg">Page 4</div><p>A survey of 220 businesses shows demand in the small-and-medium segment. <mark id="ev4">The Q3 market leans clearly toward SMB customers over enterprise</mark>, with shorter cycles and lower legal barriers.</p>
+      <div class="pg">Page 7</div><p>Competitive analysis recorded broad price cuts. <mark id="ev7">Competitor prices dropped ~15% on average</mark>, pressuring positioning and margins.</p>
+      <div class="pg">Page 11</div><p>On growth channels, <mark id="ev11">community channels convert twice as well as paid</mark> at the same cost, especially among SMBs.</p>`},
+    belief:{ic:IC.spark,t:"SMB is the key segment for Q3",s:"Shared team knowledge",b:()=>`
+      <div class="lblk"><div class="lh">How sure</div><span class="tp src">Human-checked, source-backed</span></div>
+      <div class="lblk"><div class="lh">Where this comes from (3)</div><div class="lrow">${IC.doc} Q3 Market Research.pdf, p.4</div><div class="lrow">${IC.doc} Q3 Market Research.pdf, p.7</div><div class="lrow">${IC.doc} Q3 Market Research.pdf, p.11</div></div>
+      <div class="lblk"><div class="lh">History</div><div class="lrow">Drafted by AI, confirmed by <b style="color:var(--heading)">Nathan</b>, approved by a teammate</div></div>
+      <div class="lblk"><div class="lh">What it led to</div><div class="lrow">${IC.up} Decision: price the SMB plan</div><div class="lrow">${IC.bot} Agent: Research run</div></div>
+      <div class="lblk warn"><div class="lh">Contradiction</div><div class="lrow">Replaced older belief "Enterprise is the priority".</div></div>`},
+    rule:{ic:IC.flag,t:"Rule, SMB-first pricing",s:"active today, review in 90 days",b:()=>`
+      <div class="kv"><span class="k">Rule</span><span class="v">Default to SMB-first pricing for Q3 launches</span></div>
+      <div class="kv"><span class="k">When</span><span class="v">Any new plan or pricing decision</span></div>
+      <div class="kv"><span class="k">Trade-off</span><span class="v">Volume and speed over higher price</span></div>
+      <div class="kv"><span class="k">Owner</span><span class="v">Nathan</span></div>
+      <div class="kv"><span class="k">Exception</span><span class="v">Enterprise deal over $50k</span></div>
+      <div class="lblk" style="margin-top:14px"><div class="lh">Based on</div><div class="lrow">${IC.spark} SMB is the Q3 focus</div></div>`},
+    pack:{ic:IC.bot,t:"Info pack, Research agent",s:"limited, expires in 24h",b:()=>`
+      <div class="lblk"><div class="lh">Can use</div><div class="lrow" style="color:var(--green)">${IC.check} SMB-focus belief (+3 sources)</div><div class="lrow" style="color:var(--green)">${IC.check} Playbook: pricing analysis</div></div>
+      <div class="lblk"><div class="lh">Can't use</div><div class="lrow" style="color:var(--danger)">No, your private notes</div><div class="lrow" style="color:var(--danger)">No, pay / HR data</div></div>
+      <div class="lblk"><div class="lh">Limits</div><div class="lrow">Can only suggest, you approve</div><div class="lrow">Budget $2.00, pauses to check in</div></div>`},
+    trace:{ic:IC.spark,t:"Activity log, Research agent",s:"cost $0.38, 1 suggested change",b:()=>`
+      <div class="kv"><span class="k">Who</span><span class="v">AI agent, Research</span></div>
+      <div class="kv"><span class="k">Read</span><span class="v">Q3 Market Research.pdf (p.4,7,11)</span></div>
+      <div class="kv"><span class="k">Couldn't use</span><span class="v" style="color:var(--danger)">Private notes, HR data</span></div>
+      <div class="kv"><span class="k">Result</span><span class="v">Suggest $19/mo entry plan</span></div>
+      <div class="kv"><span class="k">Suggested</span><span class="v">Change #418 (waiting for you)</span></div>`},
+    skill:{ic:IC.bolt,t:"Playbook, pricing analysis",s:"reusable, tested",b:()=>`
+      <div class="kv"><span class="k">When to use</span><span class="v">Any new plan pricing</span></div>
+      <div class="kv"><span class="k">Quality bar</span><span class="v">Cite 3 or more sources, show the range</span></div>
+      <div class="kv"><span class="k">Never do</span><span class="v" style="color:var(--danger)">Auto-publish, use HR data</span></div>
+      <div class="lblk" style="margin-top:14px"><div class="lh">Steps</div><div class="lrow">1, Gather comparable prices</div><div class="lrow">2, Model 3 tiers and a range</div><div class="lrow">3, Recommend, risks, how sure</div></div>`}
+  };
+  function openPanel(key,page){const o=OBJ[key];if(!o)return;$("#prIc").innerHTML=o.ic;$("#prT").textContent=o.t;$("#prS").textContent=o.s;$("#prBody").innerHTML=o.b();$("#panelR").classList.add("open");
+    if(key==="source"&&page){const ev=document.getElementById("ev"+page);if(ev){document.querySelectorAll("#prBody mark").forEach(m=>m.classList.remove("on"));ev.classList.add("on");ev.scrollIntoView({block:"center",behavior:"smooth"});}}}
+  function closePanel(){$("#panelR").classList.remove("open");}
+
+  function syncScope(){document.querySelectorAll(".navitem.sp").forEach(b=>b.setAttribute("aria-pressed",b.dataset.scope===scope));
+    const tag=$("#scopeTag");tag.textContent=scope[0].toUpperCase()+scope.slice(1);tag.className="scopetag"+(scope==="company"?" company":"");}
+
+  function toggleMenu(force){const m=$("#plusMenu");const show=force!==undefined?force:m.hidden;m.hidden=!show;}
+  $("#plusBtn").addEventListener("click",e=>{e.stopPropagation();toggleMenu();});
+  document.addEventListener("click",()=>toggleMenu(false));
+
+  document.querySelectorAll(".navitem.sp").forEach(b=>b.addEventListener("click",()=>{scope=b.dataset.scope;syncScope();}));
+  $("#newBtn").addEventListener("click",goHome);
+  $("#homeSend").addEventListener("click",()=>startTyped());
+  $("#convoSend").addEventListener("click",()=>{const v=$("#convoInput").value.trim();if(v){push(userMsg(v.replace(/</g,"&lt;")));push(agentMsg(`<div class="text">(demo) Try a suggestion on the home screen, each runs the same <b>3-step</b> flow. Press <b>New chat</b> to go back.</div>`));$("#convoInput").value="";}});
+  $("#convoInput").addEventListener("keydown",e=>{if(e.key==="Enter")$("#convoSend").click();});
+  function startTyped(){openConvo("New conversation");push(agentMsg(`<div class="text">Pick one of the suggestions to see the <b>3-step</b> flow, or press <b>New chat</b> and try one.</div>`));}
+
+  document.body.addEventListener("click",e=>{
+    const mn=e.target.closest("[data-menu]");if(mn){toggleMenu(false);const k=mn.dataset.menu;if(FLOW[k])FLOW[k]();else if(OBJ[k])openPanel(k);return;}
+    const fl=e.target.closest("[data-flow]");if(fl){FLOW[fl.dataset.flow]&&FLOW[fl.dataset.flow]();return;}
+    const sc=e.target.closest("[data-scope]");if(sc&&sc.classList.contains("cite")){scope=sc.dataset.scope;syncScope();return;}
+    if(e.target.closest("#prX")){closePanel();return;}
+    const ob=e.target.closest("[data-obj]");if(ob){const pg=ob.textContent.match(/p\.(\d+)/);openPanel(ob.dataset.obj,pg?pg[1]:null);return;}
+    const ac=e.target.closest("[data-act]");if(ac){DECIDE[ac.dataset.act]&&DECIDE[ac.dataset.act]();return;}
+  });
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")closePanel();});
+  syncScope();
+})();
+</script>

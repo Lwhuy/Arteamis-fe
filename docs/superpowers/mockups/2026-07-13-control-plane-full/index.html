@@ -1,0 +1,672 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arteamis · Control Plane (Full)</title>
+<style>
+  :root{
+    --font-display: ui-serif, "Iowan Old Style", Georgia, "Times New Roman", serif;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --canvas:#F6F2EB; --canvas-alt:#EFE9DE; --surface:#FCFAF5; --surface-sunk:#EEE8DC;
+    --line:#E3DBCD; --line-strong:#CEC4B1;
+    --heading:#2A2620; --body:#3E382E; --muted:#6C6455; --subtle:#8E8676; --faint:#B6AE9F;
+    --coral:#DE6B4C; --coral-hover:#E7856A; --coral-strong:#B24E2E; --on-coral:#2A2620; --coral-soft:#F6E2D8;
+    --green:#4F8A5B; --green-soft:#E1EDE1; --blue:#4A6FA5; --blue-soft:#E1E8F1;
+    --purple:#7A5AA6; --purple-soft:#ECE4F5;
+    --warning:#B7842B; --warning-soft:#F2E8D2; --danger:#C0473A; --danger-soft:#F3DDD9;
+    --shadow:0 1px 2px rgba(42,38,32,.05), 0 8px 24px -12px rgba(42,38,32,.18);
+  }
+  @media (prefers-color-scheme: dark){:root{
+    --canvas:#1B1915; --canvas-alt:#151310; --surface:#242019; --surface-sunk:#1A1712;
+    --line:#34302A; --line-strong:#4A4437;
+    --heading:#F2ECDF; --body:#D9D2C4; --muted:#A79E8D; --subtle:#847C6D; --faint:#5F5849;
+    --coral:#E58462; --coral-hover:#EE9880; --coral-strong:#F0A98D; --on-coral:#221F19; --coral-soft:#3A2A22;
+    --green:#7DB489; --green-soft:#243026; --blue:#8BA6CE; --blue-soft:#222A34;
+    --purple:#B79BDA; --purple-soft:#2B2338;
+    --warning:#D6AB5B; --warning-soft:#332B18; --danger:#E0796C; --danger-soft:#3A2420;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+  }}
+  :root[data-theme="light"]{--canvas:#F6F2EB;--canvas-alt:#EFE9DE;--surface:#FCFAF5;--surface-sunk:#EEE8DC;--line:#E3DBCD;--line-strong:#CEC4B1;--heading:#2A2620;--body:#3E382E;--muted:#6C6455;--subtle:#8E8676;--faint:#B6AE9F;--coral:#DE6B4C;--coral-hover:#E7856A;--coral-strong:#B24E2E;--on-coral:#2A2620;--coral-soft:#F6E2D8;--green:#4F8A5B;--green-soft:#E1EDE1;--blue:#4A6FA5;--blue-soft:#E1E8F1;--purple:#7A5AA6;--purple-soft:#ECE4F5;--warning:#B7842B;--warning-soft:#F2E8D2;--danger:#C0473A;--danger-soft:#F3DDD9;}
+  :root[data-theme="dark"]{--canvas:#1B1915;--canvas-alt:#151310;--surface:#242019;--surface-sunk:#1A1712;--line:#34302A;--line-strong:#4A4437;--heading:#F2ECDF;--body:#D9D2C4;--muted:#A79E8D;--subtle:#847C6D;--faint:#5F5849;--coral:#E58462;--coral-hover:#EE9880;--coral-strong:#F0A98D;--on-coral:#221F19;--coral-soft:#3A2A22;--green:#7DB489;--green-soft:#243026;--blue:#8BA6CE;--blue-soft:#222A34;--purple:#B79BDA;--purple-soft:#2B2338;--warning:#D6AB5B;--warning-soft:#332B18;--danger:#E0796C;--danger-soft:#3A2420;}
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--canvas-alt);color:var(--body);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{height:100vh;overflow-x:auto;overflow-y:hidden}
+  .app{min-width:1240px;height:100vh;display:flex;flex-direction:column;background:var(--canvas)}
+
+  /* top bar */
+  .topbar{height:56px;flex:0 0 56px;display:flex;align-items:center;gap:20px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surface)}
+  .brand{display:flex;align-items:center;gap:9px;font-family:var(--font-display);font-size:19px;font-weight:600;color:var(--heading);letter-spacing:-.01em}
+  .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--coral);box-shadow:0 0 0 4px var(--coral-soft)}
+  .scope{margin:0 auto;display:flex;background:var(--surface-sunk);border:1px solid var(--line);border-radius:9px;padding:3px}
+  .scope button{font-family:var(--font-sans);font-size:13px;font-weight:600;color:var(--muted);background:transparent;border:0;padding:6px 15px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .15s}
+  .scope button .glyph{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.55}
+  .scope button[aria-pressed="true"]{background:var(--surface);color:var(--heading);box-shadow:var(--shadow)}
+  .scope button[data-scope="company"][aria-pressed="true"]{color:var(--coral-strong)}
+  .scope button[data-scope="mixed"][aria-pressed="true"]{color:var(--purple)}
+  .topright{display:flex;align-items:center;gap:12px;color:var(--subtle);font-size:12.5px}
+  .kbd{border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:6px;padding:3px 8px;font-size:11px;color:var(--muted);background:var(--surface);cursor:pointer}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--coral);color:var(--on-coral);display:grid;place-items:center;font-weight:700;font-size:12px}
+
+  /* body grid */
+  .body{flex:1;display:grid;grid-template-columns:64px 0px 1fr 384px;min-height:0;transition:grid-template-columns .22s ease}
+  .body.artifact-open{grid-template-columns:64px 400px 1fr 384px}
+  @media (prefers-reduced-motion:reduce){.body{transition:none}}
+
+  /* rail */
+  .rail{border-right:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+  .rail .r-item{position:relative;width:44px;height:44px;border-radius:11px;border:0;background:transparent;color:var(--subtle);cursor:pointer;display:grid;place-items:center;transition:all .15s}
+  .rail .r-item:hover{background:var(--surface-sunk);color:var(--body)}
+  .rail .r-item.active{background:var(--coral-soft);color:var(--coral-strong)}
+  .rail .r-item svg{width:21px;height:21px}
+  .rail .r-item .tip{position:absolute;left:52px;top:50%;transform:translateY(-50%);background:var(--heading);color:var(--canvas);font-size:11.5px;font-weight:600;white-space:nowrap;padding:5px 9px;border-radius:7px;opacity:0;pointer-events:none;transition:opacity .12s;z-index:30;box-shadow:var(--shadow)}
+  .rail .r-item:hover .tip{opacity:1}
+  .rail .r-item .tip small{display:block;font-weight:500;opacity:.7;font-size:10px}
+  .rail .sp{flex:1}
+  .rail .legacy-band{width:40px;border-top:1px dashed var(--line-strong);margin:6px 0 2px;padding-top:6px;font-size:8.5px;text-align:center;color:var(--faint);letter-spacing:.06em;text-transform:uppercase;line-height:1.2}
+
+  /* artifact reader */
+  .artifact{overflow:hidden;background:var(--surface-sunk);border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+  .body:not(.artifact-open) .artifact{border-right:0}
+  .art-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .art-doc{display:flex;gap:10px;align-items:center;min-width:0}
+  .art-ic{width:32px;height:32px;border-radius:8px;background:var(--coral-soft);color:var(--coral-strong);display:grid;place-items:center;flex:0 0 auto}
+  .art-ic svg{width:17px;height:17px}
+  .art-title{font-weight:700;color:var(--heading);font-size:13px;overflow:hidden;text-overflow:ellipsis}
+  .art-sub{font-size:11px;color:var(--muted)}
+  .art-body{flex:1;overflow:auto;padding:16px 18px 30px;font-size:13px;line-height:1.7;color:var(--body)}
+  .art-body .pg{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:18px 0 6px}
+  .art-body .pg:first-child{margin-top:0}
+  .art-body p{margin:0 0 4px}
+  .art-body mark{background:transparent;color:inherit;padding:2px 3px;border-radius:4px;transition:background .35s,box-shadow .35s}
+  .art-body mark.on{background:var(--coral-soft);box-shadow:0 0 0 1px var(--coral)}
+  .lblk{margin-bottom:16px}
+  .lblk .lh{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px}
+  .lrow{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--body);padding:6px 0;border-bottom:1px solid var(--line)}
+  .lrow:last-child{border-bottom:0}
+  .lrow svg{width:15px;height:15px;color:var(--muted);flex:0 0 auto}
+  .lblk.warn{background:var(--warning-soft);border-radius:10px;padding:11px 13px}
+  .lblk.warn .lh{color:var(--warning);margin-bottom:5px}
+  .lblk.warn .lrow{border-bottom:0;padding:2px 0}
+  .kv{display:flex;gap:8px;font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .kv:last-child{border-bottom:0}
+  .kv .k{color:var(--muted);flex:0 0 116px}
+  .kv .v{color:var(--heading);font-weight:600}
+  .codebox{background:var(--canvas);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--body);white-space:pre-wrap;line-height:1.6;margin-top:6px}
+
+  /* chat */
+  .chat{display:flex;flex-direction:column;min-height:0;background:var(--canvas)}
+  .chat-head{padding:13px 26px 11px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:12px}
+  .chat-head h1{font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--heading);margin:0;letter-spacing:-.01em}
+  .chat-head .sub{font-size:12.5px;color:var(--muted)}
+  .steptrack{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--subtle)}
+  .steptrack .s{display:flex;align-items:center;gap:5px}
+  .steptrack .n{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line-strong);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--subtle)}
+  .steptrack .s.on .n{background:var(--coral);border-color:var(--coral);color:var(--on-coral)}
+  .steptrack .s.on{color:var(--heading);font-weight:700}
+  .steptrack .sep{color:var(--faint)}
+  .chat-scroll{flex:1;overflow-y:auto;padding:20px 26px 8px}
+  .stream{display:flex;flex-direction:column;gap:16px;max-width:720px;margin:0 auto}
+  .msg{display:flex;gap:12px;animation:rise .35s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.msg{animation:none}}
+  .msg .ava{flex:0 0 30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;margin-top:2px}
+  .msg.user{flex-direction:row-reverse}
+  .msg.user .ava{background:var(--surface-sunk);color:var(--muted)}
+  .msg.agent .ava{background:var(--coral);color:var(--on-coral)}
+  .msg .content{flex:1;min-width:0}
+  .msg.user .content{display:flex;flex-direction:column;align-items:flex-end}
+  .msg .who{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:4px}
+  .msg.user .bubble{background:var(--surface-sunk);border:1px solid var(--line);border-radius:12px;padding:9px 13px;color:var(--body);display:inline-block}
+  .msg.agent .text{color:var(--body)}
+  .msg.agent .text b{color:var(--heading)}
+  .cite{color:var(--coral-strong);font-weight:600;font-size:11px;vertical-align:super;text-decoration:none;padding:0 1px;cursor:pointer}
+
+  /* inline card */
+  .card{margin-top:11px;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:14px 15px;box-shadow:var(--shadow)}
+  .card .c-top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .card .c-ico{width:30px;height:30px;border-radius:8px;background:var(--coral-soft);color:var(--coral-strong);display:grid;place-items:center;flex:0 0 auto}
+  .card .c-ico svg{width:17px;height:17px}
+  .card .c-title{font-weight:700;color:var(--heading);font-size:13.5px}
+  .card .c-meta{font-size:11.5px;color:var(--muted)}
+  .card .stepflag{margin-left:auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--coral-strong);background:var(--coral-soft);padding:3px 8px;border-radius:6px;white-space:nowrap}
+  .card ul{margin:0 0 4px;padding-left:18px;color:var(--body)}
+  .card ul li{margin:5px 0}
+  .card ul li span{color:var(--muted);font-size:12px}
+  .pillrow{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px}
+  .c-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+  .gate{margin-top:10px;background:var(--canvas);border:1px dashed var(--line-strong);border-radius:10px;padding:9px 11px;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .gate b{color:var(--heading)}
+  .gate .chain{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .gate .g{padding:2px 7px;border-radius:20px;background:var(--surface-sunk);font-weight:600;color:var(--subtle);font-size:10.5px}
+  .gate .g.done{background:var(--green-soft);color:var(--green)}
+  .gate .g.now{background:var(--coral-soft);color:var(--coral-strong)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:4px}
+  .side-claim{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--canvas)}
+  .side-claim .h{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--subtle);margin-bottom:4px}
+  .side-claim.a .h{color:var(--blue)} .side-claim.b .h{color:var(--warning)}
+  .side-claim p{margin:0;font-size:12px;color:var(--body)}
+  .side-claim small{display:block;margin-top:5px;font-size:10.5px;color:var(--muted)}
+  .preflight{margin-top:4px}
+  .preflight .pl{display:flex;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--line)}
+  .preflight .pl:last-child{border-bottom:0}
+  .preflight .pk{color:var(--muted);flex:0 0 118px}
+  .preflight .pv{color:var(--heading)}
+  .preflight .pv.deny{color:var(--danger)} .preflight .pv.allow{color:var(--green)}
+
+  /* buttons */
+  .btn{font-family:var(--font-sans);font-size:13px;font-weight:600;border-radius:8px;padding:8px 14px;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);color:var(--body);transition:all .14s;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{border-color:var(--muted)}
+  .btn svg{width:15px;height:15px}
+  .btn.primary{background:var(--coral);color:var(--on-coral);border-color:var(--coral)}
+  .btn.primary:hover{background:var(--coral-hover)}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+  .btn.ghost:hover{background:var(--surface-sunk);color:var(--body)}
+  .btn .s3{font-size:9px;font-weight:800;opacity:.8;background:rgba(255,255,255,.25);padding:1px 5px;border-radius:10px}
+  .btn:focus-visible{outline:2px solid var(--coral);outline-offset:2px}
+
+  /* composer + command chips */
+  .composer{border-top:1px solid var(--line);padding:11px 26px 16px;background:var(--canvas)}
+  .cmdrow{max-width:720px;margin:0 auto 9px;display:flex;gap:7px;flex-wrap:wrap}
+  .cmd{font-size:12px;font-weight:600;border:1px solid var(--line-strong);background:var(--surface);color:var(--muted);border-radius:20px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .14s}
+  .cmd:hover{color:var(--coral-strong);border-color:var(--coral);background:var(--coral-soft)}
+  .cmd svg{width:14px;height:14px}
+  .box{max-width:720px;margin:0 auto;border:1px solid var(--line-strong);background:var(--surface);border-radius:14px;padding:8px;display:flex;align-items:center;gap:8px;box-shadow:var(--shadow)}
+  .box:focus-within{border-color:var(--coral)}
+  .addbtn{flex:0 0 auto;border:1px dashed var(--line-strong);background:var(--surface-sunk);color:var(--muted);border-radius:10px;padding:8px 12px;font-weight:600;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .14s}
+  .addbtn:hover{color:var(--coral-strong);border-color:var(--coral);background:var(--coral-soft)}
+  .addbtn svg{width:15px;height:15px}
+  .composer input{flex:1;border:0;background:transparent;font-family:var(--font-sans);font-size:14px;color:var(--body);outline:none}
+  .composer input::placeholder{color:var(--faint)}
+  .sendbtn{flex:0 0 auto;width:34px;height:34px;border-radius:9px;border:0;background:var(--coral);color:var(--on-coral);cursor:pointer;display:grid;place-items:center}
+  .sendbtn svg{width:16px;height:16px}
+
+  /* right sidebar */
+  .side{border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0}
+  .side-head{padding:14px 18px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .side-head .lab{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--subtle)}
+  .side-head .scopepill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--coral-soft);color:var(--coral-strong)}
+  .side-head .scopepill.mixed{background:var(--purple-soft);color:var(--purple)}
+  .side-scroll{flex:1;overflow-y:auto;padding:15px 15px 24px;display:flex;flex-direction:column;gap:18px}
+  .sec .sec-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .sec .sec-h h3{margin:0;font-size:12.5px;font-weight:700;color:var(--heading)}
+  .sec .sec-h .count{font-size:11px;font-weight:700;color:var(--on-coral);background:var(--coral);border-radius:20px;padding:1px 8px;min-width:20px;text-align:center}
+  .sec .sec-h .count.zero{background:var(--surface-sunk);color:var(--subtle)}
+  .srow{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--canvas);margin-bottom:7px;animation:rise .3s ease both;cursor:pointer;transition:border-color .14s}
+  .srow:hover{border-color:var(--coral)}
+  .srow.flat{cursor:default} .srow.flat:hover{border-color:var(--line)}
+  .srow .s-ic{width:26px;height:26px;border-radius:7px;background:var(--surface-sunk);display:grid;place-items:center;color:var(--muted);flex:0 0 auto}
+  .srow .s-ic svg{width:15px;height:15px}
+  .srow .s-main{flex:1;min-width:0}
+  .srow .s-title{font-size:12.5px;font-weight:600;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srow .s-sub{font-size:11px;color:var(--muted)}
+  .empty{color:var(--subtle);font-size:12px;padding:10px 12px;border:1px dashed var(--line-strong);border-radius:10px;text-align:center}
+
+  /* pills */
+  .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;letter-spacing:.02em}
+  .pill.proc{background:var(--warning-soft);color:var(--warning)}
+  .pill.ready,.pill.acc{background:var(--green-soft);color:var(--green)}
+  .pill.priv{background:var(--surface-sunk);color:var(--subtle)}
+  .pill.pend{background:var(--coral-soft);color:var(--coral-strong)}
+  .pill.risk{background:var(--danger-soft);color:var(--danger)}
+  .pill .spin{width:8px;height:8px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  /* trust + claim tags */
+  .tp,.ctag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.02em;display:inline-flex;align-items:center;gap:4px}
+  .tp::before{content:"●";font-size:8px}
+  .tp.ai{background:var(--surface-sunk);color:var(--subtle)}
+  .tp.human{background:var(--coral-soft);color:var(--coral-strong)}
+  .tp.src{background:var(--green-soft);color:var(--green)}
+  .tp.disp{background:var(--danger-soft);color:var(--danger)}
+  .ctag.fact{background:var(--green-soft);color:var(--green)}
+  .ctag.infer{background:var(--blue-soft);color:var(--blue)}
+  .ctag.assume{background:var(--warning-soft);color:var(--warning)}
+  .ctag.rec{background:var(--purple-soft);color:var(--purple)}
+
+  /* loop widget */
+  .loop{border:1px solid var(--line);border-radius:12px;background:var(--canvas);padding:11px}
+  .lstep{display:flex;align-items:center;gap:11px;padding:5px 2px;position:relative}
+  .lstep .marker{width:22px;height:22px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-size:11px;font-weight:700;border:2px solid var(--line-strong);color:var(--subtle);background:var(--surface)}
+  .lstep .marker svg{width:12px;height:12px}
+  .lstep .lname{font-size:12px;color:var(--muted)}
+  .lstep .lname small{display:block;font-size:10px;color:var(--faint)}
+  .lstep::before{content:"";position:absolute;left:11px;top:-6px;height:6px;width:2px;background:var(--line)}
+  .lstep:first-child::before{display:none}
+  .lstep.done .marker{background:var(--green);border-color:var(--green);color:#fff}
+  .lstep.done .lname{color:var(--body)}
+  .lstep.current .marker{background:var(--coral);border-color:var(--coral);color:var(--on-coral);box-shadow:0 0 0 4px var(--coral-soft)}
+  .lstep.current .lname{color:var(--heading);font-weight:700}
+  .loop-divider{display:flex;align-items:center;gap:8px;margin:6px 0;color:var(--faint);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+  .loop-divider::before,.loop-divider::after{content:"";flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--line-strong) 0 4px,transparent 4px 8px)}
+
+  /* narrator */
+  .narrator{flex:0 0 auto;border-top:1px solid var(--line);background:var(--surface-sunk);padding:9px 18px;display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
+  .narrator .tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--coral-strong);background:var(--coral-soft);padding:3px 8px;border-radius:6px;white-space:nowrap}
+  .narrator b{color:var(--heading)}
+  .narrator .reset{margin-left:auto;border:1px solid var(--line-strong);background:var(--surface);color:var(--muted);border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:600;cursor:pointer}
+  .narrator .reset:hover{color:var(--body)}
+
+  /* toast + palette */
+  .toast{position:fixed;bottom:64px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--heading);color:var(--canvas);padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:all .25s;z-index:80;display:flex;align-items:center;gap:9px}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .tk{width:8px;height:8px;border-radius:50%;background:var(--coral)}
+  .overlay{position:fixed;inset:0;background:rgba(18,16,12,.5);display:grid;place-items:flex-start center;z-index:70;opacity:0;transition:opacity .18s;padding:80px 24px 24px}
+  .overlay.show{opacity:1}
+  .overlay[hidden]{display:none}
+  .palette{width:min(560px,94vw);background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;transform:translateY(-8px);transition:transform .18s}
+  .overlay.show .palette{transform:none}
+  .palette .pinp{padding:14px 16px;border-bottom:1px solid var(--line);font-size:15px;color:var(--muted)}
+  .palette .pinp b{color:var(--heading);font-weight:600}
+  .palette .plist{max-height:50vh;overflow:auto;padding:8px}
+  .palette .pi{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;cursor:pointer}
+  .palette .pi:hover{background:var(--surface-sunk)}
+  .palette .pi .pic{width:26px;height:26px;border-radius:7px;background:var(--coral-soft);color:var(--coral-strong);display:grid;place-items:center;flex:0 0 auto}
+  .palette .pi .pic svg{width:15px;height:15px}
+  .palette .pi .pt{font-size:13px;font-weight:600;color:var(--heading)}
+  .palette .pi .pd{font-size:11.5px;color:var(--muted)}
+  .palette .pi .pk{margin-left:auto;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+</style>
+
+<div class="wrap"><div class="app">
+
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span>Arteamis</div>
+    <div class="scope" role="group" aria-label="Scope">
+      <button data-scope="personal" aria-pressed="true"><span class="glyph"></span>Personal</button>
+      <button data-scope="company" aria-pressed="false"><span class="glyph"></span>Company</button>
+      <button data-scope="mixed" aria-pressed="false"><span class="glyph"></span>Mixed</button>
+    </div>
+    <div class="topright">
+      <span class="kbd" id="kbd">⌘K</span>
+      <div class="avatar">NT</div>
+    </div>
+  </header>
+
+  <div class="body">
+    <!-- RAIL -->
+    <nav class="rail" aria-label="Main navigation">
+      <button class="r-item active" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="tip">Control plane<small>you live here</small></span></button>
+      <button class="r-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg><span class="tip">Sources / Docs</span></button>
+      <button class="r-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg><span class="tip">Connections</span></button>
+      <div class="sp"></div>
+      <div class="legacy-band">admin</div>
+      <button class="r-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="6" cy="19" r="2"/><path d="M7 7l3 3m7-3l-3 3M8 17l2-3"/></svg><span class="tip">Brain graph<small>admin · infrastructure</small></span></button>
+      <button class="r-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.3 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.4 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.5L2.9 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.3-1a7 7 0 0 0 1.7 1l.4 2.5h5l.4-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"/></svg><span class="tip">Settings</span></button>
+    </nav>
+
+    <!-- ARTIFACT READER -->
+    <aside class="artifact" id="artifact" aria-label="Object reader">
+      <div class="art-head">
+        <div class="art-doc"><span class="art-ic" id="artIc"></span>
+          <div><div class="art-title" id="artTitle"></div><div class="art-sub" id="artSub"></div></div>
+        </div>
+        <button class="btn ghost" data-artclose aria-label="Close" style="padding:6px 9px">✕</button>
+      </div>
+      <div class="art-body" id="artBody"></div>
+    </aside>
+
+    <!-- CHAT -->
+    <section class="chat">
+      <div class="chat-head">
+        <h1 id="chatTitle">Ask the Brain</h1>
+        <span class="sub" id="chatSub"></span>
+        <div class="steptrack" id="stepTrack">
+          <span class="s on" data-s="1"><span class="n">1</span>You say</span><span class="sep">→</span>
+          <span class="s" data-s="2"><span class="n">2</span>I suggest</span><span class="sep">→</span>
+          <span class="s" data-s="3"><span class="n">3</span>You decide</span>
+        </div>
+      </div>
+      <div class="chat-scroll" id="chatScroll"><div class="stream" id="stream"></div></div>
+      <div class="composer">
+        <div class="cmdrow" id="cmdrow"></div>
+        <div class="box">
+          <button class="addbtn" data-cmd="capture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Capture</button>
+          <input id="composerInput" placeholder="Ask the brain, or give a command…" />
+          <button class="sendbtn" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SIDEBAR -->
+    <aside class="side" aria-label="Context">
+      <div class="side-head"><span class="lab" id="sideLab">Context</span><span class="scopepill" id="scopePill">Personal</span></div>
+      <div class="side-scroll" id="sideScroll"></div>
+    </aside>
+  </div>
+
+  <div class="narrator">
+    <span class="tag" id="narTag">Step 1</span>
+    <span id="narText">Every task is just <b>3 steps</b>: ① you say → ② I suggest → ③ you decide. Try a button below.</span>
+    <button class="reset" id="resetBtn">↺ Reset</button>
+  </div>
+
+</div></div>
+
+<div class="toast" id="toast"><span class="tk"></span><span id="toastText"></span></div>
+<div class="overlay" id="overlay" hidden><div class="palette" id="palette"></div></div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const stream=$("#stream"), sideScroll=$("#sideScroll"), chatScroll=$("#chatScroll");
+
+  // ---------- icons ----------
+  const IC={
+    doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg>',
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>',
+    spark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></svg>',
+    up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+    bot:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg>',
+    scale:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M5 7h14M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z"/></svg>',
+    flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4h11l-1.5 4L16 12H5"/></svg>',
+    bolt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+    warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2 20h20zM12 9v5M12 17h.01"/></svg>',
+    inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h5l2 3h4l2-3h5M3 12l2-7h14l2 7v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>',
+    loop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 0 1 15-6l3 3M21 12a9 9 0 0 1-15 6l-3-3M18 3v6h-6M6 21v-6h6"/></svg>',
+    note:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v13l-4 4H4zM16 21v-4h4"/></svg>'
+  };
+
+  // ---------- state ----------
+  let scope="personal";
+  const st={
+    promo:null,        // null|pending|accepted
+    belief:false,
+    agent:null,        // null|running|done
+    conflict:null,     // null|open|resolved
+    decision:null,     // null|saved
+    loopReview:null,   // null|pending|approved
+    commitDone:false,
+    captured:false
+  };
+
+  // ---------- helpers ----------
+  function userMsg(html){return `<div class="msg user"><div class="ava">NT</div><div class="content"><div class="who">You</div><div class="bubble">${html}</div></div></div>`;}
+  function agentMsg(inner){return `<div class="msg agent"><div class="ava">✳</div><div class="content"><div class="who">Arteamis</div>${inner}</div></div>`;}
+  function push(html){stream.insertAdjacentHTML("beforeend",html);chatScroll.scrollTop=chatScroll.scrollHeight;}
+  function setStep(n){document.querySelectorAll("#stepTrack .s").forEach(s=>s.classList.toggle("on",+s.dataset.s<=n));}
+  function narrate(tag,html){$("#narTag").textContent=tag;$("#narText").innerHTML=html;}
+  let tT;function toast(msg){$("#toastText").textContent=msg;const t=$("#toast");t.classList.add("show");clearTimeout(tT);tT=setTimeout(()=>t.classList.remove("show"),2200);}
+
+  // ---------- command chips ----------
+  const CMDS=[
+    {k:"promote", label:"Share with team", ic:IC.up},
+    {k:"agent",   label:"Send an AI agent", ic:IC.bot},
+    {k:"think",   label:"Think it through", ic:IC.scale},
+    {k:"conflict",label:"Fix a contradiction", ic:IC.warn},
+    {k:"review",  label:"Check AI's change", ic:IC.loop},
+  ];
+  function renderCmds(){
+    $("#cmdrow").innerHTML = CMDS.map(c=>`<button class="cmd" data-cmd="${c.k}">${c.ic}${c.label}</button>`).join("");
+  }
+
+  // =======================================================
+  //  SCENARIOS — each is exactly 3 steps: user says → card proposes → one decision
+  // =======================================================
+  const FLOW={
+    capture(){
+      st.captured=true;
+      setStep(2);
+      push(userMsg("＋ Q3 Market Research.pdf"));
+      push(agentMsg(`<div class="text">Saved to your <b>private space</b> — only you can see it. I read it and pulled out <b>3 key points</b><a class="cite" data-obj="source">1</a>:</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.spark}</div><div><div class="c-title">Key points from this file</div><div class="c-meta">Private · not shared yet</div></div><span class="stepflag">Step 2 · I suggest</span></div>
+        <div class="pillrow"><span class="ctag infer" title="a reasoned read of the sources, not a hard fact">reasoned read</span><span class="tp ai" title="I drafted this — you haven't confirmed it yet">AI draft</span><span class="tp src" title="every point links back to the source">backed by 3 sources</span></div>
+        <ul><li>Q3 market leans to <b>SMB</b> over enterprise <a class="cite" data-obj="source">p.4</a></li><li>Competitor prices down <b>~15%</b> <a class="cite" data-obj="source">p.7</a></li><li>Community converts <b>2× paid</b> <a class="cite" data-obj="source">p.11</a></li></ul>
+        <div class="c-actions"><button class="btn ghost" data-cmd="think">Ask a question</button><button class="btn primary" data-act="do-promote">${IC.up}<span class="s3">Step 3</span>Share with team</button></div></div>`));
+      narrate("Capture · ①→②", `One drop and it's saved + I pull out the key points, right here. Nothing is shared yet — it stays <b>private</b>. Next: one click to share.`);
+      renderSide();
+    },
+    promote(){
+      if(!st.captured) return FLOW.capture();
+      setStep(3);
+      push(userMsg("Share key point #1 with the team"));
+      push(agentMsg(`<div class="text">I've <b>drafted</b> something to share. The rule here keeps you in control: I only draft — <b>you confirm</b>, a <b>teammate checks</b>, then it becomes shared knowledge. Nothing is shared automatically.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.up}</div><div><div class="c-title">SMB is the key segment for Q3</div><div class="c-meta">Proposed change · backed by 3 sources</div></div><span class="stepflag">Step 3 · you decide</span></div>
+        <div class="pillrow"><span class="ctag infer" title="a reasoned read, not a hard fact">reasoned read</span><span class="tp ai" title="draft — not yet confirmed by a human">AI draft</span><span class="tp src" title="backed by sources">backed by sources</span></div>
+        <div class="gate"><div class="chain"><span class="g done">AI drafts</span>→<span class="g now">You confirm</span>→<span class="g">Teammate checks</span>→<span class="g">Shared</span></div></div>
+        <div class="c-actions"><button class="btn ghost" data-act="redact">Edit first</button><button class="btn primary" data-act="do-assert">${IC.check}<span class="s3">Step 3</span>Confirm &amp; send to team</button></div></div>`));
+      narrate("Share · you stay in control", `The key idea: <b>nothing is shared behind your back</b>. You confirm it, a teammate reviews it, and it stays private until they approve.`);
+    },
+    agent(){
+      setStep(3);
+      st.agent="ready";
+      push(userMsg("Have an AI agent price the Q3 SMB plan"));
+      push(agentMsg(`<div class="text">Before anything runs, I set up a <b>plan</b> and a <b>limited info pack</b> for the agent. Check the limits, then start it.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.bot}</div><div><div class="c-title">Plan · Price the Q3 SMB plan</div><div class="c-meta">the agent can only suggest — not save</div></div><span class="stepflag">Step 3 · you decide</span></div>
+        <div class="preflight">
+          <div class="pl"><span class="pk">Goal</span><span class="pv">Recommend a price for the SMB entry plan</span></div>
+          <div class="pl"><span class="pk">Can use</span><span class="pv allow">Belief: SMB-focus · 3 sources · pricing playbook</span></div>
+          <div class="pl"><span class="pk">Can't touch</span><span class="pv deny">Your private notes · pay / HR data</span></div>
+          <div class="pl"><span class="pk">Changes</span><span class="pv">only suggested — you approve</span></div>
+          <div class="pl"><span class="pk">Budget</span><span class="pv">$2.00 · pauses to check in</span></div>
+        </div>
+        <div class="c-actions"><button class="btn ghost" data-obj="pack">See what it can use</button><button class="btn primary" data-act="do-dispatch">${IC.bolt}<span class="s3">Step 3</span>Start the agent</button></div></div>`));
+      narrate("Send agent · you set the limits", `The agent never sees everything — only what you allow, with a budget, and it can only <b>suggest</b> changes. Every step it takes is logged.`);
+    },
+    think(){
+      setStep(2);
+      push(userMsg("Should we go SMB-first for Q3?"));
+      push(agentMsg(`<div class="text">Here's my read. I split what's a <b>fact</b>, what's a <b>guess</b>, and what's <b>unknown</b> — so you decide with clear eyes.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.scale}</div><div><div class="c-title">My analysis · SMB-first for Q3?</div><div class="c-meta">based on 3 things I know</div></div><span class="stepflag">Step 2 · I suggest</span></div>
+        <ul><li><span class="ctag fact" title="proven by a source">fact</span> Competitor prices down ~15% <a class="cite" data-obj="source">p.7</a></li>
+        <li><span class="ctag infer" title="a likely read, not proven">likely</span> SMB cycle shorter, lower legal barrier</li>
+        <li><span class="ctag assume" title="an unproven guess">guess</span> Community channel scales to SMB <small style="color:var(--muted)">— not verified yet</small></li></ul>
+        <div class="text" style="font-size:12.5px;margin-top:6px"><b>My suggestion:</b> go SMB-first (fairly confident). Heads-up: this clashes with an older "Enterprise-first" belief.</div>
+        <div class="c-actions"><button class="btn ghost" data-act="override">Decide differently</button><button class="btn primary" data-act="do-rule">${IC.flag}<span class="s3">Step 3</span>Save as a rule</button></div></div>`));
+      narrate("Think · fact vs guess", `You always see what's proven vs guessed vs unknown. I only suggest — <b>your decision is saved separately</b>, and if you disagree I record why.`);
+    },
+    conflict(){
+      setStep(2);
+      st.conflict="open";
+      push(userMsg("Open the contradiction D4"));
+      push(agentMsg(`<div class="text">Two things we believe don't agree. Here's each side — with its source and when it was said.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.warn}</div><div><div class="c-title">Contradiction · Q3 priority segment</div><div class="c-meta">unresolved · affects 1 decision</div></div><span class="stepflag">Step 2 · I suggest</span></div>
+        <div class="two"><div class="side-claim a"><div class="h">Side A · new</div><p>SMB is the Q3 focus</p><small>Q3 Market Research.pdf · said today</small></div>
+        <div class="side-claim b"><div class="h">Side B · older</div><p>Enterprise is the priority</p><small>2025 board memo · old / stale</small></div></div>
+        <div class="c-actions"><button class="btn ghost" data-act="keep-uncertain">Keep both (unsure)</button><button class="btn primary" data-act="do-reconcile">${IC.check}<span class="s3">Step 3</span>Keep SMB, retire the old</button></div></div>`));
+      narrate("Contradiction · with dates", `Contradictions aren't swept under the rug — they pop up with dates and sources. You choose: keep one, keep both, or mark it unsure.`);
+    },
+    review(){
+      scope="company"; syncScope(); setStep(3);
+      st.loopReview="pending";
+      push(userMsg("Review the AI's suggested change"));
+      push(agentMsg(`<div class="text">An automated step wants to change what the team knows. Important rule: <b>the AI that made the change can't approve its own change</b> — that's your call.</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.loop}</div><div><div class="c-title">Suggested change #418 · update the pricing belief</div><div class="c-meta">from the agent's run · cost $0.42</div></div><span class="stepflag">Step 3 · you decide</span></div>
+        <div class="preflight"><div class="pl"><span class="pk">Made by</span><span class="pv">AI agent · Research</span></div>
+        <div class="pl"><span class="pk">Auto-checks</span><span class="pv allow">passed: sources · permissions · no clash</span></div>
+        <div class="pl"><span class="pk">Risk</span><span class="pv"><span class="pill risk">high — needs you</span></span></div>
+        <div class="pl"><span class="pk">Undo</span><span class="pv">one-click undo kept</span></div></div>
+        <div class="c-actions"><button class="btn ghost" data-act="reject-loop">Reject</button><button class="btn primary" data-act="do-approve-loop">${IC.check}<span class="s3">Step 3</span>Approve the change</button></div></div>`));
+      narrate("AI change · you approve", `Automation stays <b>reviewable, not magic</b>: the AI proposes, auto-checks run, and you approve risky changes — with one-click undo.`);
+    }
+  };
+
+  // ---------- decision handlers (step 3 results) ----------
+  const DECIDE={
+    "do-promote"(){ FLOW.promote(); },
+    "do-assert"(){ st.promo="pending"; push(agentMsg(`<div class="text"><b>Confirmed.</b> Sent to your team to review. It stays private until a teammate approves it. Switch to <b>Company</b> (top) to play the reviewer.</div>`)); toast("Sent to team for review"); renderSide(); narrate("Sent ✓", `Now flip the switch → <b>Company</b> (top) and it shows up under <b>Needs review</b>.`); },
+    "redact"(){ toast("Edit before sharing (demo)"); },
+    "do-dispatch"(){ st.agent="running"; toast("Agent started"); renderSide();
+      push(agentMsg(`<div class="text">Working on it…</div>`));
+      setTimeout(()=>{ st.agent="done"; renderSide();
+        push(agentMsg(`<div class="text">Done — I logged everything it did: what it read, what it couldn't touch, the result, and the cost. It <b>suggests</b> a change (you approve).</div>
+        <div class="card"><div class="c-top"><div class="c-ico">${IC.spark}</div><div><div class="c-title">Result · suggested $19/mo SMB plan</div><div class="c-meta">read 3 sources · cost $0.38 · 1 suggested change</div></div></div>
+        <div class="c-actions"><button class="btn ghost" data-obj="trace">See the log</button><button class="btn primary" data-cmd="review">${IC.loop}Review its change</button></div></div>`));
+        narrate("Result ✓", `Its change doesn't save automatically — it waits for your review. Click <b>Review its change</b>.`);
+      },1500);
+    },
+    "override"(){ push(userMsg("Actually, go Enterprise this quarter")); push(agentMsg(`<div class="text">Noted — you decided differently from my suggestion. I keep both, with your reason (<b>strategic</b>), and we'll compare against what actually happens.</div>`)); st.decision="saved"; toast("Your decision saved"); renderSide(); narrate("You decided", `I only advise. Your call + reason is saved, so over time we learn when your judgment beats mine.`); },
+    "do-rule"(){ st.decision="saved"; push(agentMsg(`<div class="text"><b>Saved as a rule.</b> From now on it guides future work and what agents are told, with an owner and a review date.</div>`)); toast("Rule saved"); renderSide(); narrate("Rule saved ✓", `Click the rule in the sidebar to open it and see the details.`); },
+    "do-reconcile"(){ st.conflict="resolved"; st.belief=true; push(agentMsg(`<div class="text"><b>Done.</b> "SMB is the Q3 focus" wins; the older belief is archived (kept for the record). 1 decision that used it is flagged for a re-check.</div>`)); toast("Contradiction resolved ✓"); renderSide(); narrate("Resolved ✓", `You can always settle a clash: keep one, keep both, or flag it for someone else.`); },
+    "keep-uncertain"(){ st.conflict="resolved"; push(agentMsg(`<div class="text">Kept <b>both</b> for now. Any decision that uses them gets a "not sure" flag.</div>`)); toast("Kept both"); renderSide(); },
+    "do-approve-loop"(){ st.loopReview="approved"; st.belief=true; push(agentMsg(`<div class="text"><b>Approved.</b> The change is saved to shared knowledge, logged, with undo kept. Agents will use the new value from now on.</div>`)); toast("Team knowledge updated ✓"); renderSide(); narrate("Change approved ✓", `AI proposed, checks passed, you approved — fully logged from start to finish.`); },
+    "reject-loop"(){ st.loopReview=null; push(agentMsg(`<div class="text">Rejected — sent back with a note. Nothing changed.</div>`)); toast("Change rejected"); renderSide(); },
+    "approve-promo"(){ st.promo="accepted"; st.belief=true; push(agentMsg(`<div class="text"><b>Approved.</b> It's now shared team knowledge, backed by sources and logged. Ready to turn into decisions or work.</div>`)); toast("Shared with team ✓"); renderSide(); narrate("Approved ✓", `AI drafted → you confirmed → teammate approved → saved. Click it to see where it came from.`); },
+    "commit-done"(){ st.commitDone=true; push(agentMsg(`<div class="text">Marked done — logged against the promise.</div>`)); toast("Promise closed"); renderSide(); }
+  };
+
+  // =======================================================
+  //  ARTIFACT READER — any object opens here
+  // =======================================================
+  const OBJ={
+    source:{ic:IC.doc,title:"Q3 Market Research.pdf",sub:"Evidence · private-by-default",body:()=>`
+      <div class="pg">Page 4</div><p>A survey of 220 businesses shows demand concentrated in the small-and-medium segment. <mark id="ev4">The Q3 market leans clearly toward SMB customers over enterprise</mark>, with shorter cycles and lower legal barriers.</p>
+      <div class="pg">Page 7</div><p>Competitive analysis recorded broad price cuts. <mark id="ev7">Competitor prices dropped ~15% on average</mark>, pressuring positioning and margins.</p>
+      <div class="pg">Page 11</div><p>On growth channels, <mark id="ev11">community channels convert twice as well as paid</mark> at the same cost, especially among SMBs.</p>`},
+    belief:{ic:IC.spark,title:"SMB is the key segment for Q3",sub:"Company Belief · node in Brain graph",body:()=>`
+      <div class="lblk"><div class="lh">Confidence</div><span class="tp src" style="margin-right:6px">Human-verified · source-backed</span><span class="ctag infer">claim: inference</span></div>
+      <div class="lblk"><div class="lh">Sources of evidence (3)</div><div class="lrow">${IC.doc} Q3 Market Research.pdf · p.4</div><div class="lrow">${IC.doc} Q3 Market Research.pdf · p.7</div><div class="lrow">${IC.doc} Q3 Market Research.pdf · p.11</div></div>
+      <div class="lblk"><div class="lh">Provenance</div><div class="lrow">Proposed by <b style="color:var(--heading)">Nathan</b> · Approved by <b style="color:var(--heading)">Nathan</b> · audited</div></div>
+      <div class="lblk"><div class="lh">Work it spawned</div><div class="lrow">${IC.up} Decision: price the SMB plan</div><div class="lrow">${IC.bot} Handoff: AI agent · Research</div></div>
+      <div class="lblk warn"><div class="lh">Conflict (D4)</div><div class="lrow">Superseded older belief "Enterprise is the priority" (T2).</div></div>`},
+    rule:{ic:IC.flag,title:"Decision Rule · SMB-first pricing",sub:"effective today · review in 90d",body:()=>`
+      <div class="kv"><span class="k">Statement</span><span class="v">Default to SMB-first pricing for Q3 launches</span></div>
+      <div class="kv"><span class="k">Trigger</span><span class="v">New plan / pricing decision</span></div>
+      <div class="kv"><span class="k">Tradeoff</span><span class="v">Volume &amp; velocity over ARPU</span></div>
+      <div class="kv"><span class="k">Owner</span><span class="v">Nathan</span></div>
+      <div class="kv"><span class="k">Exceptions</span><span class="v">Enterprise RFP &gt; $50k</span></div>
+      <div class="lblk" style="margin-top:14px"><div class="lh">Grounded in</div><div class="lrow">${IC.spark} Belief: SMB is the Q3 focus</div></div>`},
+    pack:{ic:IC.bot,title:"Context Package · Research agent",sub:"scoped · expires in 24h · trace-linked",body:()=>`
+      <div class="lblk"><div class="lh">Allowed</div><div class="lrow" style="color:var(--green)">${IC.check} Belief: SMB-focus (+3 sources)</div><div class="lrow" style="color:var(--green)">${IC.check} Skill: pricing-analysis v3</div></div>
+      <div class="lblk"><div class="lh">Denied</div><div class="lrow" style="color:var(--danger)">✕ Personal notes</div><div class="lrow" style="color:var(--danger)">✕ Comp / HR data</div></div>
+      <div class="lblk"><div class="lh">Constraints</div><div class="lrow">Write mode: propose-only</div><div class="lrow">Cost cap: $2.00 · checkpoint pauses on</div></div>
+      <div class="codebox">recipient: agent:research
+purpose: price Q3 SMB plan
+citations_required: true
+trace_id: tr_418</div>`},
+    trace:{ic:IC.spark,title:"Trace · Research agent run",sub:"tr_418 · $0.38 · 1 proposed write",body:()=>`
+      <div class="kv"><span class="k">Actor</span><span class="v">AI agent · Research</span></div>
+      <div class="kv"><span class="k">Sources read</span><span class="v">Q3 Market Research.pdf (p.4,7,11)</span></div>
+      <div class="kv"><span class="k">Context denied</span><span class="v" style="color:var(--danger)">Personal notes · HR data</span></div>
+      <div class="kv"><span class="k">Tool calls</span><span class="v">pricing-calc · web (2)</span></div>
+      <div class="kv"><span class="k">Output</span><span class="v">Recommend $19/mo entry plan</span></div>
+      <div class="kv"><span class="k">Proposed write</span><span class="v">Loop Run #418 (pending)</span></div>`},
+    skill:{ic:IC.bolt,title:"Skill · pricing-analysis v3",sub:"executable · versioned · tested",body:()=>`
+      <div class="kv"><span class="k">When to use</span><span class="v">Any new plan pricing</span></div>
+      <div class="kv"><span class="k">Quality bar</span><span class="v">Cite ≥3 sources · show sensitivity</span></div>
+      <div class="kv"><span class="k">Forbidden</span><span class="v" style="color:var(--danger)">Auto-publish · use HR data</span></div>
+      <div class="kv"><span class="k">Allowed tools</span><span class="v">pricing-calc · web-search</span></div>
+      <div class="lblk" style="margin-top:14px"><div class="lh">Steps</div><div class="lrow">1 · Gather comparable prices</div><div class="lrow">2 · Model 3 tiers + sensitivity</div><div class="lrow">3 · Recommend + risks + confidence</div></div>`}
+  };
+  function openObject(key,page){
+    const o=OBJ[key]; if(!o) return;
+    document.querySelector(".body").classList.add("artifact-open");
+    $("#artIc").innerHTML=o.ic; $("#artTitle").textContent=o.title; $("#artSub").textContent=o.sub;
+    $("#artBody").innerHTML=o.body();
+    if(key==="source"&&page){const ev=document.getElementById("ev"+page); if(ev){document.querySelectorAll("#artBody mark").forEach(m=>m.classList.remove("on"));ev.classList.add("on");ev.scrollIntoView({block:"center",behavior:"smooth"});}}
+  }
+  function closeArtifact(){document.querySelector(".body").classList.remove("artifact-open");}
+
+  // =======================================================
+  //  SIDEBAR — mode-aware context rail (folds Home/Pulse/Inbox/etc.)
+  // =======================================================
+  function sec(title,count,body,cc){const c=count===null?"":`<span class="count ${cc||(count?'':'zero')}">${count}</span>`;return `<div class="sec"><div class="sec-h"><h3>${title}</h3>${c}</div>${body}</div>`;}
+  function row(ic,title,sub,pill,obj){return `<div class="srow ${obj?'':'flat'}" ${obj?`data-obj="${obj}"`:''}><div class="s-ic">${ic}</div><div class="s-main"><div class="s-title">${title}</div><div class="s-sub">${sub}</div></div>${pill||''}</div>`;}
+  function empty(t){return `<div class="empty">${t}</div>`;}
+
+  function renderSide(){
+    const pill=$("#scopePill"); pill.textContent=scope[0].toUpperCase()+scope.slice(1);
+    pill.className="scopepill"+(scope==="mixed"?" mixed":"");
+    $("#sideLab").textContent = scope==="personal"?"My stuff":scope==="company"?"What changed":"Everything";
+    let h="";
+
+    if(scope!=="company"){ // personal + mixed: the daily spine
+      h+=sec("Today", null,
+        row(IC.note,"Draft: Q3 pricing memo","edit · private")+
+        row(IC.check,"Task: review vendor SOW","due today")+
+        row(IC.spark,"AI suggestion: promote SMB insight","1 ready","",null));
+      h+=sec("Capture", null, st.captured
+        ? row(IC.doc,"Q3 Market Research.pdf","PDF · private-by-default",`<span class="pill priv">● Private</span>`,"source")
+        : empty('Drop a file or click "Capture".'));
+      const pq = st.promo==="pending"?1:0;
+      h+=sec("Promotion queue", pq, st.promo
+        ? row(IC.up,"SMB is the key segment for Q3", st.promo==="accepted"?"accepted → Company":"awaiting Company review", st.promo==="accepted"?`<span class="pill acc">● Accepted</span>`:`<span class="pill pend">● Pending</span>`, "belief")
+        : empty("Nothing proposed yet."), pq?"":"zero");
+    }
+
+    if(scope!=="personal"){ // company + mixed: pulse + governance
+      const needs=(st.promo==="pending"?1:0)+(st.loopReview==="pending"?1:0);
+      h+=sec("Needs review", needs,
+        (st.promo==="pending"?`<div class="srow" data-act="approve-promo"><div class="s-ic">${IC.up}</div><div class="s-main"><div class="s-title">SMB is the key segment for Q3</div><div class="s-sub">promotion · human-asserted · 3 sources</div></div><span class="pill pend">● Pending</span></div>`:"")+
+        (st.loopReview==="pending"?row(IC.loop,"Loop Run #418","maker≠checker · high risk",`<span class="pill risk">● Review</span>`,null):"")+
+        (needs?"":empty("All clear.")), needs?"":"zero");
+      h+=sec("Company Pulse", null,
+        row(IC.spark, st.belief?"Belief updated: SMB-focus":"No new beliefs", st.belief?"just now · source-backed":"quiet", st.belief?`<span class="pill acc">new</span>`:"", st.belief?"belief":null)+
+        row(IC.warn,"Conflict D4", st.conflict==="resolved"?"resolved · superseded":"open · needs attention", st.conflict==="resolved"?`<span class="pill acc">● Resolved</span>`:`<span class="pill pend">● Open</span>`, null)+
+        row(IC.bot,"Agent · Research", st.agent==="done"?"trace recorded":st.agent==="running"?"running…":"idle", st.agent==="running"?`<span class="pill proc"><span class="spin"></span></span>`:st.agent==="done"?`<span class="pill acc">● Done</span>`:"", st.agent==="done"?"trace":null));
+    }
+
+    // shared: decisions / commitments / brain
+    if(st.decision==="saved") h+=sec("Decisions", null, row(IC.flag,"SMB-first pricing","Decision Rule · owner Nathan",`<span class="pill acc">active</span>`,"rule"));
+    h+=sec("Commitments", null,
+      row(IC.check,"Ship SMB plan by Fri", st.commitDone?"done":"owner: Nathan · at risk", st.commitDone?`<span class="pill acc">● Done</span>`:`<span class="pill pend">● Open</span>`, st.commitDone?null:"__commit"));
+    if(scope!=="personal") h+=sec("Company Brain", null, st.belief
+      ? row(IC.spark,"SMB is the Q3 focus","Belief · 3 sources · lineage",`<span class="pill priv">view ›</span>`,"belief")
+      : empty("Approved beliefs appear here."));
+
+    sideScroll.innerHTML=h;
+  }
+
+  // ---------- header + scope ----------
+  function renderHead(){
+    $("#chatTitle").textContent = scope==="personal"?"Ask the Brain":scope==="company"?"Company review":"Mixed workspace";
+    $("#chatSub").textContent = scope==="personal"?"Personal · your private brain":scope==="company"?"Company · shared, moderated":"Personal + Company in one view";
+  }
+  function syncScope(){document.querySelectorAll(".scope button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.scope===scope));renderHead();renderSide();}
+
+  // =======================================================
+  //  COMMAND PALETTE (⌘K) — universal jump, still no new destination
+  // =======================================================
+  const PAL=[
+    {ic:IC.up,t:"Share with team",d:"they review first",k:"promote",kind:"cmd"},
+    {ic:IC.bot,t:"Send an AI agent",d:"limited & logged",k:"agent",kind:"cmd"},
+    {ic:IC.scale,t:"Think it through",d:"fact vs guess",k:"think",kind:"cmd"},
+    {ic:IC.warn,t:"Fix a contradiction",d:"two beliefs clash",k:"conflict",kind:"cmd"},
+    {ic:IC.loop,t:"Check AI's change",d:"you approve it",k:"review",kind:"cmd"},
+    {ic:IC.spark,t:"Open: team knowledge",d:"SMB is the Q3 focus",k:"belief",kind:"obj"},
+    {ic:IC.flag,t:"Open: a rule",d:"SMB-first pricing",k:"rule",kind:"obj"},
+    {ic:IC.bolt,t:"Open: a playbook",d:"pricing analysis",k:"skill",kind:"obj"},
+  ];
+  function openPalette(){
+    $("#palette").innerHTML=`<div class="pinp">Jump to anything… <b>no page change</b></div><div class="plist">`+
+      PAL.map(p=>`<div class="pi" data-pal="${p.k}" data-kind="${p.kind}"><div class="pic">${p.ic}</div><div><div class="pt">${p.t}</div><div class="pd">${p.d}</div></div><span class="pk">${p.kind}</span></div>`).join("")+`</div>`;
+    const o=$("#overlay"); o.hidden=false; requestAnimationFrame(()=>o.classList.add("show"));
+  }
+  function closePalette(){const o=$("#overlay");o.classList.remove("show");setTimeout(()=>o.hidden=true,180);}
+
+  // ---------- events ----------
+  document.querySelectorAll(".scope button").forEach(b=>b.addEventListener("click",()=>{scope=b.dataset.scope;syncScope();
+    narrate(scope[0].toUpperCase()+scope.slice(1), scope==="personal"?`Your private brain. Nothing here is shared until you promote it.`:scope==="company"?`Shared knowledge — moderated. Review what members proposed in <b>Needs review</b>.`:`Both boundaries in one view — always see what's private vs shared.`);}));
+
+  $("#resetBtn").addEventListener("click",()=>{Object.keys(st).forEach(k=>st[k]= (typeof st[k]==="boolean")?false:null); stream.innerHTML=""; scope="personal"; syncScope(); closeArtifact();
+    push(agentMsg(`<div class="text">Fresh start. Remember the rhythm: <b>① you tell me → ② I suggest → ③ you decide</b>. Pick a button below, or press <b>⌘K</b> to jump anywhere.</div>`));
+    narrate("Step 1", `Every task is just <b>3 steps</b>: ① you say → ② I suggest → ③ you decide.`); setStep(1);});
+
+  $("#kbd").addEventListener("click",openPalette);
+  document.addEventListener("keydown",e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openPalette();}
+    if(e.key==="Escape"){if(!$("#overlay").hidden)closePalette();else closeArtifact();}
+  });
+
+  document.body.addEventListener("click",e=>{
+    const pal=e.target.closest("[data-pal]");
+    if(pal){const k=pal.dataset.pal;closePalette(); if(pal.dataset.kind==="cmd"){FLOW[k]&&FLOW[k]();}else{openObject(k);} return;}
+    if(e.target.id==="overlay"){closePalette();return;}
+    if(e.target.closest("[data-artclose]")){closeArtifact();return;}
+    const obj=e.target.closest("[data-obj]");
+    if(obj){const k=obj.dataset.obj; const pg=obj.textContent.match(/p\.(\d+)/); openObject(k, pg?pg[1]:null); return;}
+    const cmd=e.target.closest("[data-cmd]");
+    if(cmd){const k=cmd.dataset.cmd; FLOW[k]&&FLOW[k](); return;}
+    const act=e.target.closest("[data-act]");
+    if(act){const a=act.dataset.act; if(a==="__commit"){DECIDE["commit-done"]();return;} DECIDE[a]&&DECIDE[a](); return;}
+    const sr=e.target.closest("[data-obj='__commit']");
+  });
+  // sidebar commit row uses data-obj="__commit"
+  document.body.addEventListener("click",e=>{const c=e.target.closest("[data-obj='__commit']");if(c){DECIDE["commit-done"]();}});
+
+  $("#composerInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.value.trim()){push(userMsg(e.target.value.replace(/</g,"&lt;")));push(agentMsg(`<div class="text">(demo) Try a <b>command chip</b> or <b>⌘K</b> — each runs the same <b>3-step</b> loop.</div>`));e.target.value="";}});
+
+  // ---------- init ----------
+  renderCmds(); renderHead(); renderSide(); setStep(1);
+  push(agentMsg(`<div class="text">Hi Nathan. Everything happens right here — no jumping between pages. Every task is just <b>3 steps</b>: ① you tell me → ② I suggest → ③ you decide. Start by clicking <b>Capture</b> below, or one of the buttons.</div>`));
+})();
+</script>
